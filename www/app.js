@@ -118,10 +118,11 @@ const DEVICES = {
   android:{label:"Android",phone:{name:"Pixel 8",w:412,h:892,cam:"hole"},tablet:{name:"Galaxy Tab",w:800,h:1220,cam:"hole"},laptop:{name:"Chromebook",w:1280,h:800,cam:"none"}},
   windows:{label:"Windows",phone:{name:"Surface Duo",w:400,h:860,cam:"none"},tablet:{name:"Surface Pro",w:912,h:1240,cam:"none"},laptop:{name:"Surface Laptop",w:1366,h:820,cam:"none"}},
 };
+const HOST = "https://xurface.500xlaunch.com";
 const ENVS = {
   demo:{label:"Demo",cls:"env-demo"},
-  test:{label:"Test",cls:"env-test",base:"https://test.xurface.500xlaunch.com"},
-  live:{label:"Live",cls:"env-live",base:"https://xurface.500xlaunch.com"},
+  test:{label:"Test",cls:"env-test",base:HOST,hdr:"test"},
+  live:{label:"Live",cls:"env-live",base:HOST,hdr:"live"},
 };
 let S = load();
 function load(){
@@ -317,7 +318,7 @@ function settingsHTML(){
     <div class="list-row"><span class="k">Passkey</span><span class="v" style="color:var(--lo)">Registered</span></div></div>
   <div class="panel"><div style="font-weight:650">Environment</div><p class="sub" style="margin:0">Build and test in <b>Test</b> before you roll out to <b>Live</b>. Demo is a self-contained playground.</p>
     <div class="seg" style="align-self:flex-start;background:var(--surface-2)">${Object.entries(ENVS).map(([k,x])=>`<button data-env="${k}" aria-pressed="${S.env===k}" style="color:${S.env===k?'#fff':'var(--muted)'};${S.env===k?'background:var(--xur)':''};padding:7px 12px;border:0;border-radius:8px;font-weight:600;font-size:.8rem">${x.label}</button>`).join("")}</div>
-    ${e.base?`<div class="hash">${esc(e.base)}</div>`:'<div class="hash">local mock</div>'}</div>
+    ${e.base?`<div class="hash">${esc(e.base)} · x-xurface-env: ${e.hdr}</div>`:'<div class="hash">local mock (no network)</div>'}</div>
   <div class="panel"><div style="font-weight:650">Devices</div><div class="list-row"><span class="k">This device</span><span class="v">${DEVICES[S.plat][S.form].name}</span></div></div>
   <div class="panel"><button class="big-cta" data-signout="1" style="background:var(--surface-2);color:var(--no);border:1px solid var(--line)">Sign out</button></div>
   <p class="sub" style="text-align:center;font-family:var(--serif);font-style:italic">Beyond human in the loop. Human on the go.</p>`;
@@ -416,9 +417,10 @@ function setEnv(k){
   render();
 }
 async function probeEnv(k){
-  // In a hosted/native build this reaches real Horizon. In the web preview the
-  // CSP blocks it; we fail quietly and stay usable.
-  try{ await fetch(ENVS[k].base+"/healthz",{mode:"cors"}); }catch{}
+  // In a hosted/native build this reaches real Horizon (the x-xurface-env header
+  // selects the isolated test or live environment). In the web preview the CSP
+  // blocks it; we fail quietly and stay usable.
+  try{ await fetch(ENVS[k].base+"/healthz",{mode:"cors",headers:{"x-xurface-env":ENVS[k].hdr}}); }catch{}
 }
 function doSignIn(){
   const nm = (document.getElementById("nm")||{}).value || "You";
