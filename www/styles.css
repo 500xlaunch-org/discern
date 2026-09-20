@@ -291,3 +291,131 @@ input{font-family:inherit}
 .abrow .sevtag{flex:none;margin-top:2px}
 .consent-note{display:flex;align-items:flex-start;gap:8px;color:var(--muted);font-size:.83rem;margin:4px 2px 2px;line-height:1.45}
 .consent-note svg{width:16px;height:16px;flex:none;margin-top:2px;color:var(--faint)}
+
+/* ================== resilience, pagination and living states ==============
+   The app must never look frozen. Every wait has a shape, every degraded
+   state says what it is, and nothing silently fails.
+   ========================================================================= */
+
+/* ---- the connection strip ---- */
+#netbar{display:none}
+#netbar.has{display:block}
+.netbar{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:.8rem;line-height:1.35;
+  border-bottom:1px solid var(--line-2);animation:slidein .28s ease both}
+@keyframes slidein{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.netbar b{font-weight:650;flex:none}
+.netbar .nsub{color:inherit;opacity:.78;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.netbar .tic{display:grid;place-items:center;flex:none}
+.netbar .tic svg{width:15px;height:15px}
+.netbar.off{background:var(--hi-bg);color:var(--hi)}
+.netbar.sync{background:var(--me-bg);color:var(--me)}
+.netbar.demo{background:var(--sunken);color:var(--muted)}
+.netbar.demo .dot{width:7px;height:7px;border-radius:99px;background:var(--me);flex:none;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.nretry{margin-inline-start:auto;flex:none;border:1px solid currentColor;background:transparent;color:inherit;
+  border-radius:99px;padding:3px 11px;font-size:.74rem;font-weight:600;opacity:.9}
+.nretry:hover{opacity:1;background:color-mix(in srgb,currentColor 12%,transparent)}
+.spin{animation:spin 1.1s linear infinite;transform-origin:50% 50%}
+
+/* ---- skeletons: the shape of what is coming ---- */
+.sk{display:block;border-radius:7px;background:linear-gradient(90deg,var(--sunken) 25%,var(--line-2) 37%,var(--sunken) 63%);
+  background-size:400% 100%;animation:shimmer 1.4s ease-in-out infinite}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:0 0}}
+.sk-eyebrow{width:110px;height:9px;margin-bottom:10px}
+.sk-h1{width:180px;height:26px;margin-bottom:9px;border-radius:9px}
+.sk-sub{width:70%;height:12px}
+.sk-line{height:11px;margin:5px 0}
+.sk-line.tall{height:17px;margin:12px 0 8px}
+.sk-line.w40{width:40%}.sk-line.w60{width:60%}.sk-line.w70{width:70%}.sk-line.w80{width:80%}
+.sk-logo{width:30px;height:30px;border-radius:10px;flex:none}
+.sk-logo.sm{width:26px;height:26px;border-radius:8px}
+.sk-chip{display:inline-block;width:88px;height:20px;border-radius:99px;margin-inline-end:6px}
+.sk-btn{flex:1;height:38px;border-radius:12px}
+.sk-card{animation:cardin .4s ease both;animation-delay:var(--d,0ms)}
+.sk-note{text-align:center;color:var(--faint);font-size:.8rem;padding:16px 0 4px}
+.sk-review .abrow{align-items:center}
+
+/* ---- a card leaving after a decision ---- */
+.icard.settling{pointer-events:none}
+.icard.settling.approve{animation:settleok .34s cubic-bezier(.34,1.2,.64,1) both}
+.icard.settling.deny{animation:settleno .34s cubic-bezier(.34,1.2,.64,1) both}
+@keyframes settleok{to{opacity:0;transform:translateX(14px) scale(.97)}}
+@keyframes settleno{to{opacity:0;transform:translateX(-14px) scale(.97)}}
+[dir="rtl"] .icard.settling.approve{animation-name:settleokR}
+[dir="rtl"] .icard.settling.deny{animation-name:settlenoR}
+@keyframes settleokR{to{opacity:0;transform:translateX(-14px) scale(.97)}}
+@keyframes settlenoR{to{opacity:0;transform:translateX(14px) scale(.97)}}
+
+/* ---- a decision made offline, waiting its turn ---- */
+.iqueued{display:flex;align-items:center;gap:8px;margin-top:12px;padding:9px 11px;border-radius:12px;
+  background:var(--sunken);color:var(--muted);font-size:.82rem;border:1px dashed var(--line)}
+.iqueued svg{width:15px;height:15px;flex:none}
+
+/* ---- load more ---- */
+.more{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;margin:14px 0 4px;padding:12px;
+  border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--muted);
+  font-size:.86rem;font-weight:600;transition:background .15s,color .15s}
+.more:hover:not(:disabled){background:var(--surface-2);color:var(--ink)}
+.more:disabled{opacity:.7}
+.more .tic svg{width:15px;height:15px}
+.more-n{font-family:var(--mono);font-size:.72rem;font-weight:600;color:var(--faint)}
+.more-end{text-align:center;color:var(--faint);font-size:.78rem;padding:16px 0 6px}
+
+/* ---- language picker ---- */
+.langgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:7px}
+.langb{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:9px 11px;border-radius:12px;
+  border:1px solid var(--line);background:var(--surface-2);text-align:start;transition:border-color .15s,background .15s}
+.langb b{font-weight:600;font-size:.88rem}
+.langb small{color:var(--faint);font-size:.68rem}
+.langb.on{border-color:var(--xur);background:var(--xur-soft);color:var(--xur-ink)}
+.langb.on small{color:inherit;opacity:.72}
+.signin-langs{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:5px;margin-top:22px;
+  padding-top:18px;border-top:1px solid var(--line-2)}
+.signin-langs svg{width:15px;height:15px;color:var(--faint);margin-inline-end:3px}
+.signin-langs button{border:0;background:transparent;color:var(--faint);font-size:.78rem;padding:3px 7px;border-radius:99px}
+.signin-langs button.on{color:var(--xur-ink);background:var(--xur-soft);font-weight:600}
+
+/* ---- toasts gain a queued variant and an icon slot ---- */
+.toast .tic{display:grid;place-items:center;flex:none}
+.toast .tic svg{width:16px;height:16px}
+.toast.queued{border-color:var(--line);background:var(--surface)}
+
+/* ================== right to left ==================
+   Arabic reads the other way. Logical properties do most of the work; these
+   are the places where a physical direction was baked in. */
+[dir="rtl"] .tls,[dir="rtl"] .solmeta,[dir="rtl"] .abs{direction:rtl}
+[dir="rtl"] .back svg,[dir="rtl"] .solend svg{transform:scaleX(-1)}
+[dir="rtl"] .iconbtn .count{right:auto;left:-5px}
+[dir="rtl"] .app.wide .rail{border-right:0;border-left:1px solid var(--line-2)}
+[dir="rtl"] .app.wide .rail .railcount{margin-left:0;margin-right:auto}
+[dir="rtl"] .ref,[dir="rtl"] .abkey,[dir="rtl"] .more-n{direction:ltr;unicode-bidi:embed}
+html[lang="ar"] body{font-family:"Noto Sans Arabic",var(--sans)}
+html[lang="ar"] .studio-brand b,html[lang="ar"] h1,html[lang="ar"] .soldn{font-family:"Noto Sans Arabic",var(--serif)}
+
+/* ---- horizontal containment ----
+   A flex item defaults to min-width:auto, so an <input> (whose min-content
+   width comes from its size attribute) refuses to shrink and pushes the whole
+   card, the tab bar and the page past the viewport. Narrow phones showed the
+   Approve button clipped off the right edge. Nothing may exceed the screen. */
+.app-fill,.app,.screen-wrap,.body{max-width:100%;overflow-x:hidden}
+.wrap{max-width:min(760px,100%);min-width:0;width:100%;box-sizing:border-box}
+.cards,.icard,.tl,.sollist,.catgrid,.panel{min-width:0;max-width:100%}
+.drow,.iwho,.solm,.tlm,.abm,.catm{min-width:0}
+.dv-in,.dv,.dk{min-width:0}
+.dv-in{width:100%;box-sizing:border-box}
+.dk{flex:none;max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dv{overflow:hidden;text-overflow:ellipsis}
+.iacts{min-width:0}
+.iacts .btn{flex:1 1 0;min-width:0}
+.isol,.iagent,.soln,.tlt,.catn,.soldn{overflow:hidden;text-overflow:ellipsis}
+.iact{overflow-wrap:anywhere}
+.rchips{flex-wrap:wrap}
+.tabbar button{min-width:0;flex:1 1 0}
+.tabbar button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.abchips{flex-wrap:wrap}
+.abchip{max-width:100%;min-width:0}
+.abchip .abk{overflow:hidden;text-overflow:ellipsis}
+/* Arabic joins its letters: tracking and small caps break the script. */
+html[lang="ar"] .eyebrow,html[lang="ar"] .envchip,html[lang="ar"] .stpill,
+html[lang="ar"] .sech,html[lang="ar"] .sevtag,html[lang="ar"] .rchip{letter-spacing:0;text-transform:none}
+html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",var(--sans)}

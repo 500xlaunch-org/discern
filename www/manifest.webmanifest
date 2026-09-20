@@ -1,0 +1,22 @@
+{
+  "name": "Xurface Discern",
+  "short_name": "Discern",
+  "description": "Decide what an AI agent may do for you, before it does it.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0E1116",
+  "theme_color": "#3B6EA3",
+  "categories": ["productivity", "security", "utilities"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Discern", "url": "./?view=inbox" },
+    { "name": "Activity", "url": "./?view=activity" },
+    { "name": "Solutions", "url": "./?view=solutions" }
+  ]
+}

@@ -1,8 +1,20 @@
-/* Xurface Discern - the app. Talks to a real Horizon (same origin when served at
-   /app; test/live selected by the x-xurface-env header). If Horizon is not
-   reachable (e.g. an offline preview), it runs the same flow against a local
-   engine that uses the real scoring model, so the UI is always live. */
+/* Xurface Discern - the app.
+ *
+ * One responsive web app, wrapped by Capacitor for Android and iOS and by
+ * Electron for desktop. It talks to a real Horizon (same origin when served at
+ * /app; test or live chosen by the x-xurface-env header).
+ *
+ * Three states, all real:
+ *   connected  - live Horizon, everything current
+ *   degraded   - Horizon unreachable, last known view from cache, decisions
+ *                queued and replayed in order when the link returns
+ *   demo       - Horizon never reached, a local engine running the same
+ *                scoring model so the flow can still be tried
+ */
 "use strict";
+
+const { t, tn, tAgo, tList, tCat, tSev, tWhy, isRTL, LANGS } = window.I18N;
+const Net = window.Net;
 
 /* ---------------- icons ---------------- */
 const MK = `<svg class="mk" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><path class="wave" d="M 28 160 C 59.9 160, 54.1 96, 86 96 C 117.9 96, 112.1 160, 144 160 C 160 160, 166 156, 166 128"/><circle cx="200" cy="128" r="34"/></svg>`;
@@ -16,16 +28,18 @@ const I = {
   logo:`<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7.4" height="7.4" rx="1.8"/><rect x="13.6" y="3" width="7.4" height="7.4" rx="1.8"/><rect x="3" y="13.6" width="7.4" height="7.4" rx="1.8"/><rect x="13.6" y="13.6" width="7.4" height="7.4" rx="1.8"/></svg>`,
   chevron:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>`,
   shield:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>`,
-  plus:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`,
+  check:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5 10-11"/></svg>`,
   pause:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M9 5v14M15 5v14"/></svg>`,
   play:`<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>`,
+  cloudoff:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M7.5 18h9.2a3.8 3.8 0 0 0 .8-7.5A6 6 0 0 0 8.2 7.4"/><path d="M5.8 9.4A3.8 3.8 0 0 0 6.5 18"/></svg>`,
+  sync:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-13.7-5.3L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 13.7 5.3L20 16"/><path d="M20 20v-4h-4"/></svg>`,
+  globe:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.5 9h17M3.5 15h17"/><path d="M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"/></svg>`,
 };
 
-/* ---------------- risk model (used for the local engine + labels) --------- */
+/* ---------------- risk model (used for the demo engine + labels) --------- */
 const SEVS = ["LOW","MEDIUM","HIGH","SEVERE"], ORD = {LOW:0,MEDIUM:1,HIGH:2,SEVERE:3};
 const maxSev=(a,b)=>ORD[a]>=ORD[b]?a:b, gt=(a,b)=>ORD[a]>ORD[b], bump=s=>SEVS[Math.min(3,ORD[s]+1)];
-const CATS = { identity:"Identity", financial:"Financial", location:"Location", intellectual:"Intellectual property", conversation:"Conversation", data:"Data", system:"Systems & access" };
-const CAT_KEYS = Object.keys(CATS);
+const CAT_KEYS = ["identity","financial","location","intellectual","conversation","data","system"];
 const DEFAULT_APPETITE = {identity:"LOW",financial:"LOW",location:"MEDIUM",intellectual:"LOW",conversation:"MEDIUM",data:"MEDIUM",system:"LOW"};
 const RULES = [
   [/(password|passkey|2fa|mfa|otp|credential|secret|token|scope|permission|\brole\b|grant|consent|login|sign[-_ ]?in|oauth|authn|authz|authoriz\w*|\bauth\b)/i,"identity","HIGH"],
@@ -50,11 +64,12 @@ function score(key, desc, dev){
   return {risk, severity:Object.values(risk).reduce((m,s)=>maxSev(m,s),"LOW")};
 }
 function reconcile(risk, severity, appetite, policy){
-  if (severity==="SEVERE") return {allow:false, reasons:["Severe actions are never delegated"]};
-  if (policy==="always") return {allow:false, reasons:["The developer always asks you for this"]};
+  if (severity==="SEVERE") return {allow:false, reasons:[t("why.severe")]};
+  if (policy==="always") return {allow:false, reasons:[t("why.always")]};
   const reasons=[];
-  for (const c of Object.keys(risk)){ const tol=appetite[c]||DEFAULT_APPETITE[c]||"LOW"; if (gt(risk[c],tol)) reasons.push(`${CATS[c]} scored ${risk[c]}, above your ${tol} appetite`); }
-  return reasons.length ? {allow:false, reasons} : {allow:true, reasons:["Within your appetite"]};
+  for (const c of Object.keys(risk)){ const tol=appetite[c]||DEFAULT_APPETITE[c]||"LOW";
+    if (gt(risk[c],tol)) reasons.push(t("why.above",{cat:tCat(c),got:tSev(risk[c]),want:tSev(tol)})); }
+  return reasons.length ? {allow:false, reasons} : {allow:true, reasons:[t("why.within")]};
 }
 
 /* ---------------- config + state ---------------- */
@@ -65,57 +80,95 @@ const DEVICES = {
 };
 const BASE = new URLSearchParams(location.search).get("api") || location.origin;
 const ENVS = { test:{label:"Test"}, live:{label:"Live"} };
+const PAGE = 25;
 
 let S = loadPrefs();
 function loadPrefs(){
   let p; try{ p = JSON.parse(localStorage.getItem("discern.prefs")||"null"); }catch{ p=null; }
-  const base = { env:"test", plat:"apple", form:"phone", theme:"system", fullscreen: !matchMedia("(min-width:900px)").matches,
-    token:null, user:null };
+  const base = { env:"test", plat:"apple", form:"phone", theme:"system", lang:null,
+    fullscreen: !matchMedia("(min-width:900px)").matches, token:null, user:null };
   const s = Object.assign(base, p||{});
-  return Object.assign(s, { view:"inbox", online:null, ready:false, busy:false,
-    intents:[], timeline:[], solutions:[], catalog:[], selectedSol:null, review:null, reviewData:null, toast:null });
+  return Object.assign(s, { view:"inbox", mode:"connecting", ready:false,
+    intents:[], timeline:[], solutions:[], catalog:[],
+    inboxNext:null, inboxTotal:0, tlNext:null, tlTotal:0, loadingMore:false,
+    selectedSol:null, review:null, reviewData:null,
+    push:{ supported:"serviceWorker" in navigator && "PushManager" in window, permission:
+      (typeof Notification!=="undefined" ? Notification.permission : "default"), on:false, busy:false },
+    net:Net.state, settled:{} });
 }
-function savePrefs(){ try{ localStorage.setItem("discern.prefs", JSON.stringify({env:S.env,plat:S.plat,form:S.form,theme:S.theme,fullscreen:S.fullscreen,token:S.token,user:S.user})); }catch{} }
-function applyTheme(){ const q=new URLSearchParams(location.search).get("theme"); const t=q||S.theme;
-  if (t==="light"||t==="dark") document.documentElement.dataset.theme=t; else delete document.documentElement.dataset.theme; }
+function savePrefs(){ try{ localStorage.setItem("discern.prefs", JSON.stringify({
+  env:S.env,plat:S.plat,form:S.form,theme:S.theme,lang:S.lang,fullscreen:S.fullscreen,token:S.token,user:S.user})); }catch{} }
+function applyTheme(){ const q=new URLSearchParams(location.search).get("theme"); const th=q||S.theme;
+  if (th==="light"||th==="dark") document.documentElement.dataset.theme=th; else delete document.documentElement.dataset.theme; }
 
-/* ---------------- transport ---------------- */
-class ApiError extends Error { constructor(status,msg){ super(msg); this.status=status; } }
-async function api(method, path, body, {auth=true}={}){
-  const headers = {"content-type":"application/json","x-xurface-env":S.env};
-  if (auth && S.token) headers.authorization = `Bearer ${S.token}`;
-  const res = await fetch(BASE+path, {method, headers, body: body!=null?JSON.stringify(body):undefined});
-  const data = await res.json().catch(()=>({}));
-  if (!res.ok) throw new ApiError(res.status, data.error||`${method} ${path}`);
-  return data;
-}
-
-/* ---------------- backend (connected, with a local fallback) ------------- */
+/* ---------------- backend ---------------- */
 const Backend = {
-  async probe(){ try{ await fetch(BASE+"/healthz",{headers:{"x-xurface-env":S.env}}); S.online=true; }catch{ S.online=false; Local.seed(); } },
+  async probe(){
+    const ok = await Net.probe();
+    if (ok) { Net.goOnline(); S.mode = "connected"; return true; }
+    const cached = Net.cache.read(S.env);
+    S.mode = (S.token && cached) ? "degraded" : "demo";
+    if (S.mode === "demo") Local.seed(); else Net.goOffline();
+    return false;
+  },
   async login(email, name){
-    if (!S.online) return Local.login(email,name);
-    const out = await api("POST","/v1/user/login",{email,name},{auth:false});
+    if (S.mode==="demo") return Local.login(email,name);
+    const out = await Net.request("POST","/v1/user/login",{email,name},{auth:false});
     S.token = out.token; S.user = out.user; savePrefs();
   },
+  /** First page of everything. Falls back to the cached view, then to demo. */
   async refresh(){
-    if (!S.online) return Local.refresh();
-    const [inbox, timeline, sols, cat] = await Promise.all([
-      api("GET","/v1/user/inbox"), api("GET","/v1/user/timeline"),
-      api("GET","/v1/user/solutions"), api("GET","/v1/user/solutions/search?q="),
-    ]);
-    S.intents = inbox.intents; S.timeline = timeline.intents; S.solutions = sols.solutions;
-    const linked = new Set(S.solutions.map(s=>s.uid));
-    S.catalog = cat.solutions.filter(s=>!linked.has(s.uid));
+    if (S.mode==="demo") return Local.refresh();
+    try {
+      const [inbox, timeline, sols, cat] = await Promise.all([
+        Net.request("GET",`/v1/user/inbox?limit=${PAGE}`),
+        Net.request("GET",`/v1/user/timeline?limit=${PAGE}`),
+        Net.request("GET","/v1/user/solutions"),
+        Net.request("GET","/v1/user/solutions/search?q="),
+      ]);
+      S.intents = inbox.intents; S.inboxNext = inbox.next||null; S.inboxTotal = inbox.total ?? inbox.intents.length;
+      S.timeline = timeline.intents; S.tlNext = timeline.next||null; S.tlTotal = timeline.total ?? timeline.intents.length;
+      S.solutions = sols.solutions;
+      const linked = new Set(S.solutions.map(s=>s.uid));
+      S.catalog = cat.solutions.filter(s=>!linked.has(s.uid));
+      S.mode = "connected";
+      Net.cache.write(S.env, { intents:S.intents, timeline:S.timeline, solutions:S.solutions, catalog:S.catalog,
+        inboxTotal:S.inboxTotal, tlTotal:S.tlTotal });
+    } catch (e) {
+      if (!(e instanceof window.NetworkError)) throw e;
+      const c = Net.cache.read(S.env);
+      if (c) { Object.assign(S, { intents:c.intents||[], timeline:c.timeline||[], solutions:c.solutions||[],
+        catalog:c.catalog||[], inboxTotal:c.inboxTotal||0, tlTotal:c.tlTotal||0, inboxNext:null, tlNext:null, mode:"degraded" }); }
+      else { S.mode="demo"; Local.seed(); await Local.refresh(); }
+    }
   },
-  async decide(id, decision, opts){ if (!S.online) return Local.decide(id,decision,opts); await api("POST",`/v1/user/intents/${id}/decide`,{decision,...opts}); },
-  async setAppetite(link, appetite){ if (!S.online) return Local.setAppetite(link,appetite); await api("POST",`/v1/user/links/${link}/appetite`,{appetite}); },
-  async setStatus(link, status){ if (!S.online) return Local.setStatus(link,status); await api("POST",`/v1/user/links/${link}/status`,{status}); },
-  async profile(uid){ if (!S.online) return Local.profile(uid); return api("GET",`/v1/user/solutions/${uid}/profile`); },
-  async connect(uid){ if (!S.online) return Local.connect(uid); return api("POST",`/v1/user/solutions/${uid}/connect`); },
+  async more(which){
+    if (S.mode!=="connected") return;
+    const cur = which==="inbox" ? S.inboxNext : S.tlNext;
+    if (!cur) return;
+    const path = which==="inbox" ? "/v1/user/inbox" : "/v1/user/timeline";
+    const out = await Net.request("GET",`${path}?limit=${PAGE}&cursor=${encodeURIComponent(cur)}`);
+    if (which==="inbox"){ S.intents = S.intents.concat(out.intents); S.inboxNext = out.next||null; S.inboxTotal = out.total ?? S.inboxTotal; }
+    else { S.timeline = S.timeline.concat(out.intents); S.tlNext = out.next||null; S.tlTotal = out.total ?? S.tlTotal; }
+  },
+  /** A decision must never be lost: durable() sends it now or queues it. */
+  async decide(id, decision, opts){
+    if (S.mode==="demo") { await Local.decide(id,decision,opts); return true; }
+    return Net.durable({ method:"POST", path:`/v1/user/intents/${id}/decide`, body:{decision,...opts}, intentId:id });
+  },
+  async setAppetite(link, appetite){
+    if (S.mode==="demo") return Local.setAppetite(link,appetite);
+    return Net.durable({ method:"POST", path:`/v1/user/links/${link}/appetite`, body:{appetite} });
+  },
+  async setStatus(link, status){
+    if (S.mode==="demo") return Local.setStatus(link,status);
+    return Net.durable({ method:"POST", path:`/v1/user/links/${link}/status`, body:{status} });
+  },
+  async profile(uid){ if (S.mode==="demo") return Local.profile(uid); return Net.request("GET",`/v1/user/solutions/${uid}/profile`); },
+  async connect(uid){ if (S.mode==="demo") return Local.connect(uid); return Net.request("POST",`/v1/user/solutions/${uid}/connect`); },
 };
 
-/* offline engine: the same flow, in memory, using the real scoring model */
+/* demo engine: the same flow, in memory, using the real scoring model */
 const Local = (()=>{
   const CATALOG = [
     {uid:"battlemate",slug:"battlemate",name:"BattleMate",description:"Competitive intelligence, on watch. Writes a KPI brief and delivers it to your team.",
@@ -144,7 +197,8 @@ const Local = (()=>{
     seed(){ if (st.seeded) return; st.seeded=true; },
     async login(email,name){ S.token="local"; S.user={id:"usr_local",email,name:name||"You"}; savePrefs(); },
     async refresh(){
-      S.intents = st.intents.slice(); S.timeline = st.timeline.slice();
+      S.intents = st.intents.slice(0,PAGE); S.inboxNext=null; S.inboxTotal=st.intents.length;
+      S.timeline = st.timeline.slice(0,PAGE); S.tlNext=null; S.tlTotal=st.timeline.length;
       S.solutions = Object.keys(st.links).map(uid=>{ const s=sol(uid); const l=st.links[uid]; return {uid,name:s.name,description:s.description,link:l.link,status:l.status,appetite:l.appetite,matched_by:"connect",
         agents:s.agents.map(a=>({name:a.name,description:"",abilities:a.abilities.map(ab=>({key:ab.key,kind:ab.kind,severity:ab.severity,risk:ab.risk}))}))}; });
       S.catalog = CATALOG.filter(c=>!st.links[c.uid]).map(c=>({uid:c.uid,name:c.name,description:c.description,agents:c.agents.map(a=>({name:a[1]}))}));
@@ -160,7 +214,7 @@ const Local = (()=>{
       return {solution:{uid,name:s.name,description:s.description},connected:!!l,appetite,asks,runs,
         counts:{agents:s.agents.length,abilities:asks.length+runs.length,asks:asks.length,runs:runs.length}}; },
     async connect(uid){ const s=sol(uid); const link=id("lnk"); st.links[uid]={link,status:"active",appetite:{...DEFAULT_APPETITE,...(uid==="battlemate"||uid==="freeleap"?{intellectual:"HIGH",data:"HIGH"}:uid==="devbot"?{system:"HIGH"}:{})}};
-      let pending=0; for (const a of s.agents) for (const ab of a.abilities){ const v=reconcile(ab.risk,ab.severity,st.links[uid].appetite,ab.discernment); const rec={id:id("int"),solName:s.name,agent:a.name,capability:ab.key,details:sample(ab.key),risk:ab.risk,severity:ab.severity,reasons:v.reasons,at:Date.now(),hash:hash(),sol:uid,link}; if (v.allow){ rec.state="allowed"; st.timeline.unshift(rec);} else { rec.state="pending"; st.intents.unshift(rec); pending++; } }
+      let pending=0; for (const a of s.agents) for (const ab of a.abilities){ const v=reconcile(ab.risk,ab.severity,st.links[uid].appetite,ab.discernment); const rec={id:id("int"),solName:s.name,agent:a.name,capability:ab.key,details:sample(ab.key),risk:ab.risk,severity:ab.severity,reasons:v.reasons,discernment:ab.discernment,appetite:st.links[uid].appetite,at:Date.now(),hash:hash(),sol:uid,link}; if (v.allow){ rec.state="allowed"; st.timeline.unshift(rec);} else { rec.state="pending"; st.intents.unshift(rec); pending++; } }
       return {ok:true,pending}; },
     async decide(id2,decision,opts){ const i=st.intents.findIndex(x=>x.id===id2); if(i<0)return; const it=st.intents.splice(i,1)[0]; it.state=decision==="deny"?"denied":(opts&&opts.edited_details)?"edited":"approved"; if(opts&&opts.edited_details)it.details={...it.details,...opts.edited_details}; it.decidedAt=Date.now(); it.hash=hash(); st.timeline.unshift(it); },
     async setAppetite(link,ap){ for(const u in st.links) if(st.links[u].link===link) Object.assign(st.links[u].appetite,ap); },
@@ -172,47 +226,107 @@ const Local = (()=>{
 const sevColor=s=>({LOW:"var(--lo)",MEDIUM:"var(--me)",HIGH:"var(--hi)",SEVERE:"var(--sv)"}[s]||"var(--me)");
 const sevBg=s=>({LOW:"var(--lo-bg)",MEDIUM:"var(--me-bg)",HIGH:"var(--hi-bg)",SEVERE:"var(--sv-bg)"}[s]||"var(--me-bg)");
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const plural=(n,w)=>n+" "+w+(n===1?"":"s");
-const pretty=c=>c.replace(/[._]/g," ").replace(/\b\w/g,x=>x.toUpperCase());
-const ago=t=>{ if(!t)return""; const m=Math.round((Date.now()-t)/60000); return m<1?"just now":m<60?`${m}m`:m<1440?`${Math.round(m/60)}h`:`${Math.round(m/1440)}d`; };
-function surfaces(sol){ // categories this solution will bring to you
+const pretty=c=>String(c||"").replace(/[._]/g," ").replace(/\b\w/g,x=>x.toUpperCase());
+const iName = it => (it.solution && it.solution.name) || it.solName || t("app.short");
+const iAgent = it => (it.agent && it.agent.name) || it.agent || "";
+const iAt = it => it.created_at || it.at || it.decidedAt;
+const iRef = it => String(it.hash || it.id || "").slice(-8);
+const stateLabel = st => t(`ist.${st}`) !== `ist.${st}` ? t(`ist.${st}`) : st;
+const linkLabel  = st => t(`st.${st}`)  !== `st.${st}`  ? t(`st.${st}`)  : st;
+function surfaces(sol){
   const cats=new Set();
-  for (const a of sol.agents||[]) for (const ab of a.abilities||[]){ const ap=sol.appetite||DEFAULT_APPETITE; for (const [c,s] of Object.entries(ab.risk||{})) if (gt(s, ap[c]||DEFAULT_APPETITE[c]||"LOW")||ab.severity==="SEVERE") cats.add(c); }
+  for (const a of sol.agents||[]) for (const ab of a.abilities||[]){ const ap=sol.appetite||DEFAULT_APPETITE;
+    for (const [c,s] of Object.entries(ab.risk||{})) if (gt(s, ap[c]||DEFAULT_APPETITE[c]||"LOW")||ab.severity==="SEVERE") cats.add(c); }
   return [...cats];
 }
 
 /* ---------------- boot ---------------- */
 async function boot(){
   const q = new URLSearchParams(location.search);
+  S.lang = window.I18N.setLang(window.I18N.pickLang(S.lang));
   if (q.get("view")) S.view = q.get("view");
   applyTheme();
   render();
+
+  Net.start({ base:BASE, env:()=>S.env, token:()=>S.token,
+    onReplayed:(n)=>{ toast(`<span class="tic">${I.sync}</span><div class="tm">${esc(tn("net.queued",n))} · ${esc(t("net.back"))}</div>`,"ok"); silentRefresh(); } });
+  Net.subscribe((st)=>{ const was=S.net.link; S.net=st;
+    if (st.link==="online" && was!=="online" && was!=="unknown"){ S.mode="connected"; silentRefresh(); }
+    paintNet(); });
+
   await Backend.probe();
-  // magic-link open: /app/?email=you@company.com signs the person in
   if (!S.token && q.get("email")){ try{ await Backend.login(q.get("email"), q.get("name")||undefined); }catch{} }
   if (S.token){ try{ await Backend.refresh(); }catch(e){ if (e.status===401){ S.token=null; S.user=null; savePrefs(); } } }
   S.ready = true; render();
-  if (q.get("review")) openReview(q.get("review"));   // deep link: review a solution
+
+  if (q.get("review")) openReview(q.get("review"));
+  registerSW();
 }
 
-/* the rest (rendering + events) is in render.js-style below */
+/** Refresh without tearing the screen down: no skeletons, no scroll jump. */
+async function silentRefresh(){
+  if (!S.token) return;
+  try { await Backend.refresh(); render(); } catch {}
+}
+
+/* ---------------- push ---------------- */
+async function registerSW(){
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.register("sw.js", { scope: "./" });
+    navigator.serviceWorker.addEventListener("message", (e)=>{
+      const d=e.data||{};
+      if (d.type==="open-intent"){ S.view="inbox"; silentRefresh(); }
+      if (d.type==="resubscribe") enablePush(true);
+    });
+    const sub = await reg.pushManager.getSubscription();
+    S.push.on = !!sub;
+    if (sub && S.token && S.mode==="connected") await sendSubscription(sub);
+    paintNet();
+  } catch(e){ /* file:// or an insecure origin: push simply is not available */ }
+}
+const b64ToU8 = (s)=>{ const pad="=".repeat((4-s.length%4)%4); const b=atob((s+pad).replace(/-/g,"+").replace(/_/g,"/"));
+  return Uint8Array.from([...b].map(c=>c.charCodeAt(0))); };
+async function sendSubscription(sub){
+  try { await Net.request("POST","/v1/user/devices",{ platform:"web", token:JSON.stringify(sub),
+    label: navigator.userAgent.match(/Chrome|Firefox|Safari|Edg/)?.[0] || "Browser" }); } catch {}
+}
+async function enablePush(silent){
+  if (!S.push.supported) return;
+  S.push.busy = true; render();
+  try {
+    const perm = await Notification.requestPermission();
+    S.push.permission = perm;
+    if (perm !== "granted") throw new Error(t("set.notifyBlocked"));
+    const { key, enabled } = await Net.request("GET","/v1/push/vapid-key",null,{auth:false});
+    if (!enabled || !key) throw new Error("server has no VAPID key");
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription()
+      || await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:b64ToU8(key) });
+    await sendSubscription(sub);
+    S.push.on = true;
+    if (!silent) toast(`<span class="tic">${I.bell}</span><div class="tm">${esc(t("t.pushOn"))}</div>`,"ok");
+  } catch(e){ if (!silent) toast(`<div class="tm">${esc(t("t.pushFail",{msg:e.message}))}</div>`,"warn"); }
+  finally { S.push.busy=false; render(); }
+}
+async function testPush(){
+  try { await Net.request("POST","/v1/user/devices/test",{});
+    toast(`<span class="tic">${I.bell}</span><div class="tm">${esc(t("t.pushSent"))}</div>`,"ok"); }
+  catch(e){ toast(`<div class="tm">${esc(e.message)}</div>`,"warn"); }
+}
 
 /* ==================== rendering ==================== */
-const NAV = [["inbox","Discern",I.inbox],["activity","Activity",I.activity],["solutions","Solutions",I.solutions],["settings","Settings",I.settings]];
-const iName = it => (it.solution && it.solution.name) || it.solName || "A solution";
-const iAgent = it => (it.agent && it.agent.name) || it.agent || "";
-const iAt = it => it.created_at || it.at || it.decidedAt;
-const iRef = it => String(it.hash || it.id || "").slice(-8);
+const NAV = ()=>[["inbox",t("nav.inbox"),I.inbox],["activity",t("nav.activity"),I.activity],
+  ["solutions",t("nav.solutions"),I.solutions],["settings",t("nav.settings"),I.settings]];
 
 function render(){
   const root = document.getElementById("root");
   root.innerHTML = shellHTML();
   const app = document.getElementById("app-root");
   if (app) app.innerHTML = !S.token ? signinHTML() : appHTML();
-  applyDevice(); wire();
+  applyDevice(); wire(); paintNet();
 }
 
-/* ---- web preview studio ---- */
 function shellHTML(){
   if (S.fullscreen) return `<div class="app-fill"><div class="app" id="app-root"></div></div>`;
   const dev = DEVICES[S.plat][S.form];
@@ -220,7 +334,7 @@ function shellHTML(){
     <div class="studio-bar">
       <span class="studio-brand">${MK}<b>Xurface Discern</b><small>preview</small></span>
       <span class="grow"></span>
-      <label>Platform</label>
+      <select class="studio-select" data-ctl="lang" aria-label="Language">${LANGS.map(l=>`<option value="${l.code}" ${window.I18N.lang===l.code?"selected":""}>${l.native}</option>`).join("")}</select>
       <select class="studio-select" data-ctl="plat">${Object.entries(DEVICES).map(([k,d])=>`<option value="${k}" ${S.plat===k?"selected":""}>${d.label}</option>`).join("")}</select>
       <select class="studio-select" data-ctl="form">${["phone","tablet","laptop"].map(f=>`<option value="${f}" ${S.form===f?"selected":""}>${DEVICES[S.plat][f].name}</option>`).join("")}</select>
       <button class="studio-select" data-ctl="fullscreen">Fill screen</button>
@@ -232,67 +346,115 @@ function shellHTML(){
     </div></div></div></div>`;
 }
 
-/* ---- app chrome ---- */
 function appHTML(){
   const wide = S.form!=="phone" && !S.fullscreen ? true : (S.fullscreen && matchMedia("(min-width:820px)").matches);
   const pending = S.intents.length;
+  const nav = NAV();
   return `<div class="safe-top"></div>
-  <header class="topbar">${MK}<span class="title">Discern</span>
-    <button class="envchip ${S.env}" data-toggle-env aria-label="Environment">${S.online===false?'<span class="off"></span>':''}${ENVS[S.env].label}</button>
+  <header class="topbar">${MK}<span class="title">${esc(t("app.short"))}</span>
+    <button class="envchip ${S.env}" data-toggle-env aria-label="${esc(t("set.env"))}">${ENVS[S.env].label}</button>
     <span class="spacer"></span>
-    <button class="iconbtn" data-nav="inbox" aria-label="Discernment">${I.bell}${pending?`<span class="count">${pending>9?'9+':pending}</span>`:''}</button>
+    <button class="iconbtn" data-nav="inbox" aria-label="${esc(t("nav.inbox"))}">${I.bell}${pending?`<span class="count">${pending>9?'9+':pending}</span>`:''}</button>
   </header>
+  <div id="netbar"></div>
   <div class="body">
-    ${wide?`<nav class="rail">${NAV.map(([v,l,ic])=>`<a href="#" data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${l}</span>${v==="inbox"&&pending?`<span class="railcount">${pending}</span>`:''}</a>`).join("")}<span class="railgrow"></span><div class="railuser">${esc((S.user&&S.user.name)||"You")}</div></nav>`:''}
-    <main class="screen-wrap"><div class="wrap">${!S.ready?loadingHTML():screenHTML()}</div></main>
+    ${wide?`<nav class="rail">${nav.map(([v,l,ic])=>`<a href="#" data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${esc(l)}</span>${v==="inbox"&&pending?`<span class="railcount">${pending}</span>`:''}</a>`).join("")}<span class="railgrow"></span><div class="railuser">${esc((S.user&&S.user.name)||"You")}</div></nav>`:''}
+    <main class="screen-wrap"><div class="wrap">${!S.ready?skeletonHTML():screenHTML()}</div></main>
   </div>
-  ${wide?'':`<nav class="tabbar">${NAV.map(([v,l,ic])=>`<button data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${l}</span>${v==="inbox"&&pending?'<span class="tabdot"></span>':''}</button>`).join("")}</nav>`}
+  ${wide?'':`<nav class="tabbar">${nav.map(([v,l,ic])=>`<button data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${esc(l)}</span>${v==="inbox"&&pending?'<span class="tabdot"></span>':''}</button>`).join("")}</nav>`}
   <div id="overlay"></div>`;
 }
-function loadingHTML(){ return `<div class="loading"><div class="spinner"></div><span>Connecting to Horizon…</span></div>`; }
 function screenHTML(){ return ({inbox:inboxHTML,activity:activityHTML,solutions:solutionsHTML,settings:settingsHTML}[S.view]||inboxHTML)(); }
+
+/* ---- the connection strip: always honest about where the data came from ---- */
+function paintNet(){
+  const el = document.getElementById("netbar"); if (!el) return;
+  const n = S.net, q = n.queue ? n.queue.length : 0;
+  let html = "";
+  if (S.mode==="demo"){
+    html = `<div class="netbar demo"><span class="dot"></span><b>Demo</b><span class="nsub">${esc(t("net.offlineBody"))}</span></div>`;
+  } else if (n.link==="offline" || n.link==="reconnecting" || S.mode==="degraded"){
+    const label = n.link==="reconnecting" ? t("net.reconnecting") : t("net.offline");
+    html = `<div class="netbar off"><span class="tic">${I.cloudoff}</span><b>${esc(label)}</b>
+      <span class="nsub">${esc(q?tn("net.queued",q):t("net.offlineBody"))}</span>
+      <button class="nretry" data-retry>${esc(t("net.retry"))}</button></div>`;
+  } else if (n.syncing || q){
+    html = `<div class="netbar sync"><span class="tic spin">${I.sync}</span><b>${esc(t("net.syncing"))}</b>
+      <span class="nsub">${esc(tn("net.queued",q))}</span></div>`;
+  }
+  el.innerHTML = html;
+  el.classList.toggle("has", !!html);
+}
+
+/* ---- skeletons: a shape that is about to be filled, not a spinner ---- */
+function skeletonHTML(){
+  return `<div class="scrhead"><span class="sk sk-eyebrow"></span><span class="sk sk-h1"></span><span class="sk sk-sub"></span></div>
+  <div class="cards">${[0,1,2].map(i=>`<article class="icard sk-card" style="--d:${i*90}ms">
+    <div class="icard-top"><span class="sk sk-logo"></span><div class="iwho"><span class="sk sk-line w60"></span><span class="sk sk-line w40"></span></div></div>
+    <span class="sk sk-line w80 tall"></span>
+    <div class="rchips"><span class="sk sk-chip"></span><span class="sk sk-chip"></span></div>
+    <div class="iacts"><span class="sk sk-btn"></span><span class="sk sk-btn"></span></div>
+  </article>`).join("")}
+  <div class="sk-note">${esc(t("boot.connecting"))}</div>`;
+}
 
 /* ---- inbox ---- */
 function inboxHTML(){
-  const n = S.intents.length;
-  const head = `<div class="scrhead"><span class="eyebrow">On your behalf</span><h1>Discern</h1><p class="sub">${n?`${n} action${n>1?"s":""} waiting for your judgement.`:"You are all caught up."}</p></div>`;
-  if (!n) return head + `<div class="empty"><div class="empty-mk">${MK}</div><div class="empty-t">Nothing needs you right now.</div><p>When an agent reaches for something risky, it lands here. Connect a solution to see it work.</p><button class="btn btn-primary" data-nav="solutions">Browse solutions</button></div>`;
-  return head + `<div class="cards">${S.intents.map(cardHTML).join("")}</div>`;
+  const n = S.inboxTotal || S.intents.length;
+  const head = `<div class="scrhead"><span class="eyebrow">${esc(t("inbox.eyebrow"))}</span><h1>${esc(t("inbox.title"))}</h1>
+    <p class="sub">${esc(n?tn("inbox.sub",n):t("inbox.caughtUp"))}</p></div>`;
+  if (!S.intents.length) return head + `<div class="empty"><div class="empty-mk">${MK}</div>
+    <div class="empty-t">${esc(t("inbox.empty.title"))}</div><p>${esc(t("inbox.empty.body"))}</p>
+    <button class="btn btn-primary" data-nav="solutions">${esc(t("inbox.browse"))}</button></div>`;
+  return head + `<div class="cards">${S.intents.map(cardHTML).join("")}</div>` + moreHTML("inbox");
+}
+function moreHTML(which){
+  const next = which==="inbox" ? S.inboxNext : S.tlNext;
+  const shown = which==="inbox" ? S.intents.length : S.timeline.length;
+  const total = which==="inbox" ? S.inboxTotal : S.tlTotal;
+  if (!next) return shown>=PAGE ? `<div class="more-end">${esc(t("more.end"))}</div>` : "";
+  return `<button class="more" data-more="${which}" ${S.loadingMore?"disabled":""}>
+    ${S.loadingMore?`<span class="tic spin">${I.sync}</span>${esc(t("more.loading"))}`:esc(t("more.load"))}
+    <span class="more-n">${shown} / ${total}</span></button>`;
 }
 function cardHTML(it){
-  const sev = it.severity;
+  const sev = it.severity, settling = S.settled[it.id];
+  const queued = Net.queuedFor(it.id);
   const rows = Object.entries(it.details||{}).slice(0,4).map(([k,v])=>{
     const editable = (typeof v==="number"||typeof v==="string");
     return `<div class="drow"><span class="dk">${esc(k)}</span>${editable?`<input class="dv-in" data-edit="${it.id}" data-key="${esc(k)}" value="${esc(v)}"/>`:`<span class="dv">${esc(Array.isArray(v)?v.join(", "):v)}</span>`}</div>`;
   }).join("");
-  const risks = Object.entries(it.risk||{}).sort((a,b)=>ORD[b[1]]-ORD[a[1]]).map(([c,s])=>`<span class="rchip" style="--c:${sevColor(s)};--b:${sevBg(s)}">${CATS[c]} · ${s}</span>`).join("");
-  return `<article class="icard" style="--sev:${sevColor(sev)};--sevb:${sevBg(sev)}">
+  const risks = Object.entries(it.risk||{}).sort((a,b)=>ORD[b[1]]-ORD[a[1]])
+    .map(([c,s])=>`<span class="rchip" style="--c:${sevColor(s)};--b:${sevBg(s)}">${esc(tCat(c))} · ${esc(tSev(s))}</span>`).join("");
+  const why = tWhy(it, it.appetite, it.reasons)[0];
+  return `<article class="icard ${settling?("settling "+settling):""}" data-card="${it.id}" style="--sev:${sevColor(sev)};--sevb:${sevBg(sev)}">
     <div class="icard-top">
       <span class="slogo">${I.logo}</span>
       <div class="iwho"><div class="isol">${esc(iName(it))}</div><div class="iagent">${esc(iAgent(it))}</div></div>
-      <span class="sevtag">${sev}</span>
+      <span class="sevtag">${esc(tSev(sev))}</span>
     </div>
     <div class="iact">${esc(pretty(it.capability))}</div>
     <div class="rchips">${risks}</div>
-    ${it.reasons&&it.reasons.length?`<div class="ireason">${esc(it.reasons[0])}</div>`:''}
+    ${why?`<div class="ireason">${esc(why)}</div>`:''}
     ${rows?`<div class="idetails">${rows}</div>`:''}
-    <div class="iacts">
-      <button class="btn btn-deny" data-decide="deny" data-id="${it.id}">Deny</button>
-      <button class="btn btn-primary" data-decide="approve" data-id="${it.id}">Approve</button>
-    </div>
+    ${queued?`<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`:`<div class="iacts">
+      <button class="btn btn-deny" data-decide="deny" data-id="${it.id}" ${settling?"disabled":""}>${esc(settling==="deny"?t("card.denying"):t("card.deny"))}</button>
+      <button class="btn btn-primary" data-decide="approve" data-id="${it.id}" ${settling?"disabled":""}>${esc(settling==="approve"?t("card.approving"):t("card.approve"))}</button>
+    </div>`}
   </article>`;
 }
 
 /* ---- activity ---- */
 function activityHTML(){
-  const n = S.timeline.length;
-  const head = `<div class="scrhead"><span class="eyebrow">Every action, logged</span><h1>Activity</h1><p class="sub">A signed, traceable record of what agents did for you.</p></div>`;
-  if (!n) return head + `<div class="empty"><div class="empty-mk">${I.activity}</div><div class="empty-t">No activity yet.</div></div>`;
-  return head + `<div class="tl">${S.timeline.slice(0,80).map(it=>`<div class="tlrow">
+  const head = `<div class="scrhead"><span class="eyebrow">${esc(t("activity.eyebrow"))}</span><h1>${esc(t("activity.title"))}</h1>
+    <p class="sub">${esc(t("activity.sub"))}</p></div>`;
+  if (!S.timeline.length) return head + `<div class="empty"><div class="empty-mk">${I.activity}</div><div class="empty-t">${esc(t("activity.empty"))}</div></div>`;
+  return head + `<div class="tl">${S.timeline.map(it=>`<div class="tlrow">
     <span class="tlic" style="--c:${sevColor(it.severity)};--b:${sevBg(it.severity)}">${it.state==="denied"?I.pause:I.play}</span>
-    <div class="tlm"><div class="tlt">${esc(pretty(it.capability))}</div><div class="tls">${esc(iName(it))} · ${esc(iAgent(it))} · ${ago(iAt(it))}</div></div>
-    <div class="tlend"><span class="stpill st-${it.state}">${it.state}</span><span class="ref">${iRef(it)}</span></div>
-  </div>`).join("")}</div>`;
+    <div class="tlm"><div class="tlt">${esc(pretty(it.capability))}</div>
+      <div class="tls">${esc(iName(it))} · ${esc(iAgent(it))} · ${esc(tAgo(iAt(it)))}</div></div>
+    <div class="tlend"><span class="stpill st-${it.state}">${esc(stateLabel(it.state))}</span><span class="ref">${iRef(it)}</span></div>
+  </div>`).join("")}</div>` + moreHTML("activity");
 }
 
 /* ---- solutions ---- */
@@ -300,12 +462,12 @@ function solutionsHTML(){
   if (S.review) return reviewHTML();
   if (S.selectedSol){ const s=S.solutions.find(x=>x.uid===S.selectedSol); if (s) return soldetailHTML(s); S.selectedSol=null; }
   const connected = S.solutions, cat = S.catalog;
-  let html = `<div class="scrhead"><span class="eyebrow">Acting for you</span><h1>Solutions</h1><p class="sub">Set how much each may do on its own. Connect more from 500xLaunch.</p></div>`;
-  html += `<div class="secrow"><h2 class="sech">Connected</h2><span class="secn">${connected.length}</span></div>`;
-  if (!connected.length) html += `<div class="thin-empty">No solutions connected yet. Pick one below.</div>`;
+  let html = `<div class="scrhead"><span class="eyebrow">${esc(t("sol.eyebrow"))}</span><h1>${esc(t("sol.title"))}</h1><p class="sub">${esc(t("sol.sub"))}</p></div>`;
+  html += `<div class="secrow"><h2 class="sech">${esc(t("sol.connected"))}</h2><span class="secn">${connected.length}</span></div>`;
+  if (!connected.length) html += `<div class="thin-empty">${esc(t("sol.none"))}</div>`;
   else html += `<div class="sollist">${connected.map(solrowHTML).join("")}</div>`;
   if (cat.length){
-    html += `<div class="secrow" style="margin-top:22px"><h2 class="sech">From 500xLaunch</h2></div>`;
+    html += `<div class="secrow" style="margin-top:22px"><h2 class="sech">${esc(t("sol.catalog"))}</h2></div>`;
     html += `<div class="catgrid">${cat.map(catcardHTML).join("")}</div>`;
   }
   return html;
@@ -315,106 +477,131 @@ function solrowHTML(s){
   return `<button class="solrow" data-sol="${s.uid}">
     <span class="slogo big">${I.logo}</span>
     <div class="solm"><div class="soln">${esc(s.name)}</div>
-      <div class="solmeta">${plural((s.agents||[]).length,"agent")} · ${plural(nab,"ability").replace("abilitys","abilities")}</div>
-      ${surf.length?`<div class="solasks">Asks you about ${surf.slice(0,3).map(c=>CATS[c].toLowerCase()).join(", ")}</div>`:`<div class="solasks quiet">Runs routine work on its own</div>`}
+      <div class="solmeta">${esc(tn("sol.agents",(s.agents||[]).length))} · ${esc(tn("sol.abilities",nab))}</div>
+      ${surf.length?`<div class="solasks">${esc(t("sol.asksAbout",{list:tList(surf.slice(0,3).map(tCat))}))}</div>`:`<div class="solasks quiet">${esc(t("sol.runsRoutine"))}</div>`}
     </div>
-    <div class="solend"><span class="stpill st-${s.status}">${s.status}</span>${I.chevron}</div>
+    <div class="solend"><span class="stpill st-${s.status}">${esc(linkLabel(s.status))}</span>${I.chevron}</div>
   </button>`;
 }
 function catcardHTML(c){
   return `<div class="catcard">
-    <div class="cattop"><span class="slogo big grad">${I.logo}</span><div class="catm"><div class="catn">${esc(c.name)}</div>${c.agents?`<div class="catmeta">${plural(c.agents.length,"agent")}</div>`:''}</div></div>
+    <div class="cattop"><span class="slogo big grad">${I.logo}</span><div class="catm"><div class="catn">${esc(c.name)}</div>${c.agents?`<div class="catmeta">${esc(tn("sol.agents",c.agents.length))}</div>`:''}</div></div>
     <p class="catd">${esc(c.description||"")}</p>
-    <button class="btn btn-primary block" data-review="${c.uid}">${I.shield}<span>See what it can do</span></button>
+    <button class="btn btn-primary block" data-review="${c.uid}">${I.shield}<span>${esc(t("sol.seeWhat"))}</span></button>
   </div>`;
 }
 function soldetailHTML(s){
   const nab = (s.agents||[]).reduce((n,a)=>n+(a.abilities||[]).length,0);
-  return `<button class="back" data-back>${I.chevron}<span>Solutions</span></button>
-  <div class="soldhead"><span class="slogo xl grad">${I.logo}</span><div><div class="soldn">${esc(s.name)}</div><div class="soldsub">${plural((s.agents||[]).length,"agent")} · ${plural(nab,"ability").replace("abilitys","abilities")}</div></div><span class="stpill st-${s.status}">${s.status}</span></div>
-  <section class="panel"><div class="panelhd"><h3>Discernment appetite</h3><p>The most an agent may do in each area before it asks you.</p></div>
+  return `<button class="back" data-back>${I.chevron}<span>${esc(t("sol.back"))}</span></button>
+  <div class="soldhead"><span class="slogo xl grad">${I.logo}</span><div><div class="soldn">${esc(s.name)}</div>
+    <div class="soldsub">${esc(tn("sol.agents",(s.agents||[]).length))} · ${esc(tn("sol.abilities",nab))}</div></div>
+    <span class="stpill st-${s.status}">${esc(linkLabel(s.status))}</span></div>
+  <section class="panel"><div class="panelhd"><h3>${esc(t("sol.appetite"))}</h3><p>${esc(t("sol.appetiteSub"))}</p></div>
     <div class="apwrap">${CAT_KEYS.map(c=>appetiteRow(s,c)).join("")}</div></section>
-  <section class="panel"><div class="panelhd"><h3>Kill switch</h3><p>Pause stops every agent in this solution until you resume.</p></div>
-    <button class="btn ${s.status==='active'?'btn-warn':'btn-primary'} block" data-status="${s.link}" data-to="${s.status==='active'?'paused':'active'}">${s.status==='active'?'Pause this solution':'Resume this solution'}</button></section>
-  <section class="panel"><div class="panelhd"><h3>Agents & abilities</h3></div>
-    ${(s.agents||[]).map(a=>`<div class="agentblock"><div class="agentn">${esc(a.name)}</div><div class="abchips">${(a.abilities||[]).map(ab=>`<span class="abchip" style="--c:${sevColor(ab.severity)}"><span class="abk">${esc(ab.key)}</span><span class="absev" style="color:${sevColor(ab.severity)}">${ab.severity}</span></span>`).join("")}</div></div>`).join("")}</section>`;
+  <section class="panel"><div class="panelhd"><h3>${esc(t("sol.kill"))}</h3><p>${esc(t("sol.killSub"))}</p></div>
+    <button class="btn ${s.status==='active'?'btn-warn':'btn-primary'} block" data-status="${s.link}" data-to="${s.status==='active'?'paused':'active'}">${esc(s.status==='active'?t("sol.pause"):t("sol.resume"))}</button></section>
+  <section class="panel"><div class="panelhd"><h3>${esc(t("sol.agentsTitle"))}</h3></div>
+    ${(s.agents||[]).map(a=>`<div class="agentblock"><div class="agentn">${esc(a.name)}</div><div class="abchips">${(a.abilities||[]).map(ab=>`<span class="abchip" style="--c:${sevColor(ab.severity)}"><span class="abk">${esc(ab.key)}</span><span class="absev" style="color:${sevColor(ab.severity)}">${esc(tSev(ab.severity))}</span></span>`).join("")}</div></div>`).join("")}</section>`;
 }
 function appetiteRow(s,c){
   const cur = (s.appetite&&s.appetite[c])||DEFAULT_APPETITE[c];
-  return `<div class="aprow"><div class="aplab">${CATS[c]}</div>
-    <div class="apseg" data-appetite="${s.link}" data-cat="${c}">${SEVS.map(l=>`<button class="apbtn ${cur===l?'on':''} lv-${l}" data-level="${l}">${l==='SEVERE'?'Sev':l[0]+l.slice(1).toLowerCase()}</button>`).join("")}</div></div>`;
+  return `<div class="aprow"><div class="aplab">${esc(tCat(c))}</div>
+    <div class="apseg" data-appetite="${s.link}" data-cat="${c}">${SEVS.map(l=>`<button class="apbtn ${cur===l?'on':''} lv-${l}" data-level="${l}" title="${esc(tSev(l))}">${esc(tSev(l))}</button>`).join("")}</div></div>`;
 }
 
-
-/* ---- pre-connect disclosure: what this solution can do (the permission label) ---- */
-function abilityRow(a, kind){
+/* ---- pre-connect disclosure: the permission label ---- */
+function abilityRow(a, kind, appetite){
   const c = sevColor(a.severity), b = sevBg(a.severity);
-  const why = kind==="ask" ? ((a.why&&a.why[0])||"needs your discernment") : "within what you allow · logged";
+  const why = kind==="ask" ? (tWhy(a, appetite, a.why)[0] || t("rev.needsYou")) : t("rev.allowed");
   return `<div class="abrow"><span class="abdot" style="--c:${c};--b:${b}">${kind==="ask"?I.bell:I.check}</span>
     <div class="abm"><div class="abt">${esc(a.description||pretty(a.key))}</div>
       <div class="abs">${esc(a.agent)} · <span class="abkey">${esc(a.key)}</span></div>
       <div class="abwhy">${esc(why)}</div></div>
-    <span class="sevtag" style="--sev:${c};--sevb:${b}">${a.severity}</span></div>`;
+    <span class="sevtag" style="--sev:${c};--sevb:${b}">${esc(tSev(a.severity))}</span></div>`;
 }
 function reviewHTML(){
   const p = S.reviewData;
-  if (!p) return `<div class="loading"><div class="spinner"></div><span>Reading what it can do…</span></div>`;
+  if (!p) return `<button class="back" data-back-review>${I.chevron}<span>${esc(t("sol.back"))}</span></button>
+    <div class="sk-review">${[0,1,2,3].map(i=>`<div class="abrow sk-card" style="--d:${i*70}ms"><span class="sk sk-logo sm"></span>
+      <div class="abm"><span class="sk sk-line w70"></span><span class="sk sk-line w40"></span></div></div>`).join("")}
+    <div class="sk-note">${esc(t("rev.reading"))}</div></div>`;
   const s = p.solution;
-  return `<button class="back" data-back-review>${I.chevron}<span>Solutions</span></button>
+  return `<button class="back" data-back-review>${I.chevron}<span>${esc(t("sol.back"))}</span></button>
   <div class="soldhead"><span class="slogo xl grad">${I.logo}</span>
-    <div><div class="soldn">${esc(s.name)}</div><div class="soldsub">${plural(p.counts.agents,"agent")} · ${p.counts.abilities} abilities</div></div></div>
+    <div><div class="soldn">${esc(s.name)}</div><div class="soldsub">${esc(tn("sol.agents",p.counts.agents))} · ${esc(tn("sol.abilities",p.counts.abilities))}</div></div></div>
   ${s.description?`<p class="sub" style="margin:-2px 0 4px">${esc(s.description)}</p>`:''}
-  <section class="panel"><div class="panelhd"><h3>Will ask you <span class="cnt ask">${p.counts.asks}</span></h3>
-    <p>These stop and wait for your decision, every time.</p></div>
-    ${p.asks.length?p.asks.map(a=>abilityRow(a,"ask")).join(""):'<div class="thin-empty">Nothing here needs you.</div>'}</section>
-  <section class="panel"><div class="panelhd"><h3>Runs on its own <span class="cnt run">${p.counts.runs}</span></h3>
-    <p>Routine work, inside what you allow. Still recorded on the audit ledger.</p></div>
-    ${p.runs.length?p.runs.map(a=>abilityRow(a,"run")).join(""):'<div class="thin-empty">Nothing runs unattended.</div>'}</section>
-  <p class="consent-note">${I.shield}<span>You can change what it may do on its own, or pause it entirely, at any time.</span></p>
-  ${p.connected?`<button class="btn btn-ghost block big" data-back-review>Already connected</button>`
-    :`<button class="btn btn-primary block big" data-connect="${s.uid}">Connect ${esc(s.name)}</button>`}`;
+  <section class="panel"><div class="panelhd"><h3>${esc(t("rev.asks"))} <span class="cnt ask">${p.counts.asks}</span></h3>
+    <p>${esc(t("rev.asksSub"))}</p></div>
+    ${p.asks.length?p.asks.map(a=>abilityRow(a,"ask",p.appetite)).join(""):`<div class="thin-empty">${esc(t("rev.noAsks"))}</div>`}</section>
+  <section class="panel"><div class="panelhd"><h3>${esc(t("rev.runs"))} <span class="cnt run">${p.counts.runs}</span></h3>
+    <p>${esc(t("rev.runsSub"))}</p></div>
+    ${p.runs.length?p.runs.map(a=>abilityRow(a,"run",p.appetite)).join(""):`<div class="thin-empty">${esc(t("rev.noRuns"))}</div>`}</section>
+  <p class="consent-note">${I.shield}<span>${esc(t("rev.note"))}</span></p>
+  ${p.connected?`<button class="btn btn-ghost block big" data-back-review>${esc(t("rev.already"))}</button>`
+    :`<button class="btn btn-primary block big" data-connect="${s.uid}">${esc(t("rev.connect",{name:s.name}))}</button>`}`;
 }
 async function openReview(uid){
   S.review = uid; S.reviewData = null; S.view = "solutions"; S.selectedSol = null; render();
-  try { S.reviewData = await Backend.profile(uid); } catch(e){ showToast(`<div class="tm">Could not read the profile: ${esc(e.message)}</div>`,"warn"); }
+  try { S.reviewData = await Backend.profile(uid); }
+  catch(e){ toast(`<div class="tm">${esc(t("t.profileFail",{msg:e.message}))}</div>`,"warn"); }
   render();
 }
 
 /* ---- settings ---- */
 function settingsHTML(){
-  return `<div class="scrhead"><span class="eyebrow">You</span><h1>Settings</h1></div>
-  <section class="panel"><div class="kv"><span>Signed in as</span><b>${esc((S.user&&S.user.name)||"You")}</b></div><div class="kv"><span>Email</span><b>${esc((S.user&&S.user.email)||"")}</b></div><div class="kv"><span>Connection</span><b class="${S.online?'ok':'warn'}">${S.online?'Live · '+BASE.replace(/^https?:\/\//,''):'Offline preview'}</b></div></section>
-  <section class="panel"><div class="panelhd"><h3>Environment</h3><p>Build and try in Test, then roll out to Live. Same account, isolated data.</p></div>
+  const conn = S.mode==="connected" ? `${t("set.live")} · ${BASE.replace(/^https?:\/\//,"")}`
+    : S.mode==="degraded" ? `${t("set.offline")} · ${tAgo(S.net.lastSync)}` : "Demo";
+  const p = S.push;
+  return `<div class="scrhead"><span class="eyebrow">${esc(t("set.eyebrow"))}</span><h1>${esc(t("set.title"))}</h1></div>
+  <section class="panel">
+    <div class="kv"><span>${esc(t("set.signedIn"))}</span><b>${esc((S.user&&S.user.name)||"You")}</b></div>
+    <div class="kv"><span>${esc(t("set.email"))}</span><b>${esc((S.user&&S.user.email)||"")}</b></div>
+    <div class="kv"><span>${esc(t("set.connection"))}</span><b class="${S.mode==="connected"?'ok':'warn'}">${esc(conn)}</b></div>
+  </section>
+  <section class="panel"><div class="panelhd"><h3>${esc(t("set.notify"))}</h3><p>${esc(t("set.notifySub"))}</p></div>
+    ${!p.supported ? `<div class="thin-empty">${esc(t("set.notifyNo"))}</div>`
+      : p.permission==="denied" ? `<div class="thin-empty">${esc(t("set.notifyBlocked"))}</div>`
+      : p.on ? `<div class="kv"><span>${esc(t("set.notifyReady"))}</span><b class="ok">${I.check}</b></div>
+               <button class="btn btn-ghost block" data-testpush>${esc(t("set.notifyTest"))}</button>`
+      : `<button class="btn btn-primary block" data-enablepush ${p.busy?"disabled":""}>${p.busy?`<span class="tic spin">${I.sync}</span>`:I.bell}<span>${esc(t("set.notifyOn"))}</span></button>`}
+  </section>
+  <section class="panel"><div class="panelhd"><h3>${esc(t("set.language"))}</h3></div>
+    <div class="langgrid">${LANGS.map(l=>`<button class="langb ${window.I18N.lang===l.code?'on':''}" data-lang="${l.code}">
+      <b>${l.native}</b><small>${l.name}</small></button>`).join("")}</div></section>
+  <section class="panel"><div class="panelhd"><h3>${esc(t("set.env"))}</h3><p>${esc(t("set.envSub"))}</p></div>
     <div class="envseg">${Object.entries(ENVS).map(([k,e])=>`<button class="${S.env===k?'on':''}" data-env="${k}">${e.label}</button>`).join("")}</div></section>
-  <section class="panel"><div class="panelhd"><h3>Appearance</h3></div>
-    <div class="envseg">${[["system","System"],["light","Light"],["dark","Dark"]].map(([k,l])=>`<button class="${S.theme===k?'on':''}" data-theme-set="${k}">${l}</button>`).join("")}</div></section>
-  <section class="panel"><button class="btn btn-ghost block" data-signout>Sign out</button></section>
-  <p class="motto">Beyond human in the loop. Human on the go.</p>`;
+  <section class="panel"><div class="panelhd"><h3>${esc(t("set.appearance"))}</h3></div>
+    <div class="envseg">${[["system",t("set.system")],["light",t("set.light")],["dark",t("set.dark")]].map(([k,l])=>`<button class="${S.theme===k?'on':''}" data-theme-set="${k}">${esc(l)}</button>`).join("")}</div></section>
+  <section class="panel"><button class="btn btn-ghost block" data-signout>${esc(t("set.signOut"))}</button></section>
+  <p class="motto">${esc(t("app.motto")).replace(/\n/g,"<br/>")}</p>`;
 }
 
 /* ---- sign in ---- */
 function signinHTML(){
   return `<div class="safe-top"></div><div class="signin">
     <div class="signin-mk">${MK}</div>
-    <h1>Xurface Discern</h1><p class="signin-motto">Beyond human in the loop.<br/>Human on the go.</p>
-    <div class="field"><label for="nm">Name</label><input id="nm" placeholder="Ada Lovelace"/></div>
-    <div class="field"><label for="em">Email</label><input id="em" type="email" placeholder="you@company.com" autocomplete="username"/></div>
-    <button class="btn btn-primary block big" data-signin>Continue</button>
-    <div class="signin-note">${I.shield}<span>Passwordless. Your passkey never leaves your device.</span></div>
+    <h1>${esc(t("app.name"))}</h1><p class="signin-motto">${esc(t("app.motto")).replace(/\n/g,"<br/>")}</p>
+    <div class="field"><label for="nm">${esc(t("signin.name"))}</label><input id="nm" placeholder="Ada Lovelace"/></div>
+    <div class="field"><label for="em">${esc(t("signin.email"))}</label><input id="em" type="email" placeholder="you@company.com" autocomplete="username"/></div>
+    <button class="btn btn-primary block big" data-signin>${esc(t("signin.continue"))}</button>
+    <div class="signin-note">${I.shield}<span>${esc(t("signin.note"))}</span></div>
+    <div class="signin-langs">${I.globe}${LANGS.map(l=>`<button class="${window.I18N.lang===l.code?'on':''}" data-lang="${l.code}">${l.native}</button>`).join("")}</div>
   </div>`;
 }
 
 /* ---- overlays ---- */
-function showToast(html, kind){
+function toast(html, kind){
   const ov=document.getElementById("overlay"); if(!ov)return;
   const el=document.createElement("div"); el.className="toast "+(kind||"");
   el.innerHTML=html; el.addEventListener("click",()=>el.remove()); ov.appendChild(el);
-  setTimeout(()=>{ el.style.opacity="0"; setTimeout(()=>el.remove(),300); },2800);
+  setTimeout(()=>{ el.style.opacity="0"; setTimeout(()=>el.remove(),300); },3000);
 }
 function biometric(onOk){
   const ov=document.getElementById("overlay"); if(!ov)return;
   const scrim=document.createElement("div"); scrim.className="scrim";
-  scrim.innerHTML=`<div class="sheet"><div class="faceic">${I.face}</div><h3>Confirm with Face ID</h3><p>This is a SEVERE action. Approving it needs a biometric.</p><button class="btn btn-primary block" data-bio="ok">Confirm</button><button class="btn btn-ghost block" data-bio="x">Cancel</button></div>`;
+  scrim.innerHTML=`<div class="sheet"><div class="faceic">${I.face}</div><h3>${esc(t("bio.title"))}</h3><p>${esc(t("bio.body"))}</p>
+    <button class="btn btn-primary block" data-bio="ok">${esc(t("bio.confirm"))}</button>
+    <button class="btn btn-ghost block" data-bio="x">${esc(t("bio.cancel"))}</button></div>`;
   scrim.addEventListener("click",e=>{ const b=e.target.closest("[data-bio]"); if(!b&&e.target!==scrim)return; scrim.remove(); if(b&&b.dataset.bio==="ok")onOk(); });
   ov.appendChild(scrim);
 }
@@ -425,7 +612,9 @@ function applyDevice(){
   const dev=DEVICES[S.plat][S.form], device=document.getElementById("device"); if(!device)return;
   device.style.setProperty("--w",dev.w+"px"); device.style.setProperty("--h",dev.h+"px");
   const app=document.getElementById("app-root"); if(app) app.classList.toggle("wide", S.form!=="phone");
-  requestAnimationFrame(()=>{ const stage=device.closest(".stage"), sc=device.closest(".stage-scale"); if(!stage||!sc)return; sc.style.setProperty("--scale",1); const r=device.getBoundingClientRect(), s=stage.getBoundingClientRect(); const k=Math.min((s.width-48)/r.width,(s.height-48)/r.height,1); sc.style.setProperty("--scale",k>0?k:1); });
+  requestAnimationFrame(()=>{ const stage=device.closest(".stage"), sc=device.closest(".stage-scale"); if(!stage||!sc)return;
+    sc.style.setProperty("--scale",1); const r=device.getBoundingClientRect(), s=stage.getBoundingClientRect();
+    const k=Math.min((s.width-48)/r.width,(s.height-48)/r.height,1); sc.style.setProperty("--scale",k>0?k:1); });
 }
 addEventListener("resize", applyDevice);
 
@@ -433,40 +622,112 @@ addEventListener("resize", applyDevice);
 function wire(){
   const root=document.getElementById("root");
   root.onclick = async e=>{
-    const t=e.target;
-    const nav=t.closest("[data-nav]"); if(nav){ e.preventDefault(); S.view=nav.dataset.nav; S.selectedSol=null; render(); return; }
-    if(t.closest("[data-ctl='fullscreen']")){ S.fullscreen=!S.fullscreen; savePrefs(); render(); return; }
-    if(t.closest("[data-toggle-env]")){ S.env=S.env==="test"?"live":"test"; savePrefs(); reloadEnv(); return; }
-    const envb=t.closest("[data-env]"); if(envb){ S.env=envb.dataset.env; savePrefs(); reloadEnv(); return; }
-    const th=t.closest("[data-theme-set]"); if(th){ S.theme=th.dataset.themeSet; savePrefs(); applyTheme(); render(); return; }
-    const dec=t.closest("[data-decide]"); if(dec){ decide(dec.dataset.id,dec.dataset.decide); return; }
-    const rev=t.closest("[data-review]"); if(rev){ openReview(rev.dataset.review); return; }
-    if(t.closest("[data-back-review]")){ S.review=null; S.reviewData=null; render(); return; }
-    const con=t.closest("[data-connect]"); if(con){ connect(con.dataset.connect); return; }
-    const sol=t.closest("[data-sol]"); if(sol){ S.selectedSol=sol.dataset.sol; render(); return; }
-    if(t.closest("[data-back]")){ S.selectedSol=null; render(); return; }
-    const lvl=t.closest("[data-level]"); if(lvl){ const box=lvl.closest("[data-appetite]"); await setAppetite(box.dataset.appetite,box.dataset.cat,lvl.dataset.level); return; }
-    const stt=t.closest("[data-status]"); if(stt){ await setStatus(stt.dataset.status,stt.dataset.to); return; }
-    if(t.closest("[data-signin]")){ signin(); return; }
-    if(t.closest("[data-signout]")){ S.token=null; S.user=null; savePrefs(); render(); return; }
+    const el=e.target;
+    const nav=el.closest("[data-nav]"); if(nav){ e.preventDefault(); S.view=nav.dataset.nav; S.selectedSol=null; render(); return; }
+    if(el.closest("[data-ctl='fullscreen']")){ S.fullscreen=!S.fullscreen; savePrefs(); render(); return; }
+    if(el.closest("[data-toggle-env]")){ S.env=S.env==="test"?"live":"test"; savePrefs(); reloadEnv(); return; }
+    const envb=el.closest("[data-env]"); if(envb){ S.env=envb.dataset.env; savePrefs(); reloadEnv(); return; }
+    const lg=el.closest("[data-lang]"); if(lg){ S.lang=window.I18N.setLang(lg.dataset.lang); savePrefs(); render(); return; }
+    const th=el.closest("[data-theme-set]"); if(th){ S.theme=th.dataset.themeSet; savePrefs(); applyTheme(); render(); return; }
+    const dec=el.closest("[data-decide]"); if(dec){ decide(dec.dataset.id,dec.dataset.decide); return; }
+    const mr=el.closest("[data-more]"); if(mr){ loadMore(mr.dataset.more); return; }
+    if(el.closest("[data-retry]")){ retryNow(); return; }
+    if(el.closest("[data-enablepush]")){ enablePush(); return; }
+    if(el.closest("[data-testpush]")){ testPush(); return; }
+    const rev=el.closest("[data-review]"); if(rev){ openReview(rev.dataset.review); return; }
+    if(el.closest("[data-back-review]")){ S.review=null; S.reviewData=null; render(); return; }
+    const con=el.closest("[data-connect]"); if(con){ connect(con.dataset.connect); return; }
+    const sol=el.closest("[data-sol]"); if(sol){ S.selectedSol=sol.dataset.sol; render(); return; }
+    if(el.closest("[data-back]")){ S.selectedSol=null; render(); return; }
+    const lvl=el.closest("[data-level]"); if(lvl){ const box=lvl.closest("[data-appetite]"); await setAppetite(box.dataset.appetite,box.dataset.cat,lvl.dataset.level); return; }
+    const stt=el.closest("[data-status]"); if(stt){ await setStatus(stt.dataset.status,stt.dataset.to); return; }
+    if(el.closest("[data-signin]")){ signin(); return; }
+    if(el.closest("[data-signout]")){ S.token=null; S.user=null; savePrefs(); render(); return; }
   };
-  root.onchange = e=>{ const c=e.target.closest("[data-ctl]"); if(!c)return; if(c.dataset.ctl==="plat")S.plat=e.target.value; if(c.dataset.ctl==="form")S.form=e.target.value; savePrefs(); render(); };
+  root.onchange = e=>{ const c=e.target.closest("[data-ctl]"); if(!c)return;
+    if(c.dataset.ctl==="plat")S.plat=e.target.value;
+    if(c.dataset.ctl==="form")S.form=e.target.value;
+    if(c.dataset.ctl==="lang"){ S.lang=window.I18N.setLang(e.target.value); }
+    savePrefs(); render(); };
 }
-async function reloadEnv(){ S.ready=false; S.intents=[];S.timeline=[];S.solutions=[];S.catalog=[]; render(); await Backend.probe(); if(S.token){ try{ await Backend.refresh(); }catch{} } S.ready=true; render(); }
+
+async function reloadEnv(){
+  S.ready=false; S.intents=[];S.timeline=[];S.solutions=[];S.catalog=[];S.inboxNext=null;S.tlNext=null; render();
+  await Backend.probe();
+  if(S.token){ try{ await Backend.refresh(); }catch{} }
+  S.ready=true; render();
+}
+async function retryNow(){
+  const ok = await Net.probe();
+  if (ok){ Net.goOnline(); S.mode="connected"; await silentRefresh(); }
+  else toast(`<div class="tm">${esc(t("net.failed"))}</div>`,"warn");
+}
+async function loadMore(which){
+  if (S.loadingMore) return;
+  S.loadingMore = true; render();
+  try { await Backend.more(which); }
+  catch(e){ toast(`<div class="tm">${esc(e.message)}</div>`,"warn"); }
+  finally { S.loadingMore = false; render(); }
+}
+
+/** Optimistic: the card commits on screen at once, and rolls back if the
+ * server disagrees. Offline it is queued and shown as queued, not as failed. */
 async function decide(id, decision){
-  const it=S.intents.find(x=>x.id===id); if(!it)return;
-  const edits={}; document.querySelectorAll(`[data-edit="${id}"]`).forEach(inp=>{ const o=it.details[inp.dataset.key]; let v=inp.value; if(typeof o==="number")v=Number(v); if(String(o)!==String(v))edits[inp.dataset.key]=v; });
-  const go=async ()=>{ try{ await Backend.decide(id,decision,Object.keys(edits).length?{edited_details:edits}:{}); await Backend.refresh(); showToast(`<div class="tm"><b>${decision==="deny"?"Denied":"Approved"}</b> ${esc(pretty(it.capability))}</div>`,decision==="deny"?"warn":"ok"); render(); }catch(e){ showToast(`<div class="tm">Could not record: ${esc(e.message)}</div>`,"warn"); } };
+  const idx=S.intents.findIndex(x=>x.id===id); if(idx<0)return;
+  const it=S.intents[idx];
+  const edits={};
+  document.querySelectorAll(`[data-edit="${id}"]`).forEach(inp=>{
+    const o=it.details?it.details[inp.dataset.key]:undefined; let v=inp.value;
+    if(typeof o==="number")v=Number(v);
+    if(String(o)!==String(v))edits[inp.dataset.key]=v; });
+
+  const go=async ()=>{
+    S.settled[id]=decision; render();                       // the card starts leaving
+    await new Promise(r=>setTimeout(r,180));
+    const snapshot = S.intents.slice();
+    S.intents = S.intents.filter(x=>x.id!==id);
+    S.inboxTotal = Math.max(0, S.inboxTotal-1);
+    const done = Object.assign({}, it, { state: decision==="deny"?"denied":(Object.keys(edits).length?"edited":"approved"), decidedAt: Date.now() });
+    S.timeline = [done].concat(S.timeline); S.tlTotal++;
+    delete S.settled[id]; render();
+    try {
+      const sent = await Backend.decide(id, decision, Object.keys(edits).length?{edited_details:edits}:{});
+      if (sent){ silentRefresh();
+        toast(`<div class="tm"><b>${esc(decision==="deny"?t("card.deny"):t("card.approve"))}</b> ${esc(pretty(it.capability))}</div>`,decision==="deny"?"warn":"ok"); }
+      else { toast(`<span class="tic">${I.cloudoff}</span><div class="tm">${esc(t("t.queued"))}</div>`,"queued"); paintNet(); }
+    } catch(e){
+      S.intents = snapshot; S.inboxTotal++; S.timeline = S.timeline.filter(x=>x!==done); S.tlTotal--;
+      render();
+      toast(`<div class="tm">${esc(t("t.recordFail",{msg:e.message}))}</div>`,"warn");
+    }
+  };
   if(decision==="approve" && it.severity==="SEVERE"){ biometric(go); return; }
   go();
 }
+
 async function connect(uid){
   const c=S.catalog.find(x=>x.uid===uid); const name=c?c.name:"Solution";
-  try{ const r=await Backend.connect(uid); await Backend.refresh(); S.review=null; S.reviewData=null; S.view="inbox"; render(); showToast(`<span class="slogo sm">${I.logo}</span><div class="tm"><b>${esc(name)} connected</b>${r&&r.pending?` · ${r.pending} to review`:''}</div>`,"ok"); }
-  catch(e){ showToast(`<div class="tm">Could not connect: ${esc(e.message)}</div>`,"warn"); }
+  try{
+    const r=await Backend.connect(uid);
+    await Backend.refresh(); S.review=null; S.reviewData=null; S.view="inbox"; render();
+    toast(`<span class="slogo sm">${I.logo}</span><div class="tm"><b>${esc(t("t.connected",{name}))}</b>${r&&r.pending?` · ${esc(tn("t.toReview",r.pending))}`:''}</div>`,"ok");
+  } catch(e){ toast(`<div class="tm">${esc(t("t.connectFail",{msg:e.message}))}</div>`,"warn"); }
 }
-async function setAppetite(link,cat,level){ const s=S.solutions.find(x=>x.link===link); if(s){ s.appetite=s.appetite||{...DEFAULT_APPETITE}; s.appetite[cat]=level; } render(); try{ await Backend.setAppetite(link,{[cat]:level}); }catch{} }
-async function setStatus(link,to){ const s=S.solutions.find(x=>x.link===link); if(s)s.status=to; render(); try{ await Backend.setStatus(link,to); }catch{} }
-async function signin(){ const nm=(document.getElementById("nm")||{}).value||"You"; const em=(document.getElementById("em")||{}).value||"you@company.com"; try{ await Backend.login(em,nm); await Backend.refresh(); S.view="inbox"; render(); }catch(e){ showToast(`<div class="tm">Sign in failed: ${esc(e.message)}</div>`,"warn"); } }
+async function setAppetite(link,cat,level){
+  const s=S.solutions.find(x=>x.link===link);
+  if(s){ s.appetite=s.appetite||{...DEFAULT_APPETITE}; s.appetite[cat]=level; }
+  render();
+  try{ await Backend.setAppetite(link,{[cat]:level}); }catch{}
+}
+async function setStatus(link,to){
+  const s=S.solutions.find(x=>x.link===link); if(s)s.status=to; render();
+  try{ await Backend.setStatus(link,to); }catch{}
+}
+async function signin(){
+  const nm=(document.getElementById("nm")||{}).value||"You";
+  const em=(document.getElementById("em")||{}).value||"you@company.com";
+  try{ await Backend.login(em,nm); await Backend.refresh(); S.view="inbox"; render(); }
+  catch(e){ toast(`<div class="tm">${esc(t("signin.failed",{msg:e.message}))}</div>`,"warn"); }
+}
 
 boot();
