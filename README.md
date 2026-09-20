@@ -1,19 +1,23 @@
-# Xurface Discern
+<h1 align="center">Xurface Discern</h1>
 
-**Approve, edit or deny the critical actions AI agents take on your behalf.** The
-phone (and tablet, and laptop) side of [Xurface Horizon](https://xurface.500xlaunch.com):
-when an agent's action exceeds what you tolerate, Horizon holds it and pushes it
-here, and you decide.
+<p align="center">
+  <b>Approve, edit or deny the critical actions AI agents take on your behalf.</b><br/>
+  <i>Beyond human in the loop. Human on the go.</i>
+</p>
 
-> Beyond human in the loop. Human on the go.
+<p align="center">
+  <a href="https://xurface.500xlaunch.com/app"><img alt="Try the live app" src="https://img.shields.io/badge/try_the_live_app-xurface.500xlaunch.com%2Fapp-3B6EA3.svg"></a>
+  <img alt="Android · iOS · macOS · Windows" src="https://img.shields.io/badge/Android_·_iOS_·_macOS_·_Windows-one_codebase-1f9d57.svg">
+  <img alt="Capacitor + Electron" src="https://img.shields.io/badge/Capacitor_+_Electron-web--first-60A5FA.svg">
+</p>
 
-One web app, shipped native to every platform:
+<p align="center">
+  <img src="docs/assets/discern-app.png" width="360" alt="Xurface Discern - the discernment inbox" />
+</p>
 
-| Platform | Form factors | Built with |
-|---|---|---|
-| **Android** (first) | phone, tablet | Capacitor |
-| **Apple** | iPhone, iPad, macOS | Capacitor (iOS/iPadOS) + Electron (macOS) |
-| **Windows** | laptop, tablet, phone | Electron |
+The phone (and tablet, and laptop) side of [Xurface Horizon](https://xurface.500xlaunch.com):
+when an agent's action exceeds what you tolerate, Horizon holds it and pushes it here,
+and you decide. One inbox for every agent, from every developer.
 
 ## Try it now
 
