@@ -73,7 +73,7 @@ function loadPrefs(){
     token:null, user:null };
   const s = Object.assign(base, p||{});
   return Object.assign(s, { view:"inbox", online:null, ready:false, busy:false,
-    intents:[], timeline:[], solutions:[], catalog:[], selectedSol:null, toast:null });
+    intents:[], timeline:[], solutions:[], catalog:[], selectedSol:null, review:null, reviewData:null, toast:null });
 }
 function savePrefs(){ try{ localStorage.setItem("discern.prefs", JSON.stringify({env:S.env,plat:S.plat,form:S.form,theme:S.theme,fullscreen:S.fullscreen,token:S.token,user:S.user})); }catch{} }
 function applyTheme(){ const q=new URLSearchParams(location.search).get("theme"); const t=q||S.theme;
@@ -111,6 +111,7 @@ const Backend = {
   async decide(id, decision, opts){ if (!S.online) return Local.decide(id,decision,opts); await api("POST",`/v1/user/intents/${id}/decide`,{decision,...opts}); },
   async setAppetite(link, appetite){ if (!S.online) return Local.setAppetite(link,appetite); await api("POST",`/v1/user/links/${link}/appetite`,{appetite}); },
   async setStatus(link, status){ if (!S.online) return Local.setStatus(link,status); await api("POST",`/v1/user/links/${link}/status`,{status}); },
+  async profile(uid){ if (!S.online) return Local.profile(uid); return api("GET",`/v1/user/solutions/${uid}/profile`); },
   async connect(uid){ if (!S.online) return Local.connect(uid); return api("POST",`/v1/user/solutions/${uid}/connect`); },
 };
 
@@ -148,6 +149,16 @@ const Local = (()=>{
         agents:s.agents.map(a=>({name:a.name,description:"",abilities:a.abilities.map(ab=>({key:ab.key,kind:ab.kind,severity:ab.severity,risk:ab.risk}))}))}; });
       S.catalog = CATALOG.filter(c=>!st.links[c.uid]).map(c=>({uid:c.uid,name:c.name,description:c.description,agents:c.agents.map(a=>({name:a[1]}))}));
     },
+    async profile(uid){ const s=sol(uid); const l=st.links[uid];
+      const appetite = l ? l.appetite : {...DEFAULT_APPETITE};
+      const asks=[], runs=[];
+      for (const a of s.agents) for (const ab of a.abilities){
+        const v=reconcile(ab.risk,ab.severity,appetite,ab.discernment);
+        const e={agent:a.name,key:ab.key,kind:ab.kind,description:ab.description,severity:ab.severity,risk:ab.risk,discernment:ab.discernment,why:v.reasons};
+        (v.allow?runs:asks).push(e);
+      }
+      return {solution:{uid,name:s.name,description:s.description},connected:!!l,appetite,asks,runs,
+        counts:{agents:s.agents.length,abilities:asks.length+runs.length,asks:asks.length,runs:runs.length}}; },
     async connect(uid){ const s=sol(uid); const link=id("lnk"); st.links[uid]={link,status:"active",appetite:{...DEFAULT_APPETITE,...(uid==="battlemate"||uid==="freeleap"?{intellectual:"HIGH",data:"HIGH"}:uid==="devbot"?{system:"HIGH"}:{})}};
       let pending=0; for (const a of s.agents) for (const ab of a.abilities){ const v=reconcile(ab.risk,ab.severity,st.links[uid].appetite,ab.discernment); const rec={id:id("int"),solName:s.name,agent:a.name,capability:ab.key,details:sample(ab.key),risk:ab.risk,severity:ab.severity,reasons:v.reasons,at:Date.now(),hash:hash(),sol:uid,link}; if (v.allow){ rec.state="allowed"; st.timeline.unshift(rec);} else { rec.state="pending"; st.intents.unshift(rec); pending++; } }
       return {ok:true,pending}; },
@@ -181,6 +192,7 @@ async function boot(){
   if (!S.token && q.get("email")){ try{ await Backend.login(q.get("email"), q.get("name")||undefined); }catch{} }
   if (S.token){ try{ await Backend.refresh(); }catch(e){ if (e.status===401){ S.token=null; S.user=null; savePrefs(); } } }
   S.ready = true; render();
+  if (q.get("review")) openReview(q.get("review"));   // deep link: review a solution
 }
 
 /* the rest (rendering + events) is in render.js-style below */
@@ -285,6 +297,7 @@ function activityHTML(){
 
 /* ---- solutions ---- */
 function solutionsHTML(){
+  if (S.review) return reviewHTML();
   if (S.selectedSol){ const s=S.solutions.find(x=>x.uid===S.selectedSol); if (s) return soldetailHTML(s); S.selectedSol=null; }
   const connected = S.solutions, cat = S.catalog;
   let html = `<div class="scrhead"><span class="eyebrow">Acting for you</span><h1>Solutions</h1><p class="sub">Set how much each may do on its own. Connect more from 500xLaunch.</p></div>`;
@@ -312,7 +325,7 @@ function catcardHTML(c){
   return `<div class="catcard">
     <div class="cattop"><span class="slogo big grad">${I.logo}</span><div class="catm"><div class="catn">${esc(c.name)}</div>${c.agents?`<div class="catmeta">${plural(c.agents.length,"agent")}</div>`:''}</div></div>
     <p class="catd">${esc(c.description||"")}</p>
-    <button class="btn btn-primary block" data-connect="${c.uid}">${I.plus}<span>Connect</span></button>
+    <button class="btn btn-primary block" data-review="${c.uid}">${I.shield}<span>See what it can do</span></button>
   </div>`;
 }
 function soldetailHTML(s){
@@ -330,6 +343,41 @@ function appetiteRow(s,c){
   const cur = (s.appetite&&s.appetite[c])||DEFAULT_APPETITE[c];
   return `<div class="aprow"><div class="aplab">${CATS[c]}</div>
     <div class="apseg" data-appetite="${s.link}" data-cat="${c}">${SEVS.map(l=>`<button class="apbtn ${cur===l?'on':''} lv-${l}" data-level="${l}">${l==='SEVERE'?'Sev':l[0]+l.slice(1).toLowerCase()}</button>`).join("")}</div></div>`;
+}
+
+
+/* ---- pre-connect disclosure: what this solution can do (the permission label) ---- */
+function abilityRow(a, kind){
+  const c = sevColor(a.severity), b = sevBg(a.severity);
+  const why = kind==="ask" ? ((a.why&&a.why[0])||"needs your discernment") : "within what you allow · logged";
+  return `<div class="abrow"><span class="abdot" style="--c:${c};--b:${b}">${kind==="ask"?I.bell:I.check}</span>
+    <div class="abm"><div class="abt">${esc(a.description||pretty(a.key))}</div>
+      <div class="abs">${esc(a.agent)} · <span class="abkey">${esc(a.key)}</span></div>
+      <div class="abwhy">${esc(why)}</div></div>
+    <span class="sevtag" style="--sev:${c};--sevb:${b}">${a.severity}</span></div>`;
+}
+function reviewHTML(){
+  const p = S.reviewData;
+  if (!p) return `<div class="loading"><div class="spinner"></div><span>Reading what it can do…</span></div>`;
+  const s = p.solution;
+  return `<button class="back" data-back-review>${I.chevron}<span>Solutions</span></button>
+  <div class="soldhead"><span class="slogo xl grad">${I.logo}</span>
+    <div><div class="soldn">${esc(s.name)}</div><div class="soldsub">${plural(p.counts.agents,"agent")} · ${p.counts.abilities} abilities</div></div></div>
+  ${s.description?`<p class="sub" style="margin:-2px 0 4px">${esc(s.description)}</p>`:''}
+  <section class="panel"><div class="panelhd"><h3>Will ask you <span class="cnt ask">${p.counts.asks}</span></h3>
+    <p>These stop and wait for your decision, every time.</p></div>
+    ${p.asks.length?p.asks.map(a=>abilityRow(a,"ask")).join(""):'<div class="thin-empty">Nothing here needs you.</div>'}</section>
+  <section class="panel"><div class="panelhd"><h3>Runs on its own <span class="cnt run">${p.counts.runs}</span></h3>
+    <p>Routine work, inside what you allow. Still recorded on the audit ledger.</p></div>
+    ${p.runs.length?p.runs.map(a=>abilityRow(a,"run")).join(""):'<div class="thin-empty">Nothing runs unattended.</div>'}</section>
+  <p class="consent-note">${I.shield}<span>You can change what it may do on its own, or pause it entirely, at any time.</span></p>
+  ${p.connected?`<button class="btn btn-ghost block big" data-back-review>Already connected</button>`
+    :`<button class="btn btn-primary block big" data-connect="${s.uid}">Connect ${esc(s.name)}</button>`}`;
+}
+async function openReview(uid){
+  S.review = uid; S.reviewData = null; S.view = "solutions"; S.selectedSol = null; render();
+  try { S.reviewData = await Backend.profile(uid); } catch(e){ showToast(`<div class="tm">Could not read the profile: ${esc(e.message)}</div>`,"warn"); }
+  render();
 }
 
 /* ---- settings ---- */
@@ -392,6 +440,8 @@ function wire(){
     const envb=t.closest("[data-env]"); if(envb){ S.env=envb.dataset.env; savePrefs(); reloadEnv(); return; }
     const th=t.closest("[data-theme-set]"); if(th){ S.theme=th.dataset.themeSet; savePrefs(); applyTheme(); render(); return; }
     const dec=t.closest("[data-decide]"); if(dec){ decide(dec.dataset.id,dec.dataset.decide); return; }
+    const rev=t.closest("[data-review]"); if(rev){ openReview(rev.dataset.review); return; }
+    if(t.closest("[data-back-review]")){ S.review=null; S.reviewData=null; render(); return; }
     const con=t.closest("[data-connect]"); if(con){ connect(con.dataset.connect); return; }
     const sol=t.closest("[data-sol]"); if(sol){ S.selectedSol=sol.dataset.sol; render(); return; }
     if(t.closest("[data-back]")){ S.selectedSol=null; render(); return; }
@@ -412,7 +462,7 @@ async function decide(id, decision){
 }
 async function connect(uid){
   const c=S.catalog.find(x=>x.uid===uid); const name=c?c.name:"Solution";
-  try{ const r=await Backend.connect(uid); await Backend.refresh(); S.view="inbox"; render(); showToast(`<span class="slogo sm">${I.logo}</span><div class="tm"><b>${esc(name)} connected</b>${r&&r.pending?` · ${r.pending} to review`:''}</div>`,"ok"); }
+  try{ const r=await Backend.connect(uid); await Backend.refresh(); S.review=null; S.reviewData=null; S.view="inbox"; render(); showToast(`<span class="slogo sm">${I.logo}</span><div class="tm"><b>${esc(name)} connected</b>${r&&r.pending?` · ${r.pending} to review`:''}</div>`,"ok"); }
   catch(e){ showToast(`<div class="tm">Could not connect: ${esc(e.message)}</div>`,"warn"); }
 }
 async function setAppetite(link,cat,level){ const s=S.solutions.find(x=>x.link===link); if(s){ s.appetite=s.appetite||{...DEFAULT_APPETITE}; s.appetite[cat]=level; } render(); try{ await Backend.setAppetite(link,{[cat]:level}); }catch{} }
