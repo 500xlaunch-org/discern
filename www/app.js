@@ -69,13 +69,15 @@ const ENVS = { test:{label:"Test"}, live:{label:"Live"} };
 let S = loadPrefs();
 function loadPrefs(){
   let p; try{ p = JSON.parse(localStorage.getItem("discern.prefs")||"null"); }catch{ p=null; }
-  const base = { env:"test", plat:"apple", form:"phone", fullscreen: !matchMedia("(min-width:900px)").matches,
+  const base = { env:"test", plat:"apple", form:"phone", theme:"system", fullscreen: !matchMedia("(min-width:900px)").matches,
     token:null, user:null };
   const s = Object.assign(base, p||{});
   return Object.assign(s, { view:"inbox", online:null, ready:false, busy:false,
     intents:[], timeline:[], solutions:[], catalog:[], selectedSol:null, toast:null });
 }
-function savePrefs(){ try{ localStorage.setItem("discern.prefs", JSON.stringify({env:S.env,plat:S.plat,form:S.form,fullscreen:S.fullscreen,token:S.token,user:S.user})); }catch{} }
+function savePrefs(){ try{ localStorage.setItem("discern.prefs", JSON.stringify({env:S.env,plat:S.plat,form:S.form,theme:S.theme,fullscreen:S.fullscreen,token:S.token,user:S.user})); }catch{} }
+function applyTheme(){ const q=new URLSearchParams(location.search).get("theme"); const t=q||S.theme;
+  if (t==="light"||t==="dark") document.documentElement.dataset.theme=t; else delete document.documentElement.dataset.theme; }
 
 /* ---------------- transport ---------------- */
 class ApiError extends Error { constructor(status,msg){ super(msg); this.status=status; } }
@@ -172,6 +174,7 @@ function surfaces(sol){ // categories this solution will bring to you
 async function boot(){
   const q = new URLSearchParams(location.search);
   if (q.get("view")) S.view = q.get("view");
+  applyTheme();
   render();
   await Backend.probe();
   // magic-link open: /app/?email=you@company.com signs the person in
@@ -316,11 +319,11 @@ function soldetailHTML(s){
   const nab = (s.agents||[]).reduce((n,a)=>n+(a.abilities||[]).length,0);
   return `<button class="back" data-back>${I.chevron}<span>Solutions</span></button>
   <div class="soldhead"><span class="slogo xl grad">${I.logo}</span><div><div class="soldn">${esc(s.name)}</div><div class="soldsub">${plural((s.agents||[]).length,"agent")} · ${plural(nab,"ability").replace("abilitys","abilities")}</div></div><span class="stpill st-${s.status}">${s.status}</span></div>
-  <section class="block"><div class="blockhd"><h3>Discernment appetite</h3><p>The most an agent may do in each area before it asks you.</p></div>
+  <section class="panel"><div class="panelhd"><h3>Discernment appetite</h3><p>The most an agent may do in each area before it asks you.</p></div>
     <div class="apwrap">${CAT_KEYS.map(c=>appetiteRow(s,c)).join("")}</div></section>
-  <section class="block"><div class="blockhd"><h3>Kill switch</h3><p>Pause stops every agent in this solution until you resume.</p></div>
+  <section class="panel"><div class="panelhd"><h3>Kill switch</h3><p>Pause stops every agent in this solution until you resume.</p></div>
     <button class="btn ${s.status==='active'?'btn-warn':'btn-primary'} block" data-status="${s.link}" data-to="${s.status==='active'?'paused':'active'}">${s.status==='active'?'Pause this solution':'Resume this solution'}</button></section>
-  <section class="block"><div class="blockhd"><h3>Agents & abilities</h3></div>
+  <section class="panel"><div class="panelhd"><h3>Agents & abilities</h3></div>
     ${(s.agents||[]).map(a=>`<div class="agentblock"><div class="agentn">${esc(a.name)}</div><div class="abchips">${(a.abilities||[]).map(ab=>`<span class="abchip" style="--c:${sevColor(ab.severity)}"><span class="abk">${esc(ab.key)}</span><span class="absev" style="color:${sevColor(ab.severity)}">${ab.severity}</span></span>`).join("")}</div></div>`).join("")}</section>`;
 }
 function appetiteRow(s,c){
@@ -332,10 +335,12 @@ function appetiteRow(s,c){
 /* ---- settings ---- */
 function settingsHTML(){
   return `<div class="scrhead"><span class="eyebrow">You</span><h1>Settings</h1></div>
-  <section class="block"><div class="kv"><span>Signed in as</span><b>${esc((S.user&&S.user.name)||"You")}</b></div><div class="kv"><span>Email</span><b>${esc((S.user&&S.user.email)||"")}</b></div><div class="kv"><span>Connection</span><b class="${S.online?'ok':'warn'}">${S.online?'Live · '+BASE.replace(/^https?:\/\//,''):'Offline preview'}</b></div></section>
-  <section class="block"><div class="blockhd"><h3>Environment</h3><p>Build and try in Test, then roll out to Live. Same account, isolated data.</p></div>
+  <section class="panel"><div class="kv"><span>Signed in as</span><b>${esc((S.user&&S.user.name)||"You")}</b></div><div class="kv"><span>Email</span><b>${esc((S.user&&S.user.email)||"")}</b></div><div class="kv"><span>Connection</span><b class="${S.online?'ok':'warn'}">${S.online?'Live · '+BASE.replace(/^https?:\/\//,''):'Offline preview'}</b></div></section>
+  <section class="panel"><div class="panelhd"><h3>Environment</h3><p>Build and try in Test, then roll out to Live. Same account, isolated data.</p></div>
     <div class="envseg">${Object.entries(ENVS).map(([k,e])=>`<button class="${S.env===k?'on':''}" data-env="${k}">${e.label}</button>`).join("")}</div></section>
-  <section class="block"><button class="btn btn-ghost block" data-signout>Sign out</button></section>
+  <section class="panel"><div class="panelhd"><h3>Appearance</h3></div>
+    <div class="envseg">${[["system","System"],["light","Light"],["dark","Dark"]].map(([k,l])=>`<button class="${S.theme===k?'on':''}" data-theme-set="${k}">${l}</button>`).join("")}</div></section>
+  <section class="panel"><button class="btn btn-ghost block" data-signout>Sign out</button></section>
   <p class="motto">Beyond human in the loop. Human on the go.</p>`;
 }
 
@@ -385,6 +390,7 @@ function wire(){
     if(t.closest("[data-ctl='fullscreen']")){ S.fullscreen=!S.fullscreen; savePrefs(); render(); return; }
     if(t.closest("[data-toggle-env]")){ S.env=S.env==="test"?"live":"test"; savePrefs(); reloadEnv(); return; }
     const envb=t.closest("[data-env]"); if(envb){ S.env=envb.dataset.env; savePrefs(); reloadEnv(); return; }
+    const th=t.closest("[data-theme-set]"); if(th){ S.theme=th.dataset.themeSet; savePrefs(); applyTheme(); render(); return; }
     const dec=t.closest("[data-decide]"); if(dec){ decide(dec.dataset.id,dec.dataset.decide); return; }
     const con=t.closest("[data-connect]"); if(con){ connect(con.dataset.connect); return; }
     const sol=t.closest("[data-sol]"); if(sol){ S.selectedSol=sol.dataset.sol; render(); return; }
