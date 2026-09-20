@@ -1,0 +1,10 @@
+{
+  "appId": "com.xurface.discern",
+  "appName": "Xurface Discern",
+  "webDir": "www",
+  "backgroundColor": "#eef1f5",
+  "server": { "androidScheme": "https" },
+  "plugins": {
+    "SplashScreen": { "backgroundColor": "#ffffff", "launchAutoHide": true, "launchShowDuration": 900 }
+  }
+}

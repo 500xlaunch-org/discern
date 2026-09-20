@@ -1,0 +1,21 @@
+{
+  "name": "xurface-discern-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Xurface Discern desktop (Windows + macOS + Linux) via Electron.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.xurface.discern",
+    "productName": "Xurface Discern",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "../www/**/*"],
+    "win": { "target": ["nsis"] },
+    "mac": { "target": ["dmg"], "category": "public.app-category.productivity" }
+  },
+  "devDependencies": { "electron": "^32.0.0", "electron-builder": "^25.0.0" }
+}
