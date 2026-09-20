@@ -15,46 +15,31 @@ One web app, shipped native to every platform:
 | **Apple** | iPhone, iPad, macOS | Capacitor (iOS/iPadOS) + Electron (macOS) |
 | **Windows** | laptop, tablet, phone | Electron |
 
-## Try it now (web)
+## Try it now
 
-The app runs as a plain web app you can try in a browser, with a **device
-simulator** to preview it as any platform and screen size:
+**The real, connected app: https://xurface.500xlaunch.com/app** (opens on the Test
+environment). Sign in, browse the solutions from 500xLaunch, connect one, and
+approve or deny what it wants to do - live against Horizon.
 
-- Hosted preview: **https://claude.ai/artifact/9n8CAaNbb6N4DqQ4BBtGff**
-- Or locally: `npm run serve` (opens `www/index.html` on :5173)
+Locally: `npm run serve` opens `www/index.html`; point it at a Horizon with
+`?api=` or serve it from Horizon at `/app`. The top bar has a **device simulator**
+(Apple / Android / Windows x phone / tablet / laptop) so you can preview any
+screen size, and `Fill screen` to drop the frame.
 
-Pick a platform (Apple / Android / Windows) and a device (phone / tablet /
-laptop) in the top bar, open **Examples**, run one, and approve or deny the cards
-that arrive. It opens in a working state with two example cards already waiting.
+## Two environments: Test and Live
 
-## Two environments: Demo, Test, Live
-
-Switch environment in the top bar or in Settings, so you can build and test
-safely before rollout:
-
-- **Demo** - a self-contained mock Horizon (with the real risk-scoring model)
-  and the example solutions baked in. No network. This is what the web preview
-  runs.
-- **Test** - connects to the Horizon **test** environment
-  (`https://test.xurface.500xlaunch.com`). Ship an agent, watch its real cards
-  arrive here, tune appetites - without touching production.
-- **Live** - connects to Horizon **live** (`https://xurface.500xlaunch.com`).
-
-Horizon runs both a test and a live environment inside production; the app points
-at whichever you select. (Connected modes reach real Horizon from the hosted or
-installed app; the browser preview's sandbox keeps it in Demo.)
+Switch in the top bar or Settings. Horizon runs both a **Test** and a **Live**
+environment inside production, isolated by the `x-xurface-env` header, so you
+build and try safely before rolling out. Same account, separate data and audit.
 
 ## What's in the app
 
 - **Discern** - the inbox of held actions. Each card shows the solution, the
-  agent, what it wants to do, why it was held (the risk categories and reasons),
-  and the exact arguments - which you can edit before approving. SEVERE actions
-  require a biometric.
+  agent, what it wants to do, why it was held, and the exact arguments (editable
+  before you approve). SEVERE actions require a biometric.
 - **Activity** - a signed, traceable record of every action, allowed or not.
-- **Solutions** - the agents acting for you; set a per-category discernment
-  **appetite** (LOW / MEDIUM / HIGH / SEVERE), or pause a solution entirely.
-- **Examples** - run BattleMate, FreeLeap, a coding agent or a finance assistant
-  and watch the loop happen.
+- **Solutions** - the solutions acting for you (set a per-category discernment
+  appetite or pause one), and a **From 500xLaunch** catalog you connect in a tap.
 
 ## Build the native apps
 

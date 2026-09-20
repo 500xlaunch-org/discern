@@ -1,40 +1,32 @@
-/* Xurface Discern - the app. One responsive UI, framed by a web device simulator.
-   Demo mode runs a self-contained mock Horizon (with the real scoring model) so
-   you can try the whole loop offline; Test/Live connect to a real Horizon. */
+/* Xurface Discern - the app. Talks to a real Horizon (same origin when served at
+   /app; test/live selected by the x-xurface-env header). If Horizon is not
+   reachable (e.g. an offline preview), it runs the same flow against a local
+   engine that uses the real scoring model, so the UI is always live. */
 "use strict";
 
 /* ---------------- icons ---------------- */
 const MK = `<svg class="mk" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><path class="wave" d="M 28 160 C 59.9 160, 54.1 96, 86 96 C 117.9 96, 112.1 160, 144 160 C 160 160, 166 156, 166 128"/><circle cx="200" cy="128" r="34"/></svg>`;
 const I = {
-  inbox:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h5l2 3h4l2-3h5"/><path d="M4 12l2-7h12l2 7v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/></svg>`,
-  activity:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg>`,
-  solutions:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/></svg>`,
-  examples:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9z"/></svg>`,
-  settings:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>`,
-  bell:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>`,
-  check:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>`,
-  x:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
-  edit:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L18 10l-4-4L4 16z"/><path d="M13 5l4 4"/></svg>`,
-  face:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9 10v1M15 10v1M12 9v3l-1 1M9 15c1 1 5 1 6 0"/></svg>`,
-  logo:`<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7.4" height="7.4" rx="1.6"/><rect x="13.6" y="3" width="7.4" height="7.4" rx="1.6"/><rect x="3" y="13.6" width="7.4" height="7.4" rx="1.6"/><rect x="13.6" y="13.6" width="7.4" height="7.4" rx="1.6"/></svg>`,
+  inbox:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h5l1.5 3h5L16 12h5"/><path d="M5 12l1.8-6.5A2 2 0 0 1 8.7 4h6.6a2 2 0 0 1 1.9 1.5L19 12v6a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/></svg>`,
+  activity:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3.5l2 6 3.5-13 2.5 9 1.8-4H21"/></svg>`,
+  solutions:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg>`,
+  settings:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.6v2.2M12 19.2v2.2M4.5 4.5l1.6 1.6M17.9 17.9l1.6 1.6M2.6 12h2.2M19.2 12h2.2M4.5 19.5l1.6-1.6M17.9 6.1l1.6-1.6"/></svg>`,
+  bell:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 1 1 12 0c0 4.5 1.8 5.7 2 6H4c.2-.3 2-1.5 2-6"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>`,
+  face:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9.2 10v1.2M14.8 10v1.2M12 9.5v3l-1 1M9 15c1.2 1 4.8 1 6 0"/></svg>`,
+  logo:`<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7.4" height="7.4" rx="1.8"/><rect x="13.6" y="3" width="7.4" height="7.4" rx="1.8"/><rect x="3" y="13.6" width="7.4" height="7.4" rx="1.8"/><rect x="13.6" y="13.6" width="7.4" height="7.4" rx="1.8"/></svg>`,
   chevron:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>`,
-  shield:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>`,
+  shield:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>`,
+  plus:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`,
+  pause:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M9 5v14M15 5v14"/></svg>`,
+  play:`<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>`,
 };
 
-/* ---------------- the risk model (mirrors Horizon) ---------------- */
+/* ---------------- risk model (used for the local engine + labels) --------- */
 const SEVS = ["LOW","MEDIUM","HIGH","SEVERE"], ORD = {LOW:0,MEDIUM:1,HIGH:2,SEVERE:3};
-const maxSev = (a,b)=> ORD[a]>=ORD[b]?a:b, gt = (a,b)=> ORD[a]>ORD[b];
-const bump = s => SEVS[Math.min(3,ORD[s]+1)];
-const CATS = {
-  identity:{label:"Identity / Auth",maps:"NIST 800-63 / ISO 24760"},
-  financial:{label:"Financial",maps:"PCI-DSS / ISO 27001"},
-  location:{label:"Location",maps:"ISO 27701 (PII)"},
-  intellectual:{label:"Intellectual property",maps:"ISO 27001 A.5 / NIST MP"},
-  conversation:{label:"Conversation",maps:"NIST SC / ISO 27701"},
-  data:{label:"Data",maps:"ISO 27001 A.8 / GDPR Art.5"},
-  system:{label:"Systems & access",maps:"NIST CM/AC/AU"},
-};
+const maxSev=(a,b)=>ORD[a]>=ORD[b]?a:b, gt=(a,b)=>ORD[a]>ORD[b], bump=s=>SEVS[Math.min(3,ORD[s]+1)];
+const CATS = { identity:"Identity", financial:"Financial", location:"Location", intellectual:"Intellectual property", conversation:"Conversation", data:"Data", system:"Systems & access" };
 const CAT_KEYS = Object.keys(CATS);
+const DEFAULT_APPETITE = {identity:"LOW",financial:"LOW",location:"MEDIUM",intellectual:"LOW",conversation:"MEDIUM",data:"MEDIUM",system:"LOW"};
 const RULES = [
   [/(password|passkey|2fa|mfa|otp|credential|secret|token|scope|permission|\brole\b|grant|consent|login|sign[-_ ]?in|oauth|authn|authz|authoriz\w*|\bauth\b)/i,"identity","HIGH"],
   [/(revoke|deprovision|disable[-_ ]?account|reset[-_ ]?password|rotate[-_ ]?key)/i,"identity","SEVERE"],
@@ -50,399 +42,375 @@ const RULES = [
   [/(deploy|release|rollback|force[-_ ]?push|config|infrastructure|migrate|scale|provision|restart|shutdown)/i,"system","HIGH"],
 ];
 const ESC = /(\ball\b|bulk|mass|every(one|body)?|permanent|irreversible|production|prod\b)/i;
-const DEFAULT_APPETITE = {identity:"LOW",financial:"LOW",location:"MEDIUM",intellectual:"LOW",conversation:"MEDIUM",data:"MEDIUM",system:"LOW"};
-
-function scoreAbility(a){
-  const text = `${a.key} ${a.description||""} ${a.kind} ${a.details?JSON.stringify(a.details):""}`;
-  const esc = ESC.test(text); const risk = {};
-  for (const [re,cat,sev] of RULES) if (re.test(text)) risk[cat] = maxSev(risk[cat]||"LOW", esc?bump(sev):sev);
-  if (!Object.keys(risk).length) risk.data = "LOW";
-  const dev = a.developer_risk;
-  if (dev) for (const c of Object.keys(dev)) risk[c] = maxSev(risk[c]||"LOW", dev[c]);
-  const severity = Object.values(risk).reduce((m,s)=>maxSev(m,s),"LOW");
-  return {risk, severity};
+function score(key, desc, dev){
+  const text = `${key} ${desc||""}`, esc = ESC.test(text), risk={};
+  for (const [re,c,s] of RULES) if (re.test(text)) risk[c]=maxSev(risk[c]||"LOW", esc?bump(s):s);
+  if (!Object.keys(risk).length) risk.data="LOW";
+  if (dev) for (const c of Object.keys(dev)) risk[c]=maxSev(risk[c]||"LOW", dev[c]);
+  return {risk, severity:Object.values(risk).reduce((m,s)=>maxSev(m,s),"LOW")};
 }
 function reconcile(risk, severity, appetite, policy){
-  if (severity==="SEVERE") return {decision:"discern",reasons:["Severe actions are never delegated"]};
-  if (policy==="always") return {decision:"discern",reasons:["The developer marked this ability for discernment"]};
+  if (severity==="SEVERE") return {allow:false, reasons:["Severe actions are never delegated"]};
+  if (policy==="always") return {allow:false, reasons:["The developer always asks you for this"]};
   const reasons=[];
-  for (const c of Object.keys(risk)){
-    const tol = appetite[c] || DEFAULT_APPETITE[c] || "LOW";
-    if (gt(risk[c], tol)) reasons.push(`${CATS[c].label} scored ${risk[c]}, above your ${tol} appetite`);
-  }
-  return reasons.length ? {decision:"discern",reasons} : {decision:"allow",reasons:["Within your appetite"]};
+  for (const c of Object.keys(risk)){ const tol=appetite[c]||DEFAULT_APPETITE[c]||"LOW"; if (gt(risk[c],tol)) reasons.push(`${CATS[c]} scored ${risk[c]}, above your ${tol} appetite`); }
+  return reasons.length ? {allow:false, reasons} : {allow:true, reasons:["Within your appetite"]};
 }
 
-/* ---------------- seed solutions + examples ---------------- */
-function ability(key,kind,description,extra){ const a={key,kind,description,...extra}; return {...a, ...scoreAbility(a)}; }
-function makeSol(uid,name,icon,appetite,agents,status){
-  const A={}; for (const [id,def] of Object.entries(agents)) A[id]={...def, abilities:def.abilities.map(x=>ability(x.key,x.kind,x.description,{developer_risk:x.developer_risk,discernment:x.discernment}))};
-  return {uid,name,icon,appetite:{...DEFAULT_APPETITE,...(appetite||{})},status:status||"active",agents:A};
-}
-function seedSolutions(){
-  return {
-    battlemate: makeSol("battlemate","BattleMate","chart",{intellectual:"HIGH",data:"HIGH"},{
-      "intel-scout":{display_name:"Intel Scout",abilities:[{key:"sources.fetch",kind:"skill",description:"Fetch public pages and pricing"},{key:"signals.collect",kind:"skill",description:"Read and normalize market signals"}]},
-      "analyst":{display_name:"Analyst",abilities:[{key:"metrics.compute",kind:"skill",description:"Compute KPIs from signals"},{key:"report.compose",kind:"tool",description:"Author the competitive brief document"}]},
-      "narrator":{display_name:"Narrator",abilities:[{key:"audio.synthesize",kind:"tool",description:"Synthesize a spoken audio summary"}]},
-      "courier":{display_name:"Courier",abilities:[{key:"report.broadcast",kind:"capability",description:"Broadcast the brief to the whole team by email and WhatsApp",developer_risk:{conversation:"HIGH"},discernment:"always"},{key:"budget.spend",kind:"capability",description:"Buy a premium data source",developer_risk:{financial:"HIGH"}}]},
-    }),
-    freeleap: makeSol("freeleap","FreeLeap","briefcase",{intellectual:"HIGH",data:"HIGH"},{
-      "cv-smith":{display_name:"CV Smith",abilities:[{key:"cv.update",kind:"tool",description:"Update the evolving CV document"},{key:"cv.publish",kind:"capability",description:"Publish the CV to the public portfolio",discernment:"always"}]},
-      "scout":{display_name:"Scout",abilities:[{key:"jobs.search",kind:"skill",description:"Search job boards for the next mission"}]},
-      "applicant":{display_name:"Applicant",abilities:[{key:"job.apply",kind:"capability",description:"Submit a job application on the freelancer's behalf",developer_risk:{conversation:"HIGH",intellectual:"HIGH"}}]},
-      "interviewer":{display_name:"Interviewer",abilities:[{key:"interview.reply",kind:"capability",description:"Reply to a recruiter interview message",developer_risk:{conversation:"HIGH"}}]},
-    }),
-    devbot: makeSol("devbot","Coding Agent","code",{system:"HIGH"},{
-      "coding-agent":{display_name:"Coding Agent",abilities:[{key:"repo.read",kind:"skill",description:"Read files in the working tree"},{key:"test.run",kind:"skill",description:"Run the test suite"},{key:"deploy.staging",kind:"capability",description:"Deploy the build to staging"},{key:"repo.force_push",kind:"capability",description:"Force-push a branch",discernment:"always"},{key:"deploy.production",kind:"capability",description:"Deploy the API to production"},{key:"db.table_drop",kind:"capability",description:"Drop a database table"}]},
-    }),
-    finbot: makeSol("finbot","Finance Assistant","coin",{financial:"LOW"},{
-      "finance-assistant":{display_name:"Finance Assistant",abilities:[{key:"expense.categorize",kind:"skill",description:"Categorize an expense"},{key:"pay.invoice",kind:"capability",description:"Pay an invoice"},{key:"funds.transfer",kind:"capability",description:"Transfer funds to a payee"}]},
-    }),
-  };
-}
-const EXAMPLES = [
-  {id:"battlemate",sol:"battlemate",name:"BattleMate: morning brief",desc:"Watches competitors, writes a KPI brief and audio summary, delivers to the team.",tags:["competitive intel","email + WhatsApp"],icon:"chart",
-   steps:[["intel-scout","sources.fetch",{sources:5}],["intel-scout","signals.collect",{competitors:5}],["analyst","metrics.compute",{}],["analyst","report.compose",{title:"Morning Brief"}],["narrator","audio.synthesize",{}],["courier","report.broadcast",{recipients:3,channels:["email","whatsapp"]}],["courier","budget.spend",{vendor:"PremiumIntel",amount:900,currency:"USD"}]]},
-  {id:"freeleap",sol:"freeleap",name:"FreeLeap: next-mission prep",desc:"Two months out, evolves the CV, applies to the next missions, answers recruiters.",tags:["freelance","CV + applications"],icon:"briefcase",
-   steps:[["cv-smith","cv.update",{version:4}],["scout","jobs.search",{query:"ml contract"}],["cv-smith","cv.publish",{site:"portfolio.freeleap.dev"}],["applicant","job.apply",{company:"Lumen Labs",rate_usd_day:780,match:0.92}],["applicant","job.apply",{company:"Grove Retail",rate_usd_day:720,match:0.88}],["interviewer","interview.reply",{company:"Lumen Labs",text:"Tuesday works."}]]},
-  {id:"devbot",sol:"devbot",name:"Coding agent: ship a change",desc:"Reads, tests and ships to staging on its own; force-push, prod deploy and drops ask you.",tags:["coding","MCP / Claude Code"],icon:"code",
-   steps:[["coding-agent","repo.read",{path:"src/"}],["coding-agent","test.run",{}],["coding-agent","deploy.staging",{build:"a1b2c3"}],["coding-agent","repo.force_push",{branch:"feature/x"}],["coding-agent","deploy.production",{service:"api"}],["coding-agent","db.table_drop",{table:"invoices"}]]},
-  {id:"finbot",sol:"finbot",name:"Finance assistant: pay the bills",desc:"Categorizes freely; every dollar out is your call.",tags:["payments","OpenAI"],icon:"coin",
-   steps:[["finance-assistant","expense.categorize",{merchant:"GitHub"}],["finance-assistant","pay.invoice",{vendor:"Acme",amount:180}],["finance-assistant","pay.invoice",{vendor:"Unknown LLC",amount:50000}],["finance-assistant","funds.transfer",{payee:"landlord",amount:200}]]},
-];
-
-/* ---------------- state ---------------- */
+/* ---------------- config + state ---------------- */
 const DEVICES = {
   apple:{label:"Apple",phone:{name:"iPhone 15",w:390,h:844,cam:"notch"},tablet:{name:"iPad Air",w:834,h:1112,cam:"none"},laptop:{name:"MacBook",w:1280,h:820,cam:"none"}},
   android:{label:"Android",phone:{name:"Pixel 8",w:412,h:892,cam:"hole"},tablet:{name:"Galaxy Tab",w:800,h:1220,cam:"hole"},laptop:{name:"Chromebook",w:1280,h:800,cam:"none"}},
   windows:{label:"Windows",phone:{name:"Surface Duo",w:400,h:860,cam:"none"},tablet:{name:"Surface Pro",w:912,h:1240,cam:"none"},laptop:{name:"Surface Laptop",w:1366,h:820,cam:"none"}},
 };
-const HOST = "https://xurface.500xlaunch.com";
-const ENVS = {
-  demo:{label:"Demo",cls:"env-demo"},
-  test:{label:"Test",cls:"env-test",base:HOST,hdr:"test"},
-  live:{label:"Live",cls:"env-live",base:HOST,hdr:"live"},
+const BASE = new URLSearchParams(location.search).get("api") || location.origin;
+const ENVS = { test:{label:"Test"}, live:{label:"Live"} };
+
+let S = loadPrefs();
+function loadPrefs(){
+  let p; try{ p = JSON.parse(localStorage.getItem("discern.prefs")||"null"); }catch{ p=null; }
+  const base = { env:"test", plat:"apple", form:"phone", fullscreen: !matchMedia("(min-width:900px)").matches,
+    token:null, user:null };
+  const s = Object.assign(base, p||{});
+  return Object.assign(s, { view:"inbox", online:null, ready:false, busy:false,
+    intents:[], timeline:[], solutions:[], catalog:[], selectedSol:null, toast:null });
+}
+function savePrefs(){ try{ localStorage.setItem("discern.prefs", JSON.stringify({env:S.env,plat:S.plat,form:S.form,fullscreen:S.fullscreen,token:S.token,user:S.user})); }catch{} }
+
+/* ---------------- transport ---------------- */
+class ApiError extends Error { constructor(status,msg){ super(msg); this.status=status; } }
+async function api(method, path, body, {auth=true}={}){
+  const headers = {"content-type":"application/json","x-xurface-env":S.env};
+  if (auth && S.token) headers.authorization = `Bearer ${S.token}`;
+  const res = await fetch(BASE+path, {method, headers, body: body!=null?JSON.stringify(body):undefined});
+  const data = await res.json().catch(()=>({}));
+  if (!res.ok) throw new ApiError(res.status, data.error||`${method} ${path}`);
+  return data;
+}
+
+/* ---------------- backend (connected, with a local fallback) ------------- */
+const Backend = {
+  async probe(){ try{ await fetch(BASE+"/healthz",{headers:{"x-xurface-env":S.env}}); S.online=true; }catch{ S.online=false; Local.seed(); } },
+  async login(email, name){
+    if (!S.online) return Local.login(email,name);
+    const out = await api("POST","/v1/user/login",{email,name},{auth:false});
+    S.token = out.token; S.user = out.user; savePrefs();
+  },
+  async refresh(){
+    if (!S.online) return Local.refresh();
+    const [inbox, timeline, sols, cat] = await Promise.all([
+      api("GET","/v1/user/inbox"), api("GET","/v1/user/timeline"),
+      api("GET","/v1/user/solutions"), api("GET","/v1/user/solutions/search?q="),
+    ]);
+    S.intents = inbox.intents; S.timeline = timeline.intents; S.solutions = sols.solutions;
+    const linked = new Set(S.solutions.map(s=>s.uid));
+    S.catalog = cat.solutions.filter(s=>!linked.has(s.uid));
+  },
+  async decide(id, decision, opts){ if (!S.online) return Local.decide(id,decision,opts); await api("POST",`/v1/user/intents/${id}/decide`,{decision,...opts}); },
+  async setAppetite(link, appetite){ if (!S.online) return Local.setAppetite(link,appetite); await api("POST",`/v1/user/links/${link}/appetite`,{appetite}); },
+  async setStatus(link, status){ if (!S.online) return Local.setStatus(link,status); await api("POST",`/v1/user/links/${link}/status`,{status}); },
+  async connect(uid){ if (!S.online) return Local.connect(uid); return api("POST",`/v1/user/solutions/${uid}/connect`); },
 };
-let S = load();
-function load(){
-  let s; try{ s = JSON.parse(localStorage.getItem("discern")||"null"); }catch{ s=null; }
-  const base = {view:"inbox",signedIn:true,user:{name:"You",email:"you@demo.dev"},env:"demo",plat:"apple",form:"phone",
-    fullscreen:false,seq:0,solutions:seedSolutions(),intents:[],timeline:[],selectedSol:null,__seeded:false};
-  s = Object.assign(base, s||{});
-  if (!s.solutions || !s.solutions.battlemate) s.solutions = seedSolutions();
-  return s;
-}
-function save(){ try{ localStorage.setItem("discern", JSON.stringify(S)); }catch{} }
 
-/* ---------------- mock backend (demo) ---------------- */
-function nextId(p){ return `${p}_${(S.seq++).toString(36)}${Math.random().toString(36).slice(2,6)}`; }
-function hash(){ return Array.from({length:8},()=>"0123456789abcdef"[Math.floor(Math.random()*16)]).join(""); }
-function evaluate(solKey, agentId, capability, details){
-  const sol = S.solutions[solKey]; const agent = sol.agents[agentId];
-  const abil = agent.abilities.find(a=>a.key===capability) || {...scoreAbility({key:capability,kind:"capability",description:capability,details}), discernment:"always", undeclared:true};
-  const v = reconcile(abil.risk, abil.severity, sol.appetite, abil.discernment||"auto");
-  const rec = {id:nextId("int"),sol:solKey,solName:sol.name,icon:sol.icon,agent:agent.display_name||agentId,
-    capability,details:{...details},risk:abil.risk,severity:abil.severity,reasons:(abil.undeclared?["Undeclared capability: always asks"]:[]).concat(v.reasons),
-    at:Date.now(),hash:hash()};
-  if (v.decision==="allow"){ rec.state="allowed"; S.timeline.unshift(rec); }
-  else { rec.state="pending"; S.intents.unshift(rec); }
-  return rec;
-}
-function decideIntent(id, decision, edited){
-  const idx = S.intents.findIndex(i=>i.id===id); if (idx<0) return;
-  const it = S.intents.splice(idx,1)[0];
-  it.decidedAt = Date.now(); it.hash = hash();
-  if (decision==="deny"){ it.state="denied"; }
-  else if (edited){ it.state="edited"; it.details = {...it.details, ...edited}; }
-  else { it.state="approved"; }
-  S.timeline.unshift(it);
-  save();
+/* offline engine: the same flow, in memory, using the real scoring model */
+const Local = (()=>{
+  const CATALOG = [
+    {uid:"battlemate",slug:"battlemate",name:"BattleMate",description:"Competitive intelligence, on watch. Writes a KPI brief and delivers it to your team.",
+     agents:[["intel-scout","Intel Scout",[["sources.fetch","Fetch public pages and pricing"],["signals.collect","Read and normalize market signals"]]],["analyst","Analyst",[["metrics.compute","Compute KPIs from signals"],["report.compose","Author the competitive brief"]]],["courier","Courier",[["report.broadcast","Broadcast the brief to the whole team by email and WhatsApp",{conversation:"HIGH"},"always"],["budget.spend","Buy a premium data source",{financial:"HIGH"}]]]]},
+    {uid:"freeleap",slug:"freeleap",name:"FreeLeap",description:"Your freelance career, always lining up the next mission. Evolves your CV and applies for you.",
+     agents:[["cv-smith","CV Smith",[["cv.update","Update the evolving CV document"],["cv.publish","Publish the CV to the public portfolio",null,"always"]]],["scout","Scout",[["jobs.search","Search job boards for the next mission"]]],["applicant","Applicant",[["job.apply","Submit a job application on your behalf",{conversation:"HIGH",intellectual:"HIGH"}]]]]},
+    {uid:"devbot",slug:"devbot",name:"Coding Agent",description:"Reads, tests and ships to staging on its own. Force-push, prod deploy and drops ask you.",
+     agents:[["coding-agent","Coding Agent",[["repo.read","Read files in the working tree"],["test.run","Run the test suite"],["deploy.staging","Deploy the build to staging"],["repo.force_push","Force-push a branch",null,"always"],["deploy.production","Deploy the API to production"],["db.table_drop","Drop a database table"]]]]},
+    {uid:"finbot",slug:"finbot",name:"Finance Assistant",description:"Categorizes expenses freely. Every dollar out is your call.",
+     agents:[["finance-assistant","Finance Assistant",[["expense.categorize","Categorize an expense"],["pay.invoice","Pay an invoice"],["funds.transfer","Transfer funds to a payee"]]]]},
+  ];
+  const st = { seeded:false, links:{}, intents:[], timeline:[], seq:0 };
+  const id=p=>`${p}_${(st.seq++).toString(36)}${Math.random().toString(36).slice(2,6)}`;
+  const hash=()=>Array.from({length:8},()=>"0123456789abcdef"[Math.floor(Math.random()*16)]).join("");
+  const sample=k=>{ k=k.toLowerCase();
+    if(/pay|invoice|transfer|refund/.test(k))return{amount:2400,currency:"USD",to:"acme-invoicing"};
+    if(/spend|budget|buy/.test(k))return{amount:900,currency:"USD",vendor:"PremiumIntel"};
+    if(/broadcast/.test(k))return{recipients:3,channels:["email","whatsapp"]};
+    if(/reply|send|email|message/.test(k))return{to:"recruiter@acme.co",text:"Yes, that works."};
+    if(/deploy/.test(k))return{service:"api",target:k.includes("prod")?"production":"staging"};
+    if(/publish/.test(k))return{site:"portfolio.example.com"}; if(/apply/.test(k))return{company:"Lumen Labs",rate_usd_day:780};
+    if(/drop|delete/.test(k))return{target:"invoices"}; return{}; };
+  function catOf(uid){ return CATALOG.find(c=>c.uid===uid); }
+  function sol(uid){ const c=catOf(uid); const agents=c.agents.map(([id2,name,abs])=>({id:id2,name,abilities:abs.map(([key,desc,dev,disc])=>({key,kind:"capability",description:desc,discernment:disc||"auto",...score(key,desc,dev)}))})); return {uid,name:c.name,description:c.description,agents}; }
+  return {
+    seed(){ if (st.seeded) return; st.seeded=true; },
+    async login(email,name){ S.token="local"; S.user={id:"usr_local",email,name:name||"You"}; savePrefs(); },
+    async refresh(){
+      S.intents = st.intents.slice(); S.timeline = st.timeline.slice();
+      S.solutions = Object.keys(st.links).map(uid=>{ const s=sol(uid); const l=st.links[uid]; return {uid,name:s.name,description:s.description,link:l.link,status:l.status,appetite:l.appetite,matched_by:"connect",
+        agents:s.agents.map(a=>({name:a.name,description:"",abilities:a.abilities.map(ab=>({key:ab.key,kind:ab.kind,severity:ab.severity,risk:ab.risk}))}))}; });
+      S.catalog = CATALOG.filter(c=>!st.links[c.uid]).map(c=>({uid:c.uid,name:c.name,description:c.description,agents:c.agents.map(a=>({name:a[1]}))}));
+    },
+    async connect(uid){ const s=sol(uid); const link=id("lnk"); st.links[uid]={link,status:"active",appetite:{...DEFAULT_APPETITE,...(uid==="battlemate"||uid==="freeleap"?{intellectual:"HIGH",data:"HIGH"}:uid==="devbot"?{system:"HIGH"}:{})}};
+      let pending=0; for (const a of s.agents) for (const ab of a.abilities){ const v=reconcile(ab.risk,ab.severity,st.links[uid].appetite,ab.discernment); const rec={id:id("int"),solName:s.name,agent:a.name,capability:ab.key,details:sample(ab.key),risk:ab.risk,severity:ab.severity,reasons:v.reasons,at:Date.now(),hash:hash(),sol:uid,link}; if (v.allow){ rec.state="allowed"; st.timeline.unshift(rec);} else { rec.state="pending"; st.intents.unshift(rec); pending++; } }
+      return {ok:true,pending}; },
+    async decide(id2,decision,opts){ const i=st.intents.findIndex(x=>x.id===id2); if(i<0)return; const it=st.intents.splice(i,1)[0]; it.state=decision==="deny"?"denied":(opts&&opts.edited_details)?"edited":"approved"; if(opts&&opts.edited_details)it.details={...it.details,...opts.edited_details}; it.decidedAt=Date.now(); it.hash=hash(); st.timeline.unshift(it); },
+    async setAppetite(link,ap){ for(const u in st.links) if(st.links[u].link===link) Object.assign(st.links[u].appetite,ap); },
+    async setStatus(link,stt){ for(const u in st.links) if(st.links[u].link===link) st.links[u].status=stt; },
+  };
+})();
+
+/* ---------------- helpers ---------------- */
+const sevColor=s=>({LOW:"var(--lo)",MEDIUM:"var(--me)",HIGH:"var(--hi)",SEVERE:"var(--sv)"}[s]||"var(--me)");
+const sevBg=s=>({LOW:"var(--lo-bg)",MEDIUM:"var(--me-bg)",HIGH:"var(--hi-bg)",SEVERE:"var(--sv-bg)"}[s]||"var(--me-bg)");
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const plural=(n,w)=>n+" "+w+(n===1?"":"s");
+const pretty=c=>c.replace(/[._]/g," ").replace(/\b\w/g,x=>x.toUpperCase());
+const ago=t=>{ if(!t)return""; const m=Math.round((Date.now()-t)/60000); return m<1?"just now":m<60?`${m}m`:m<1440?`${Math.round(m/60)}h`:`${Math.round(m/1440)}d`; };
+function surfaces(sol){ // categories this solution will bring to you
+  const cats=new Set();
+  for (const a of sol.agents||[]) for (const ab of a.abilities||[]){ const ap=sol.appetite||DEFAULT_APPETITE; for (const [c,s] of Object.entries(ab.risk||{})) if (gt(s, ap[c]||DEFAULT_APPETITE[c]||"LOW")||ab.severity==="SEVERE") cats.add(c); }
+  return [...cats];
 }
 
-/* example runner: enqueue steps with a small delay + a push toast per held card */
-let running = false;
-async function runExample(ex){
-  if (running) return; running = true;
+/* ---------------- boot ---------------- */
+async function boot(){
+  const q = new URLSearchParams(location.search);
+  if (q.get("view")) S.view = q.get("view");
   render();
-  for (const [agent,cap,details] of ex.steps){
-    const rec = evaluate(ex.sol, agent, cap, details);
-    if (rec.state==="pending") toast(rec);
-    save(); if (S.view==="inbox"||S.view==="activity") render();
-    await sleep(360);
-  }
-  running = false; save(); render();
+  await Backend.probe();
+  // magic-link open: /app/?email=you@company.com signs the person in
+  if (!S.token && q.get("email")){ try{ await Backend.login(q.get("email"), q.get("name")||undefined); }catch{} }
+  if (S.token){ try{ await Backend.refresh(); }catch(e){ if (e.status===401){ S.token=null; S.user=null; savePrefs(); } } }
+  S.ready = true; render();
 }
-const sleep = ms => new Promise(r=>setTimeout(r,ms));
 
-/* ---------------- rendering ---------------- */
-const NAV = [["inbox","Discern",I.inbox],["activity","Activity",I.activity],["solutions","Solutions",I.solutions],["examples","Examples",I.examples],["settings","Settings",I.settings]];
-const sevColor = s => ({LOW:"var(--lo)",MEDIUM:"var(--me)",HIGH:"var(--hi)",SEVERE:"var(--sv)"}[s]);
-const sevBg = s => ({LOW:"var(--lo-bg)",MEDIUM:"var(--me-bg)",HIGH:"var(--hi-bg)",SEVERE:"var(--sv-bg)"}[s]);
-const solLogo = () => I.logo;
-const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const timeAgo = t => { const m=Math.round((Date.now()-t)/60000); return m<1?"just now":m<60?`${m}m ago`:`${Math.round(m/60)}h ago`; };
+/* the rest (rendering + events) is in render.js-style below */
+
+/* ==================== rendering ==================== */
+const NAV = [["inbox","Discern",I.inbox],["activity","Activity",I.activity],["solutions","Solutions",I.solutions],["settings","Settings",I.settings]];
+const iName = it => (it.solution && it.solution.name) || it.solName || "A solution";
+const iAgent = it => (it.agent && it.agent.name) || it.agent || "";
+const iAt = it => it.created_at || it.at || it.decidedAt;
+const iRef = it => String(it.hash || it.id || "").slice(-8);
 
 function render(){
   const root = document.getElementById("root");
   root.innerHTML = shellHTML();
-  const appEl = document.getElementById("app-root");
-  appEl.innerHTML = S.signedIn ? appHTML() : signInHTML();
-  applyDevice();
-  wire();
+  const app = document.getElementById("app-root");
+  if (app) app.innerHTML = !S.token ? signinHTML() : appHTML();
+  applyDevice(); wire();
 }
+
+/* ---- web preview studio ---- */
 function shellHTML(){
-  if (S.fullscreen) return `<div class="app-fill">${deviceScreenHTML(true)}</div>`;
+  if (S.fullscreen) return `<div class="app-fill"><div class="app" id="app-root"></div></div>`;
   const dev = DEVICES[S.plat][S.form];
   return `<div class="studio" data-plat="${S.plat}">
     <div class="studio-bar">
-      <span class="studio-brand">${MK}<b>Xurface Discern</b><small>web preview</small></span>
-      <div class="seg" role="group" aria-label="Environment">
-        ${Object.entries(ENVS).map(([k,e])=>`<button data-env="${k}" aria-pressed="${S.env===k}">${e.label}</button>`).join("")}
-      </div>
+      <span class="studio-brand">${MK}<b>Xurface Discern</b><small>preview</small></span>
       <span class="grow"></span>
       <label>Platform</label>
       <select class="studio-select" data-ctl="plat">${Object.entries(DEVICES).map(([k,d])=>`<option value="${k}" ${S.plat===k?"selected":""}>${d.label}</option>`).join("")}</select>
       <select class="studio-select" data-ctl="form">${["phone","tablet","laptop"].map(f=>`<option value="${f}" ${S.form===f?"selected":""}>${DEVICES[S.plat][f].name}</option>`).join("")}</select>
-      <button class="studio-select" data-ctl="fullscreen">Fullscreen</button>
+      <button class="studio-select" data-ctl="fullscreen">Fill screen</button>
     </div>
     <div class="stage"><div class="stage-scale"><div class="device ${S.form}" id="device">
       <div class="cam"><div class="${dev.cam==='notch'?'notch':dev.cam==='hole'?'hole':''}"></div></div>
-      <div class="screen" id="screen">${deviceScreenHTML(false)}</div>
+      <div class="screen"><div class="app" id="app-root"></div></div>
       ${S.form==='laptop'?'<div class="notch-base"></div>':''}
-    </div></div></div>
-  </div>`;
+    </div></div></div></div>`;
 }
-function deviceScreenHTML(){ return `<div class="app" id="app-root"></div>`; }
 
+/* ---- app chrome ---- */
 function appHTML(){
-  const wide = S.form!=="phone";
+  const wide = S.form!=="phone" && !S.fullscreen ? true : (S.fullscreen && matchMedia("(min-width:820px)").matches);
   const pending = S.intents.length;
   return `<div class="safe-top"></div>
-  <div class="topbar">${MK}<span class="title"><b>Discern</b></span><span class="spacer"></span>
-    <button class="iconbtn" data-nav="inbox" aria-label="Discernment">${I.bell}${pending?'<span class="badge-dot"></span>':''}</button>
-  </div>
+  <header class="topbar">${MK}<span class="title">Discern</span>
+    <button class="envchip ${S.env}" data-toggle-env aria-label="Environment">${S.online===false?'<span class="off"></span>':''}${ENVS[S.env].label}</button>
+    <span class="spacer"></span>
+    <button class="iconbtn" data-nav="inbox" aria-label="Discernment">${I.bell}${pending?`<span class="count">${pending>9?'9+':pending}</span>`:''}</button>
+  </header>
   <div class="body">
-    ${wide?`<nav class="rail">${NAV.map(([v,l,ic])=>`<a href="#" data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${l}</span>${v==="inbox"&&pending?` <span class="chip risk" style="--sev-color:var(--hi);--sev-bg:var(--hi-bg);margin-left:auto">${pending}</span>`:''}</a>`).join("")}</nav>`:''}
-    <div class="screen-wrap"><div class="wrap">${screenHTML()}</div></div>
+    ${wide?`<nav class="rail">${NAV.map(([v,l,ic])=>`<a href="#" data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${l}</span>${v==="inbox"&&pending?`<span class="railcount">${pending}</span>`:''}</a>`).join("")}<span class="railgrow"></span><div class="railuser">${esc((S.user&&S.user.name)||"You")}</div></nav>`:''}
+    <main class="screen-wrap"><div class="wrap">${!S.ready?loadingHTML():screenHTML()}</div></main>
   </div>
-  ${wide?'':`<nav class="tabbar">${NAV.map(([v,l,ic])=>`<button data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${l}</span></button>`).join("")}</nav>`}
+  ${wide?'':`<nav class="tabbar">${NAV.map(([v,l,ic])=>`<button data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${l}</span>${v==="inbox"&&pending?'<span class="tabdot"></span>':''}</button>`).join("")}</nav>`}
   <div id="overlay"></div>`;
-  }
-
-function screenHTML(){
-  switch(S.view){
-    case "inbox": return inboxHTML();
-    case "activity": return activityHTML();
-    case "solutions": return solutionsHTML();
-    case "examples": return examplesHTML();
-    case "settings": return settingsHTML();
-    default: return inboxHTML();
-  }
 }
+function loadingHTML(){ return `<div class="loading"><div class="spinner"></div><span>Connecting to Horizon…</span></div>`; }
+function screenHTML(){ return ({inbox:inboxHTML,activity:activityHTML,solutions:solutionsHTML,settings:settingsHTML}[S.view]||inboxHTML)(); }
+
+/* ---- inbox ---- */
 function inboxHTML(){
-  const head = `<div><span class="eyebrow">On your behalf</span><h1 class="scr">Discern</h1><p class="sub">${S.intents.length?`${S.intents.length} action${S.intents.length>1?"s":""} need your judgement.`:"You are all caught up."}</p></div>`;
-  if (!S.intents.length) return head + `<div class="empty">${MK}<div>Nothing is waiting.</div><div style="font-size:.84rem;margin-top:6px">Run an example to see agents ask for your discernment.</div><button class="runbtn" data-nav="examples" style="margin-top:14px">See examples</button></div>`;
-  return head + S.intents.map(cardHTML).join("");
+  const n = S.intents.length;
+  const head = `<div class="scrhead"><span class="eyebrow">On your behalf</span><h1>Discern</h1><p class="sub">${n?`${n} action${n>1?"s":""} waiting for your judgement.`:"You are all caught up."}</p></div>`;
+  if (!n) return head + `<div class="empty"><div class="empty-mk">${MK}</div><div class="empty-t">Nothing needs you right now.</div><p>When an agent reaches for something risky, it lands here. Connect a solution to see it work.</p><button class="btn btn-primary" data-nav="solutions">Browse solutions</button></div>`;
+  return head + `<div class="cards">${S.intents.map(cardHTML).join("")}</div>`;
 }
 function cardHTML(it){
+  const sev = it.severity;
   const rows = Object.entries(it.details||{}).slice(0,4).map(([k,v])=>{
-    const editable = typeof v==="number"||typeof v==="string";
-    return `<div class="row"><span class="k">${esc(k)}</span>${editable?`<input data-edit="${it.id}" data-key="${esc(k)}" value="${esc(v)}"/>`:`<span class="v">${esc(Array.isArray(v)?v.join(", "):v)}</span>`}</div>`;
+    const editable = (typeof v==="number"||typeof v==="string");
+    return `<div class="drow"><span class="dk">${esc(k)}</span>${editable?`<input class="dv-in" data-edit="${it.id}" data-key="${esc(k)}" value="${esc(v)}"/>`:`<span class="dv">${esc(Array.isArray(v)?v.join(", "):v)}</span>`}</div>`;
   }).join("");
-  const risks = Object.entries(it.risk).map(([c,s])=>`<span class="chip risk" style="--sev-color:${sevColor(s)};--sev-bg:${sevBg(s)}">${CATS[c].label} ${s}</span>`).join("");
-  return `<article class="card" style="--sev-color:${sevColor(it.severity)};--sev-bg:${sevBg(it.severity)}" data-card="${it.id}">
-    <div class="hd"><span class="logo">${solLogo()}</span><div class="who"><div class="sol">${esc(it.solName)}</div><div class="agent">${esc(it.agent)}</div></div><span class="sev">${it.severity}</span></div>
-    <div class="act"><b>${esc(prettyCap(it.capability))}</b></div>
-    <div class="why">${risks}</div>
-    <ul class="reasons">${it.reasons.slice(0,3).map(r=>`<li>${esc(r)}</li>`).join("")}</ul>
-    ${rows?`<div class="details">${rows}</div>`:''}
-    <div class="actions">
+  const risks = Object.entries(it.risk||{}).sort((a,b)=>ORD[b[1]]-ORD[a[1]]).map(([c,s])=>`<span class="rchip" style="--c:${sevColor(s)};--b:${sevBg(s)}">${CATS[c]} · ${s}</span>`).join("");
+  return `<article class="icard" style="--sev:${sevColor(sev)};--sevb:${sevBg(sev)}">
+    <div class="icard-top">
+      <span class="slogo">${I.logo}</span>
+      <div class="iwho"><div class="isol">${esc(iName(it))}</div><div class="iagent">${esc(iAgent(it))}</div></div>
+      <span class="sevtag">${sev}</span>
+    </div>
+    <div class="iact">${esc(pretty(it.capability))}</div>
+    <div class="rchips">${risks}</div>
+    ${it.reasons&&it.reasons.length?`<div class="ireason">${esc(it.reasons[0])}</div>`:''}
+    ${rows?`<div class="idetails">${rows}</div>`:''}
+    <div class="iacts">
       <button class="btn btn-deny" data-decide="deny" data-id="${it.id}">Deny</button>
-      <button class="btn btn-approve" data-decide="approve" data-id="${it.id}">Approve</button>
+      <button class="btn btn-primary" data-decide="approve" data-id="${it.id}">Approve</button>
     </div>
   </article>`;
 }
-function prettyCap(cap){ return cap.replace(/[._]/g," ").replace(/\b\w/g,c=>c.toUpperCase()); }
 
+/* ---- activity ---- */
 function activityHTML(){
-  const head = `<div><span class="eyebrow">Every action, logged</span><h1 class="scr">Activity</h1><p class="sub">A signed, traceable record of what agents did on your behalf.</p></div>`;
-  if (!S.timeline.length) return head + `<div class="empty">${I.activity}<div>No activity yet.</div></div>`;
-  return head + `<div class="tl">` + S.timeline.slice(0,60).map(it=>{
-    const icon = it.state==="denied"?I.x:it.state==="allowed"?I.check:I.check;
-    return `<div class="row"><span class="ic" style="--sev-color:${sevColor(it.severity)};--sev-bg:${sevBg(it.severity)}">${icon}</span>
-      <div class="m"><div class="t">${esc(prettyCap(it.capability))}</div><div class="s">${esc(it.solName)} · ${esc(it.agent)} · ${timeAgo(it.decidedAt||it.at)}</div><div class="hash">#${it.hash}</div></div>
-      <span class="st st-${it.state}">${it.state}</span></div>`;
-  }).join("") + `</div>`;
+  const n = S.timeline.length;
+  const head = `<div class="scrhead"><span class="eyebrow">Every action, logged</span><h1>Activity</h1><p class="sub">A signed, traceable record of what agents did for you.</p></div>`;
+  if (!n) return head + `<div class="empty"><div class="empty-mk">${I.activity}</div><div class="empty-t">No activity yet.</div></div>`;
+  return head + `<div class="tl">${S.timeline.slice(0,80).map(it=>`<div class="tlrow">
+    <span class="tlic" style="--c:${sevColor(it.severity)};--b:${sevBg(it.severity)}">${it.state==="denied"?I.pause:I.play}</span>
+    <div class="tlm"><div class="tlt">${esc(pretty(it.capability))}</div><div class="tls">${esc(iName(it))} · ${esc(iAgent(it))} · ${ago(iAt(it))}</div></div>
+    <div class="tlend"><span class="stpill st-${it.state}">${it.state}</span><span class="ref">${iRef(it)}</span></div>
+  </div>`).join("")}</div>`;
 }
 
+/* ---- solutions ---- */
 function solutionsHTML(){
-  if (S.selectedSol) return solDetailHTML(S.solutions[S.selectedSol]);
-  const head = `<div><span class="eyebrow">Acting for you</span><h1 class="scr">Solutions</h1><p class="sub">Set how much each may do without asking, or pause it.</p></div>`;
-  return head + Object.values(S.solutions).map(s=>`<button class="solrow" data-sol="${s.uid}" style="text-align:left;width:100%">
-    <span class="logo card-logo">${solLogo()}</span>
-    <div class="m"><div class="n">${esc(s.name)}</div><div class="d">${Object.keys(s.agents).length} agents · ${Object.values(s.agents).reduce((n,a)=>n+a.abilities.length,0)} abilities</div></div>
-    <span class="status-pill status-${s.status}">${s.status}</span>${I.chevron}</button>`).join("");
+  if (S.selectedSol){ const s=S.solutions.find(x=>x.uid===S.selectedSol); if (s) return soldetailHTML(s); S.selectedSol=null; }
+  const connected = S.solutions, cat = S.catalog;
+  let html = `<div class="scrhead"><span class="eyebrow">Acting for you</span><h1>Solutions</h1><p class="sub">Set how much each may do on its own. Connect more from 500xLaunch.</p></div>`;
+  html += `<div class="secrow"><h2 class="sech">Connected</h2><span class="secn">${connected.length}</span></div>`;
+  if (!connected.length) html += `<div class="thin-empty">No solutions connected yet. Pick one below.</div>`;
+  else html += `<div class="sollist">${connected.map(solrowHTML).join("")}</div>`;
+  if (cat.length){
+    html += `<div class="secrow" style="margin-top:22px"><h2 class="sech">From 500xLaunch</h2></div>`;
+    html += `<div class="catgrid">${cat.map(catcardHTML).join("")}</div>`;
+  }
+  return html;
 }
-function solDetailHTML(s){
-  return `<div><button class="chip" data-back="1">&larr; Solutions</button></div>
-  <div style="display:flex;align-items:center;gap:12px;margin-top:6px"><span class="logo card-logo" style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#6ea3d6,#2f5c8c);color:#fff;display:grid;place-items:center">${solLogo()}</span>
-    <div><div style="font-weight:700;font-size:1.2rem">${esc(s.name)}</div><div class="sub">Discernment appetite</div></div></div>
-  <div class="panel appetite">
-    ${CAT_KEYS.map(c=>{ const cur = s.appetite[c]||DEFAULT_APPETITE[c]; return `<div class="apcat"><div class="lab"><div class="n">${CATS[c].label}</div><div class="maps">${CATS[c].maps}</div></div>
-      <div class="levels" data-appetite="${s.uid}" data-cat="${c}">${SEVS.map(l=>`<button class="l-${l}" data-level="${l}" aria-pressed="${cur===l}">${l[0]}</button>`).join("")}</div></div>`; }).join("")}
-  </div>
-  <div class="panel"><div style="font-weight:650">Kill switch</div><p class="sub" style="margin:0">Pause blocks every agent in this solution; they get a 403 until you resume.</p>
-    <button class="big-cta" data-toggle-sol="${s.uid}" style="background:${s.status==='active'?'var(--hi)':'var(--xur)'}">${s.status==='active'?'Pause this solution':'Resume this solution'}</button></div>
-  <div class="panel"><div style="font-weight:650;margin-bottom:2px">Agents & abilities</div>
-    ${Object.values(s.agents).map(a=>`<div class="list-row" style="flex-direction:column;align-items:flex-start;gap:6px">
-      <div style="font-weight:600">${esc(a.display_name)}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">${a.abilities.map(ab=>`<span class="chip" style="--sev-color:${sevColor(ab.severity)}">${esc(ab.key)} <b style="color:${sevColor(ab.severity)};font-family:var(--mono);font-size:.62rem">${ab.severity}</b></span>`).join("")}</div></div>`).join("")}</div>`;
+function solrowHTML(s){
+  const surf = surfaces(s), nab = (s.agents||[]).reduce((n,a)=>n+(a.abilities||[]).length,0);
+  return `<button class="solrow" data-sol="${s.uid}">
+    <span class="slogo big">${I.logo}</span>
+    <div class="solm"><div class="soln">${esc(s.name)}</div>
+      <div class="solmeta">${plural((s.agents||[]).length,"agent")} · ${plural(nab,"ability").replace("abilitys","abilities")}</div>
+      ${surf.length?`<div class="solasks">Asks you about ${surf.slice(0,3).map(c=>CATS[c].toLowerCase()).join(", ")}</div>`:`<div class="solasks quiet">Runs routine work on its own</div>`}
+    </div>
+    <div class="solend"><span class="stpill st-${s.status}">${s.status}</span>${I.chevron}</div>
+  </button>`;
+}
+function catcardHTML(c){
+  return `<div class="catcard">
+    <div class="cattop"><span class="slogo big grad">${I.logo}</span><div class="catm"><div class="catn">${esc(c.name)}</div>${c.agents?`<div class="catmeta">${plural(c.agents.length,"agent")}</div>`:''}</div></div>
+    <p class="catd">${esc(c.description||"")}</p>
+    <button class="btn btn-primary block" data-connect="${c.uid}">${I.plus}<span>Connect</span></button>
+  </div>`;
+}
+function soldetailHTML(s){
+  const nab = (s.agents||[]).reduce((n,a)=>n+(a.abilities||[]).length,0);
+  return `<button class="back" data-back>${I.chevron}<span>Solutions</span></button>
+  <div class="soldhead"><span class="slogo xl grad">${I.logo}</span><div><div class="soldn">${esc(s.name)}</div><div class="soldsub">${plural((s.agents||[]).length,"agent")} · ${plural(nab,"ability").replace("abilitys","abilities")}</div></div><span class="stpill st-${s.status}">${s.status}</span></div>
+  <section class="block"><div class="blockhd"><h3>Discernment appetite</h3><p>The most an agent may do in each area before it asks you.</p></div>
+    <div class="apwrap">${CAT_KEYS.map(c=>appetiteRow(s,c)).join("")}</div></section>
+  <section class="block"><div class="blockhd"><h3>Kill switch</h3><p>Pause stops every agent in this solution until you resume.</p></div>
+    <button class="btn ${s.status==='active'?'btn-warn':'btn-primary'} block" data-status="${s.link}" data-to="${s.status==='active'?'paused':'active'}">${s.status==='active'?'Pause this solution':'Resume this solution'}</button></section>
+  <section class="block"><div class="blockhd"><h3>Agents & abilities</h3></div>
+    ${(s.agents||[]).map(a=>`<div class="agentblock"><div class="agentn">${esc(a.name)}</div><div class="abchips">${(a.abilities||[]).map(ab=>`<span class="abchip" style="--c:${sevColor(ab.severity)}"><span class="abk">${esc(ab.key)}</span><span class="absev" style="color:${sevColor(ab.severity)}">${ab.severity}</span></span>`).join("")}</div></div>`).join("")}</section>`;
+}
+function appetiteRow(s,c){
+  const cur = (s.appetite&&s.appetite[c])||DEFAULT_APPETITE[c];
+  return `<div class="aprow"><div class="aplab">${CATS[c]}</div>
+    <div class="apseg" data-appetite="${s.link}" data-cat="${c}">${SEVS.map(l=>`<button class="apbtn ${cur===l?'on':''} lv-${l}" data-level="${l}">${l==='SEVERE'?'Sev':l[0]+l.slice(1).toLowerCase()}</button>`).join("")}</div></div>`;
 }
 
-function examplesHTML(){
-  const head = `<div><span class="eyebrow">See it work</span><h1 class="scr">Examples</h1><p class="sub">Run a real Agentic Solution. Routine work is logged; the moments that matter arrive here for you to decide.</p></div>`;
-  return head + `<div class="exgrid">` + EXAMPLES.map(ex=>`<div class="excard">
-    <span class="logo card-logo">${solLogo()}</span>
-    <div class="m"><div class="n">${esc(ex.name)}</div><p class="d">${esc(ex.desc)}</p>
-      <div class="tags">${ex.tags.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}</div></div>
-    <button class="runbtn" data-run="${ex.id}" ${running?"disabled":""}>${running?"Running":"Run"}</button>
-  </div>`).join("") + `</div>` + (S.env!=="demo"?`<p class="sub" style="text-align:center">Examples run in <b>Demo</b>. In Test/Live, your real solutions produce the cards.</p>`:"");
-}
-
+/* ---- settings ---- */
 function settingsHTML(){
-  const e = ENVS[S.env];
-  return `<div><span class="eyebrow">You</span><h1 class="scr">Settings</h1></div>
-  <div class="panel"><div class="list-row"><span class="k">Signed in as</span><span class="v">${esc(S.user?.name||"You")}</span></div>
-    <div class="list-row"><span class="k">Email</span><span class="v">${esc(S.user?.email||"")}</span></div>
-    <div class="list-row"><span class="k">Passkey</span><span class="v" style="color:var(--lo)">Registered</span></div></div>
-  <div class="panel"><div style="font-weight:650">Environment</div><p class="sub" style="margin:0">Build and test in <b>Test</b> before you roll out to <b>Live</b>. Demo is a self-contained playground.</p>
-    <div class="seg" style="align-self:flex-start;background:var(--surface-2)">${Object.entries(ENVS).map(([k,x])=>`<button data-env="${k}" aria-pressed="${S.env===k}" style="color:${S.env===k?'#fff':'var(--muted)'};${S.env===k?'background:var(--xur)':''};padding:7px 12px;border:0;border-radius:8px;font-weight:600;font-size:.8rem">${x.label}</button>`).join("")}</div>
-    ${e.base?`<div class="hash">${esc(e.base)} · x-xurface-env: ${e.hdr}</div>`:'<div class="hash">local mock (no network)</div>'}</div>
-  <div class="panel"><div style="font-weight:650">Devices</div><div class="list-row"><span class="k">This device</span><span class="v">${DEVICES[S.plat][S.form].name}</span></div></div>
-  <div class="panel"><button class="big-cta" data-signout="1" style="background:var(--surface-2);color:var(--no);border:1px solid var(--line)">Sign out</button></div>
-  <p class="sub" style="text-align:center;font-family:var(--serif);font-style:italic">Beyond human in the loop. Human on the go.</p>`;
+  return `<div class="scrhead"><span class="eyebrow">You</span><h1>Settings</h1></div>
+  <section class="block"><div class="kv"><span>Signed in as</span><b>${esc((S.user&&S.user.name)||"You")}</b></div><div class="kv"><span>Email</span><b>${esc((S.user&&S.user.email)||"")}</b></div><div class="kv"><span>Connection</span><b class="${S.online?'ok':'warn'}">${S.online?'Live · '+BASE.replace(/^https?:\/\//,''):'Offline preview'}</b></div></section>
+  <section class="block"><div class="blockhd"><h3>Environment</h3><p>Build and try in Test, then roll out to Live. Same account, isolated data.</p></div>
+    <div class="envseg">${Object.entries(ENVS).map(([k,e])=>`<button class="${S.env===k?'on':''}" data-env="${k}">${e.label}</button>`).join("")}</div></section>
+  <section class="block"><button class="btn btn-ghost block" data-signout>Sign out</button></section>
+  <p class="motto">Beyond human in the loop. Human on the go.</p>`;
 }
 
-function signInHTML(){
+/* ---- sign in ---- */
+function signinHTML(){
   return `<div class="safe-top"></div><div class="signin">
-    ${MK}
-    <div><h1>Xurface Discern</h1><p class="motto">Beyond human in the loop. Human on the go.</p></div>
-    <div class="field"><label for="nm">Name</label><input id="nm" placeholder="Ada Lovelace" value="${esc(S.user?.name||"")}"/></div>
-    <div class="field"><label for="em">Email or phone</label><input id="em" placeholder="you@company.com" value="${esc(S.user?.email||"")}"/></div>
-    <button class="big-cta" data-signin="1">Continue with a passkey</button>
-    <div class="passkey-note">${I.shield}<span>No passwords. Your passkey never leaves your device.</span></div>
+    <div class="signin-mk">${MK}</div>
+    <h1>Xurface Discern</h1><p class="signin-motto">Beyond human in the loop.<br/>Human on the go.</p>
+    <div class="field"><label for="nm">Name</label><input id="nm" placeholder="Ada Lovelace"/></div>
+    <div class="field"><label for="em">Email</label><input id="em" type="email" placeholder="you@company.com" autocomplete="username"/></div>
+    <button class="btn btn-primary block big" data-signin>Continue</button>
+    <div class="signin-note">${I.shield}<span>Passwordless. Your passkey never leaves your device.</span></div>
   </div>`;
 }
 
-/* ---------------- overlays ---------------- */
-function toast(it){
-  const ov = document.getElementById("overlay"); if (!ov) return;
-  const el = document.createElement("div"); el.className="toast";
-  el.innerHTML = `<span class="logo card-logo">${solLogo()}</span><div class="m"><div class="t">${esc(it.solName)} needs your discernment</div><div class="s">${esc(it.agent)}: ${esc(prettyCap(it.capability))} (${it.severity})</div></div>`;
-  el.addEventListener("click",()=>{ S.view="inbox"; render(); });
-  ov.appendChild(el);
-  setTimeout(()=>{ el.style.transition="opacity .3s"; el.style.opacity="0"; setTimeout(()=>el.remove(),300); }, 2600);
+/* ---- overlays ---- */
+function showToast(html, kind){
+  const ov=document.getElementById("overlay"); if(!ov)return;
+  const el=document.createElement("div"); el.className="toast "+(kind||"");
+  el.innerHTML=html; el.addEventListener("click",()=>el.remove()); ov.appendChild(el);
+  setTimeout(()=>{ el.style.opacity="0"; setTimeout(()=>el.remove(),300); },2800);
 }
-function biometricSheet(onConfirm){
-  const ov = document.getElementById("overlay"); if (!ov) return;
-  const scrim = document.createElement("div"); scrim.className="sheet-scrim";
-  scrim.innerHTML = `<div class="sheet"><div class="face">${I.face}</div><h3>Confirm with Face ID</h3><p>This is a SEVERE action. Approving it needs a biometric.</p>
-    <button class="big-cta" data-bio="ok">Confirm</button><button class="big-cta" data-bio="cancel" style="background:transparent;color:var(--muted);border:1px solid var(--line);margin-top:8px">Cancel</button></div>`;
-  scrim.addEventListener("click",e=>{
-    const b = e.target.closest("[data-bio]"); if (!b && e.target!==scrim) return;
-    scrim.remove(); if (b && b.dataset.bio==="ok") onConfirm();
-  });
+function biometric(onOk){
+  const ov=document.getElementById("overlay"); if(!ov)return;
+  const scrim=document.createElement("div"); scrim.className="scrim";
+  scrim.innerHTML=`<div class="sheet"><div class="faceic">${I.face}</div><h3>Confirm with Face ID</h3><p>This is a SEVERE action. Approving it needs a biometric.</p><button class="btn btn-primary block" data-bio="ok">Confirm</button><button class="btn btn-ghost block" data-bio="x">Cancel</button></div>`;
+  scrim.addEventListener("click",e=>{ const b=e.target.closest("[data-bio]"); if(!b&&e.target!==scrim)return; scrim.remove(); if(b&&b.dataset.bio==="ok")onOk(); });
   ov.appendChild(scrim);
 }
 
-/* ---------------- device sizing ---------------- */
+/* ---- device sizing ---- */
 function applyDevice(){
   if (S.fullscreen) return;
-  const dev = DEVICES[S.plat][S.form];
-  const device = document.getElementById("device"); const app = document.getElementById("app-root");
-  if (!device) return;
-  device.style.setProperty("--w", dev.w+"px"); device.style.setProperty("--h", dev.h+"px");
-  if (app) app.classList.toggle("wide", S.form!=="phone");
-  requestAnimationFrame(()=>{
-    const stage = device.closest(".stage"); const scaleEl = device.closest(".stage-scale");
-    if (!stage||!scaleEl) return;
-    scaleEl.style.setProperty("--scale",1);
-    const r = device.getBoundingClientRect(), sr = stage.getBoundingClientRect();
-    const sc = Math.min((sr.width-48)/r.width, (sr.height-48)/r.height, 1);
-    scaleEl.style.setProperty("--scale", sc>0?sc:1);
-  });
+  const dev=DEVICES[S.plat][S.form], device=document.getElementById("device"); if(!device)return;
+  device.style.setProperty("--w",dev.w+"px"); device.style.setProperty("--h",dev.h+"px");
+  const app=document.getElementById("app-root"); if(app) app.classList.toggle("wide", S.form!=="phone");
+  requestAnimationFrame(()=>{ const stage=device.closest(".stage"), sc=device.closest(".stage-scale"); if(!stage||!sc)return; sc.style.setProperty("--scale",1); const r=device.getBoundingClientRect(), s=stage.getBoundingClientRect(); const k=Math.min((s.width-48)/r.width,(s.height-48)/r.height,1); sc.style.setProperty("--scale",k>0?k:1); });
 }
-window.addEventListener("resize", ()=>applyDevice());
+addEventListener("resize", applyDevice);
 
-/* ---------------- events ---------------- */
+/* ---- events ---- */
 function wire(){
-  const root = document.getElementById("root");
-  root.onclick = async (e)=>{
-    const t = e.target;
-    const nav = t.closest("[data-nav]"); if (nav){ e.preventDefault(); S.view=nav.dataset.nav; S.selectedSol=null; save(); render(); return; }
-    const env = t.closest("[data-env]"); if (env){ setEnv(env.dataset.env); return; }
-    const ctl = t.closest("[data-ctl]"); if (ctl && ctl.dataset.ctl==="fullscreen"){ S.fullscreen=!S.fullscreen; save(); render(); return; }
-    const run = t.closest("[data-run]"); if (run){ const ex = EXAMPLES.find(x=>x.id===run.dataset.run); if (ex){ S.view="inbox"; runExample(ex);} return; }
-    const dec = t.closest("[data-decide]"); if (dec){ handleDecide(dec.dataset.id, dec.dataset.decide); return; }
-    const sol = t.closest("[data-sol]"); if (sol){ S.selectedSol=sol.dataset.sol; render(); return; }
-    if (t.closest("[data-back]")){ S.selectedSol=null; render(); return; }
-    const lvl = t.closest("[data-level]"); if (lvl){ const box=lvl.closest("[data-appetite]"); S.solutions[box.dataset.appetite].appetite[box.dataset.cat]=lvl.dataset.level; save(); render(); return; }
-    const tog = t.closest("[data-toggle-sol]"); if (tog){ const s=S.solutions[tog.dataset.toggleSol]; s.status = s.status==="active"?"paused":"active"; save(); render(); return; }
-    if (t.closest("[data-signin]")){ doSignIn(); return; }
-    if (t.closest("[data-signout]")){ S.signedIn=false; save(); render(); return; }
+  const root=document.getElementById("root");
+  root.onclick = async e=>{
+    const t=e.target;
+    const nav=t.closest("[data-nav]"); if(nav){ e.preventDefault(); S.view=nav.dataset.nav; S.selectedSol=null; render(); return; }
+    if(t.closest("[data-ctl='fullscreen']")){ S.fullscreen=!S.fullscreen; savePrefs(); render(); return; }
+    if(t.closest("[data-toggle-env]")){ S.env=S.env==="test"?"live":"test"; savePrefs(); reloadEnv(); return; }
+    const envb=t.closest("[data-env]"); if(envb){ S.env=envb.dataset.env; savePrefs(); reloadEnv(); return; }
+    const dec=t.closest("[data-decide]"); if(dec){ decide(dec.dataset.id,dec.dataset.decide); return; }
+    const con=t.closest("[data-connect]"); if(con){ connect(con.dataset.connect); return; }
+    const sol=t.closest("[data-sol]"); if(sol){ S.selectedSol=sol.dataset.sol; render(); return; }
+    if(t.closest("[data-back]")){ S.selectedSol=null; render(); return; }
+    const lvl=t.closest("[data-level]"); if(lvl){ const box=lvl.closest("[data-appetite]"); await setAppetite(box.dataset.appetite,box.dataset.cat,lvl.dataset.level); return; }
+    const stt=t.closest("[data-status]"); if(stt){ await setStatus(stt.dataset.status,stt.dataset.to); return; }
+    if(t.closest("[data-signin]")){ signin(); return; }
+    if(t.closest("[data-signout]")){ S.token=null; S.user=null; savePrefs(); render(); return; }
   };
-  root.onchange = (e)=>{
-    const ctl = e.target.closest("[data-ctl]"); if (!ctl) return;
-    if (ctl.dataset.ctl==="plat"){ S.plat=e.target.value; }
-    if (ctl.dataset.ctl==="form"){ S.form=e.target.value; }
-    save(); render();
-  };
+  root.onchange = e=>{ const c=e.target.closest("[data-ctl]"); if(!c)return; if(c.dataset.ctl==="plat")S.plat=e.target.value; if(c.dataset.ctl==="form")S.form=e.target.value; savePrefs(); render(); };
 }
-function handleDecide(id, decision){
-  const it = S.intents.find(x=>x.id===id); if (!it) return;
-  // gather edits
-  const edits = {}; document.querySelectorAll(`[data-edit="${id}"]`).forEach(inp=>{
-    const orig = it.details[inp.dataset.key];
-    let val = inp.value; if (typeof orig==="number") val = Number(val);
-    if (String(orig)!==String(val)) edits[inp.dataset.key]=val;
-  });
-  const finish = ()=>{ decideIntent(id, decision, Object.keys(edits).length?edits:null); render(); };
-  if (decision==="approve" && it.severity==="SEVERE"){ biometricSheet(finish); return; }
-  finish();
+async function reloadEnv(){ S.ready=false; S.intents=[];S.timeline=[];S.solutions=[];S.catalog=[]; render(); await Backend.probe(); if(S.token){ try{ await Backend.refresh(); }catch{} } S.ready=true; render(); }
+async function decide(id, decision){
+  const it=S.intents.find(x=>x.id===id); if(!it)return;
+  const edits={}; document.querySelectorAll(`[data-edit="${id}"]`).forEach(inp=>{ const o=it.details[inp.dataset.key]; let v=inp.value; if(typeof o==="number")v=Number(v); if(String(o)!==String(v))edits[inp.dataset.key]=v; });
+  const go=async ()=>{ try{ await Backend.decide(id,decision,Object.keys(edits).length?{edited_details:edits}:{}); await Backend.refresh(); showToast(`<div class="tm"><b>${decision==="deny"?"Denied":"Approved"}</b> ${esc(pretty(it.capability))}</div>`,decision==="deny"?"warn":"ok"); render(); }catch(e){ showToast(`<div class="tm">Could not record: ${esc(e.message)}</div>`,"warn"); } };
+  if(decision==="approve" && it.severity==="SEVERE"){ biometric(go); return; }
+  go();
 }
-function setEnv(k){
-  S.env = k; save();
-  if (k!=="demo") probeEnv(k);
-  render();
+async function connect(uid){
+  const c=S.catalog.find(x=>x.uid===uid); const name=c?c.name:"Solution";
+  try{ const r=await Backend.connect(uid); await Backend.refresh(); S.view="inbox"; render(); showToast(`<span class="slogo sm">${I.logo}</span><div class="tm"><b>${esc(name)} connected</b>${r&&r.pending?` · ${r.pending} to review`:''}</div>`,"ok"); }
+  catch(e){ showToast(`<div class="tm">Could not connect: ${esc(e.message)}</div>`,"warn"); }
 }
-async function probeEnv(k){
-  // In a hosted/native build this reaches real Horizon (the x-xurface-env header
-  // selects the isolated test or live environment). In the web preview the CSP
-  // blocks it; we fail quietly and stay usable.
-  try{ await fetch(ENVS[k].base+"/healthz",{mode:"cors",headers:{"x-xurface-env":ENVS[k].hdr}}); }catch{}
-}
-function doSignIn(){
-  const nm = (document.getElementById("nm")||{}).value || "You";
-  const em = (document.getElementById("em")||{}).value || "you@company.com";
-  S.user = {name:nm, email:em}; S.signedIn = true; S.view="inbox";
-  if (!S.timeline.length && !S.intents.length){ /* leave empty; user runs examples */ }
-  save(); render();
-}
+async function setAppetite(link,cat,level){ const s=S.solutions.find(x=>x.link===link); if(s){ s.appetite=s.appetite||{...DEFAULT_APPETITE}; s.appetite[cat]=level; } render(); try{ await Backend.setAppetite(link,{[cat]:level}); }catch{} }
+async function setStatus(link,to){ const s=S.solutions.find(x=>x.link===link); if(s)s.status=to; render(); try{ await Backend.setStatus(link,to); }catch{} }
+async function signin(){ const nm=(document.getElementById("nm")||{}).value||"You"; const em=(document.getElementById("em")||{}).value||"you@company.com"; try{ await Backend.login(em,nm); await Backend.refresh(); S.view="inbox"; render(); }catch(e){ showToast(`<div class="tm">Sign in failed: ${esc(e.message)}</div>`,"warn"); } }
 
-/* fullscreen fill style injected */
-const fillCss = document.createElement("style");
-fillCss.textContent = ".app-fill{position:fixed;inset:0;background:var(--bg)}.app-fill .app{position:absolute;inset:0}.card-logo{background:linear-gradient(135deg,#6ea3d6,#2f5c8c);color:#fff}.mk-w{}";
-document.head.appendChild(fillCss);
-
-/* open in a realistic working state: two cards waiting, some activity logged */
-function seedDemo(){
-  evaluate("battlemate","intel-scout","sources.fetch",{sources:5});
-  evaluate("battlemate","analyst","metrics.compute",{});
-  evaluate("freeleap","cv-smith","cv.update",{version:4});
-  evaluate("freeleap","applicant","job.apply",{company:"Lumen Labs",rate_usd_day:780,match:0.92});
-  evaluate("battlemate","courier","report.broadcast",{recipients:3,channels:["email","whatsapp"],subject:"Morning brief"});
-}
-if (!S.__seeded && !S.intents.length && !S.timeline.length){ seedDemo(); S.__seeded=true; save(); }
-
-render();
+boot();
