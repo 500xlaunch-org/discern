@@ -53,42 +53,55 @@ testing tracks" permission in Play Console under Users and permissions.
 
 ## Authentication
 
-Xurface publishes as itself. Edger's service account
-(`edger-851@...`) and its `edger-pool` belong to Edger: reusing them would let
-one CI pipeline publish both Talka and Discern, and would tie Xurface's release
-path to a product that is currently parked. Xurface gets its own identity, its
-own pool, and Play access scoped to this app alone.
+**Live as of 2026-09-21.** CI publishes keyless: GitHub mints a short lived OIDC
+token, Google trades it for a Play scoped access token. Nothing is stored, so
+nothing can leak.
 
-There is also no key to inherit. Edger's account was set up keyless because the
-org enforces `iam.disableServiceAccountKeyCreation`, and what it stores is an
+```
+pool      edger-pool           (shared with Edger, by the owner's decision)
+provider  github               federated to token.actions.githubusercontent.com
+identity  edger-851@project-99519918-c6a0-4f30-bb0.iam.gserviceaccount.com
+scope     assertion.repository == 500xlaunch-org/discern
+```
+
+Repository variables (not secrets, neither is sensitive) are already set:
+
+```
+GCP_WIF_PROVIDER = projects/973696140732/locations/global/workloadIdentityPools/edger-pool/providers/github
+GCP_PLAY_SA      = edger-851@project-99519918-c6a0-4f30-bb0.iam.gserviceaccount.com
+```
+
+The `attribute-condition` is what makes this safe to share: only this repository
+can assume the identity, so a fork cannot, and neither can any other repo in the
+org.
+
+Because the identity is shared with Edger, **Play Console is where the two
+products stay apart**. Invite the service account under **Users and permissions**
+and grant **Release to testing tracks on this app only**, never account wide.
+Account wide access would let this pipeline touch Talka's listings.
+
+If you later want full separation, create a `xurface-play` service account in a
+`xurface-pool` and repoint the two variables; nothing else changes. The commands
+are the same as below with those two names substituted.
+
+### There was never a key to inherit
+
+Edger's account was set up keyless because the org enforces
+`iam.disableServiceAccountKeyCreation`. What Edger stores is an
 `external_account` config: a pointer to a projected token file that exists only
 inside the cluster its pool is federated to. Off that cluster it authenticates
 as nobody, and Google answers `invalid_grant: Error connecting to the given
-credential's issuer`. The answer is not to find a key. It is to federate GitHub
-directly to an identity that belongs to Xurface.
+credential's issuer`. Federating GitHub as a second issuer is the fix; looking
+for a key is not.
 
-### One time setup, keyless
-
-Run in Cloud Shell. `PROJECT_ID` is the project Play Console is linked to, under
-**Setup > API access** in the Console; the project number is derived rather than
-typed, which removes the usual ID versus number mistake.
+### How the setup was done
 
 ```bash
-PROJECT_ID=<the project Play Console is linked to>
-POOL=xurface-pool
-SA_NAME=xurface-play
+PROJECT_ID=project-99519918-c6a0-4f30-bb0
+POOL=edger-pool
+SA=edger-851@$PROJECT_ID.iam.gserviceaccount.com
 REPO=500xlaunch-org/discern
-
-SA="$SA_NAME@$PROJECT_ID.iam.gserviceaccount.com"
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
-
-# Xurface's own publishing identity
-gcloud iam service-accounts create "$SA_NAME" \
-  --project="$PROJECT_ID" --display-name="Xurface Play publisher"
-
-# Xurface's own pool, federated to GitHub
-gcloud iam workload-identity-pools create "$POOL" \
-  --project="$PROJECT_ID" --location=global --display-name="Xurface CI"
 
 gcloud iam workload-identity-pools providers create-oidc github \
   --project="$PROJECT_ID" --location=global --workload-identity-pool="$POOL" \
@@ -97,31 +110,11 @@ gcloud iam workload-identity-pools providers create-oidc github \
   --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
   --attribute-condition="assertion.repository=='$REPO'"
 
-# only this repository may assume that identity
 gcloud iam service-accounts add-iam-policy-binding "$SA" \
   --project="$PROJECT_ID" \
   --role=roles/iam.workloadIdentityUser \
   --member="principalSet://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/$POOL/attribute.repository/$REPO"
-
-echo "GCP_WIF_PROVIDER = projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/$POOL/providers/github"
-echo "GCP_PLAY_SA      = $SA"
 ```
-
-The `attribute-condition` is the part that matters: only this repository can
-assume the identity, so a fork cannot.
-
-Set the two values it prints as repository **variables**, not secrets, since
-neither is sensitive:
-
-```bash
-gh variable set GCP_WIF_PROVIDER -R 500xlaunch-org/discern -b "<first line>"
-gh variable set GCP_PLAY_SA      -R 500xlaunch-org/discern -b "<second line>"
-```
-
-Finally, in Play Console under **Users and permissions**, invite that service
-account address and grant it **Release to testing tracks** on **this app only**,
-not account wide. Federation only gets CI as far as authenticating; without the
-Play grant the API authenticates and then refuses with a 403.
 
 A note on flags, because the error is unhelpful: `--project` takes the project
 ID, while a `principalSet://` string always takes the project number. Making
