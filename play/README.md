@@ -53,27 +53,71 @@ testing tracks" permission in Play Console under Users and permissions.
 
 ## Authentication
 
-`publish.py` accepts, in order: `--creds` (a service account key or an
-`external_account` config), `GOOGLE_APPLICATION_CREDENTIALS`, or
-`PLAY_ACCESS_TOKEN` for an already minted token.
+There is no service account key to find. The Play service account
+`edger-851@project-99519918-c6a0-4f30-bb0.iam.gserviceaccount.com` was set up
+keyless on purpose: the GCP org enforces `iam.disableServiceAccountKeyCreation`,
+so a downloadable key was never created for it. What exists is an
+`external_account` config, which is a pointer rather than a secret: it names a
+projected token file that only exists inside the cluster its pool is federated
+to. Off that cluster it authenticates as nobody, and Google answers
+`invalid_grant: Error connecting to the given credential's issuer`.
 
-A note on Workload Identity Federation, since it is easy to lose a day to this.
-An `external_account` config is a pointer, not a secret. Its `credential_source`
-names a projected token file that exists only inside the cluster the pool is
-federated to. Handing that JSON to a laptop or to a different cluster does not
-grant anything: the token file is absent, and even with a token the provider
-only trusts its own issuer, which must be reachable for Google to fetch its
-JWKS. `publish.py` detects this case and says so rather than failing with an
-opaque `invalid_grant`.
+The fix is not to find a key. It is to federate a second issuer: GitHub.
 
-So pick one:
+### One time setup, keyless (recommended)
 
-- **CI with a key.** Put a service account key in the `PLAY_SERVICE_ACCOUNT`
-  secret. Simplest, if org policy allows key creation.
-- **CI keyless.** Add a WIF provider for GitHub's OIDC issuer and grant it
-  `roles/iam.workloadIdentityUser` on the publishing service account.
-- **From the workload.** Run `publish.py` inside the federated cluster, where
-  the projected token exists.
+Run as someone with IAM admin on the GCP project. It adds a provider beside the
+existing AKS one and changes nothing about Edger.
+
+```bash
+PROJECT_NUMBER=973696140732
+POOL=edger-pool                      # reuse the existing pool
+SA=edger-851@project-99519918-c6a0-4f30-bb0.iam.gserviceaccount.com
+REPO=500xlaunch-org/discern
+
+gcloud iam workload-identity-pools providers create-oidc github \
+  --project="$PROJECT_NUMBER" --location=global --workload-identity-pool="$POOL" \
+  --display-name="GitHub Actions" \
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --attribute-condition="assertion.repository=='$REPO'"
+
+gcloud iam service-accounts add-iam-policy-binding "$SA" \
+  --project="$PROJECT_NUMBER" \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/$POOL/attribute.repository/$REPO"
+```
+
+The `attribute-condition` is the part that matters: only this repository can
+assume the identity. A fork or another repo cannot.
+
+Then set two repository **variables** (not secrets, neither is sensitive):
+
+```bash
+gh variable set GCP_WIF_PROVIDER -R 500xlaunch-org/discern \
+  -b "projects/973696140732/locations/global/workloadIdentityPools/edger-pool/providers/github"
+gh variable set GCP_PLAY_SA -R 500xlaunch-org/discern \
+  -b "edger-851@project-99519918-c6a0-4f30-bb0.iam.gserviceaccount.com"
+```
+
+Finally, in Play Console under Users and permissions, give that service account
+"Release to testing tracks" on the app.
+
+Nothing is stored anywhere. GitHub mints a token that lives for minutes, GCP
+trades it for an access token scoped to the Play API alone.
+
+### If you would rather use a key
+
+Your org policy currently forbids creating one. Relaxing
+`iam.disableServiceAccountKeyCreation` to issue a long lived credential, then
+pasting it into a CI secret, is a real step backwards from the above. If you do
+it anyway, put the JSON in the `PLAY_SERVICE_ACCOUNT` secret and the workflow
+will use it.
+
+### One off, by hand
+
+`publish.py` also takes `PLAY_ACCESS_TOKEN`, so a token minted anywhere the
+federation does work can be pasted in for a single release.
 
 ## Releasing
 
