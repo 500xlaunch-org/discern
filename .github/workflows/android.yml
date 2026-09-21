@@ -1,29 +1,32 @@
 name: Android
 
-# Builds the signed App Bundle and, when asked, publishes it to Play.
+# Two lanes.
 #
-# The build needs JDK 21 and Android SDK 35, which the Ubuntu runner already
-# carries, so nothing has to be installed on anyone's laptop.
+#   check    every push and pull request: builds a debug APK. Fast feedback that
+#            the native shell still compiles, and an artifact you can sideload
+#            without Play or a signing key.
+#   release  a v* tag, or Run workflow with Publish on: builds the signed App
+#            Bundle and pushes it to Play together with the store listing.
 #
-# Secrets required to build:
-#   ANDROID_KEYSTORE_B64     base64 of the upload keystore
-#   ANDROID_KEYSTORE_PASS    keystore password
-#   ANDROID_KEY_ALIAS        key alias
-#   ANDROID_KEY_PASS         key password
-# To publish, either (preferred, keyless):
-#   vars.GCP_WIF_PROVIDER    projects/N/locations/global/workloadIdentityPools/P/providers/R
-#   vars.GCP_PLAY_SA         the service account with Play release permission
-# or, if your org allows downloadable keys:
-#   secrets.PLAY_SERVICE_ACCOUNT   a service account key JSON
+# The Ubuntu runner already carries JDK 21 and the Android SDK, so neither lane
+# installs a toolchain. android-actions/setup-android is deliberately absent: it
+# failed on this runner with "sdkmanager exit code 1" while re-accepting
+# licenses the image had already accepted, which broke every build for a week.
 #
-# The keyless route needs no stored secret at all: GitHub mints a short lived
-# OIDC token, GCP trades it for an access token for the service account. See
-# play/README.md for the one time setup.
+# Secrets, for the release lane only:
+#   ANDROID_KEYSTORE_B64 / _PASS, ANDROID_KEY_ALIAS / _PASS   upload key
+# Publishing, keyless (preferred):
+#   vars.GCP_WIF_PROVIDER, vars.GCP_PLAY_SA
+# or secrets.PLAY_SERVICE_ACCOUNT for a downloadable key.
 #
-# Without the publish secret the workflow still builds and uploads the AAB as an
-# artifact, which is enough to sideload or to upload by hand.
+# With no publishing credential the release lane still builds and attaches the
+# bundle, so a missing secret never blocks a build.
 
 on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
   workflow_dispatch:
     inputs:
       track:
@@ -39,34 +42,61 @@ on:
         description: Release notes
         type: string
         default: First release.
-  push:
-    tags: ["v*"]
 
 permissions:
   contents: read
   id-token: write        # lets the runner mint an OIDC token for GCP federation
 
-# a release pushes the listing as well, so it shares the listing workflow's lane
+# a release pushes the listing as well, and Play allows one open edit per app
 concurrency:
   group: play-edit-com.xurface.discern.app
   cancel-in-progress: false
 
 jobs:
-  build:
+  # ---------------------------------------------------------------- check ---
+  check:
+    if: ${{ !startsWith(github.ref, 'refs/tags/v') && !inputs.publish }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with: { node-version: "22", cache: npm }
       - run: npm ci
-
       - name: Client tests
         run: npm test
-
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "21" }
-      - uses: android-actions/setup-android@v3
+
+      - name: Sync the web app into the native shell
+        run: npx cap sync android
+
+      - name: Validate the store listing
+        run: |
+          python3 -m pip install --quiet pillow
+          python3 play/publish.py --dry-run
+
+      - name: Build the debug APK
+        run: cd android && ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: discern-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+  # -------------------------------------------------------------- release ---
+  release:
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.publish }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - name: Client tests
+        run: npm test
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
 
       - name: Sync the web app into the native shell
         run: npx cap sync android
@@ -79,9 +109,8 @@ jobs:
           else
             NAME="0.1.${GITHUB_RUN_NUMBER}"
           fi
-          # versionCode must never be reused and must only increase
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
-          echo "code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          # versionCode must only ever increase and is never reused
           sed -i "s/versionCode 1/versionCode ${GITHUB_RUN_NUMBER}/" android/app/build.gradle
           sed -i "s/versionName \"1.0\"/versionName \"$NAME\"/" android/app/build.gradle
 
@@ -99,8 +128,8 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASS: ${{ secrets.ANDROID_KEY_PASS }}
         run: |
-          # the keystore is PKCS12, which is Java's default type on JDK 9 and
-          # later; the explicit store.type is belt and braces
+          # the keystore is PKCS12, Java's default type on JDK 9 and later; the
+          # explicit store.type is belt and braces
           ./gradlew bundleRelease --no-daemon \
             -Pandroid.injected.signing.store.file=$PWD/upload.p12 \
             -Pandroid.injected.signing.store.password="$KEYSTORE_PASS" \
@@ -115,17 +144,15 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: xurface-discern-${{ steps.ver.outputs.name }}
+          name: discern-${{ steps.ver.outputs.name }}
           path: |
             android/app/build/outputs/bundle/release/*.aab
             android/app/build/outputs/mapping/release/mapping.txt
           if-no-files-found: error
 
-      # Keyless: GitHub mints an OIDC token, GCP trades it for an access token.
-      # Nothing is stored, so nothing can leak.
       - name: Authenticate to Google (keyless)
         id: gcpauth
-        if: ${{ vars.GCP_WIF_PROVIDER != '' && (inputs.publish || startsWith(github.ref, 'refs/tags/v')) }}
+        if: ${{ vars.GCP_WIF_PROVIDER != '' }}
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
@@ -134,13 +161,12 @@ jobs:
           access_token_scopes: https://www.googleapis.com/auth/androidpublisher
 
       - name: Publish to Play
-        if: ${{ inputs.publish || startsWith(github.ref, 'refs/tags/v') }}
         env:
           TOKEN: ${{ steps.gcpauth.outputs.access_token }}
           SA: ${{ secrets.PLAY_SERVICE_ACCOUNT }}
         run: |
           if [ -z "$TOKEN" ] && [ -z "$SA" ]; then
-            echo "::warning::No Play credential configured. The signed bundle is attached to this run; upload it by hand, or see play/README.md to set up keyless publishing."
+            echo "::warning::No Play credential configured. The signed bundle is attached to this run; upload it by hand, or see play/README.md."
             exit 0
           fi
           python3 -m pip install --quiet google-api-python-client google-auth pillow
