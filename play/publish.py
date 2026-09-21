@@ -15,6 +15,10 @@ Auth, in the order tried:
   GOOGLE_APPLICATION_CREDENTIALS
   PLAY_ACCESS_TOKEN             an already minted OAuth token, useful in CI
 
+Xurface publishes as its own service account, federated to GitHub. It does not
+borrow another product's identity, so a compromise of this pipeline cannot reach
+another product's listings. See play/README.md for the one time setup.
+
 Note on Workload Identity Federation: an external_account config is a pointer,
 not a secret. Its credential_source file (a projected token) only exists inside
 the cluster the pool is federated to, so that config cannot authenticate from a
