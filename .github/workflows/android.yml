@@ -85,7 +85,7 @@ jobs:
           KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
         run: |
           if [ -z "$KS" ]; then echo "::error::ANDROID_KEYSTORE_B64 is not set"; exit 1; fi
-          echo "$KS" | base64 -d > android/upload.jks
+          echo "$KS" | base64 -d > android/upload.p12
 
       - name: Build the App Bundle
         working-directory: android
@@ -94,9 +94,12 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASS: ${{ secrets.ANDROID_KEY_PASS }}
         run: |
+          # the keystore is PKCS12, which is Java's default type on JDK 9 and
+          # later; the explicit store.type is belt and braces
           ./gradlew bundleRelease --no-daemon \
-            -Pandroid.injected.signing.store.file=$PWD/upload.jks \
+            -Pandroid.injected.signing.store.file=$PWD/upload.p12 \
             -Pandroid.injected.signing.store.password="$KEYSTORE_PASS" \
+            -Pandroid.injected.signing.store.type=PKCS12 \
             -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
             -Pandroid.injected.signing.key.password="$KEY_PASS"
 

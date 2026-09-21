@@ -137,22 +137,23 @@ hand under **Testing > Internal testing > Create new release**.
 Once the credential in `play/README.md` is set up, run the same workflow with
 Publish on, or push a tag, and it does the upload and the listing for you.
 
-First build needs four repository secrets, the upload keystore:
+The four signing secrets are already set on the repository, and the Play
+credential is federated, so nothing else has to be configured.
 
-```bash
-keytool -genkeypair -v -keystore upload.jks -alias upload \
-  -keyalg RSA -keysize 4096 -validity 10000 \
-  -dname "CN=500xLaunch, O=500xLaunch, L=Dover, ST=Delaware, C=US"
+The upload key was generated as PKCS12 (macOS ships a keytool stub with no JDK
+behind it, so `cryptography` built it, the same way Edger does):
 
-gh secret set ANDROID_KEYSTORE_B64  -R 500xlaunch-org/discern < <(base64 -i upload.jks)
-gh secret set ANDROID_KEYSTORE_PASS -R 500xlaunch-org/discern
-gh secret set ANDROID_KEY_ALIAS     -R 500xlaunch-org/discern -b upload
-gh secret set ANDROID_KEY_PASS      -R 500xlaunch-org/discern
+```
+keystore  ~/.config/github-automation-agent/xurface-discern-upload.p12
+password  ~/.config/github-automation-agent/xurface-discern-upload.txt
+alias     upload
+valid to  2054-02-06
+SHA-256   D2:13:FE:8D:2E:48:A8:9B:26:65:80:DE:F3:F4:DD:83:ED:5F:B6:15:04:47:52:59:61:1C:6D:26:7C:A7:10:89
 ```
 
-Keep `upload.jks` somewhere safe and out of git. Play App Signing means Google
-holds the real app key, but losing the upload key means a support round trip to
-reset it.
+**Back that keystore up somewhere off this machine.** Google holds the real app
+signing key under Play App Signing, so losing the upload key is recoverable, but
+only through a Play support round trip. The two files are the only copies.
 
 ---
 
