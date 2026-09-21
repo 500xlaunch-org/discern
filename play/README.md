@@ -11,6 +11,12 @@ screenshots/<lang>/    5 phone screenshots per language, 1080x1920
 publish.py             the publisher, with a --dry-run that validates first
 ```
 
+The listing ships on its own, not as part of a release. Any change to the copy,
+the screenshots, the icon or the feature graphic on `main` publishes itself
+through the **Store listing** workflow, usually inside a minute. Releases push
+the listing too, and both queue behind one lane because Play allows a single
+open edit per app.
+
 Regenerate the images and text after a UI change:
 
 ```bash

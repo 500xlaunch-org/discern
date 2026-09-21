@@ -11,6 +11,18 @@ name: Store listing
 # scoped access token. Set GCP_WIF_PROVIDER and GCP_PLAY_SA as repo variables.
 
 on:
+  # The listing is not part of a release. Copy, screenshots, the icon and the
+  # feature graphic change on their own schedule, so any change to them on main
+  # ships by itself, without cutting a version.
+  push:
+    branches: [main]
+    paths:
+      - "play/listing.i18n.json"
+      - "play/screenshots/**"
+      - "play/icon-512.png"
+      - "play/feature-graphic.png"
+      - "play/publish.py"
+      - ".github/workflows/listing.yml"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -21,6 +33,12 @@ on:
 permissions:
   contents: read
   id-token: write
+
+# Play allows one open edit per app. Two overlapping runs would collide, so
+# listing and release runs queue behind a single lane rather than racing.
+concurrency:
+  group: play-edit-com.xurface.discern.app
+  cancel-in-progress: false
 
 jobs:
   listing:

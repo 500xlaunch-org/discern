@@ -46,6 +46,11 @@ permissions:
   contents: read
   id-token: write        # lets the runner mint an OIDC token for GCP federation
 
+# a release pushes the listing as well, so it shares the listing workflow's lane
+concurrency:
+  group: play-edit-com.xurface.discern.app
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
