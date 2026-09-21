@@ -1,0 +1,53 @@
+name: Store listing
+
+# Pushes the store listing without touching the binary: all ten languages of
+# text, fifty screenshots, the icon and the feature graphic, in a single edit.
+#
+# Separate from the Android workflow on purpose. Text and screenshots change far
+# more often than the app does, and this needs no JDK, no Android SDK and no
+# keystore, so it finishes in about a minute instead of ten.
+#
+# Auth is keyless: GitHub mints an OIDC token, Google trades it for a Play
+# scoped access token. Set GCP_WIF_PROVIDER and GCP_PLAY_SA as repo variables.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Validate only, upload nothing
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  listing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the publisher's dependencies
+        run: python3 -m pip install --quiet google-api-python-client google-auth pillow
+
+      # always validate before authenticating: a character limit or an image
+      # dimension should fail here, not half way through an edit
+      - name: Validate the listing
+        run: python3 play/publish.py --dry-run
+
+      - name: Authenticate to Google (keyless)
+        id: auth
+        if: ${{ !inputs.dry_run }}
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_PLAY_SA }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+
+      - name: Push the listing
+        if: ${{ !inputs.dry_run }}
+        env:
+          PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: python3 play/publish.py --listing-only
