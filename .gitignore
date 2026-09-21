@@ -12,3 +12,5 @@ android/app/build/
 android/build/
 android/.gradle/
 android/upload.jks
+play/upload/
+play/xurface-discern-store-assets.zip
