@@ -26,7 +26,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PLAY = ROOT / "play"
-PACKAGE = "com.xurface.discern"
+PACKAGE = "com.xurface.discern.app"
 
 # the app's own language codes -> the locales Google Play uses
 LOCALES = {

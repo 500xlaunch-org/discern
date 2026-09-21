@@ -28,7 +28,7 @@ the copy. It catches what Play would otherwise reject after the upload.
 
 | | |
 |---|---|
-| package | `com.xurface.discern` |
+| package | `com.xurface.discern.app` |
 | min / target SDK | 23 / 35 |
 | default language | en-US |
 | privacy policy | `https://xurface.500xlaunch.com/privacy` |
@@ -41,7 +41,7 @@ is a Xurface product, and a package cannot be changed after the first upload.
 Two things, and neither can be automated.
 
 **1. Create the app entry.** The Play Developer API has no "create app" call. In
-Play Console, create an app with the package `com.xurface.discern`, then complete
+Play Console, create an app with the package `com.xurface.discern.app`, then complete
 the Console-only questionnaires: content rating, target audience, data safety,
 and the app category. The privacy policy above answers the data safety form:
 the app collects an email address, a push subscription, and the record of the
