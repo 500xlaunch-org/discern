@@ -69,23 +69,35 @@ The fix is not to find a key. It is to federate a second issuer: GitHub.
 Run as someone with IAM admin on the GCP project. It adds a provider beside the
 existing AKS one and changes nothing about Edger.
 
+gcloud wants the project **ID** for `--project`, but a workload identity
+principal is always addressed by project **number**. Both appear below and they
+are not interchangeable: swapping either one produces a command that looks right
+and grants nothing.
+
 ```bash
-PROJECT_NUMBER=973696140732
-POOL=edger-pool                      # reuse the existing pool
-SA=edger-851@project-99519918-c6a0-4f30-bb0.iam.gserviceaccount.com
+PROJECT_ID=project-99519918-c6a0-4f30-bb0     # --project flags
+PROJECT_NUMBER=973696140732                   # principal strings, never the ID
+POOL=edger-pool                               # reuse the existing pool
+SA=edger-851@$PROJECT_ID.iam.gserviceaccount.com
 REPO=500xlaunch-org/discern
 
 gcloud iam workload-identity-pools providers create-oidc github \
-  --project="$PROJECT_NUMBER" --location=global --workload-identity-pool="$POOL" \
+  --project="$PROJECT_ID" --location=global --workload-identity-pool="$POOL" \
   --display-name="GitHub Actions" \
   --issuer-uri="https://token.actions.githubusercontent.com" \
   --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
   --attribute-condition="assertion.repository=='$REPO'"
 
 gcloud iam service-accounts add-iam-policy-binding "$SA" \
-  --project="$PROJECT_NUMBER" \
+  --project="$PROJECT_ID" \
   --role=roles/iam.workloadIdentityUser \
   --member="principalSet://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/$POOL/attribute.repository/$REPO"
+```
+
+If the pool name is wrong the first command fails immediately. Check it with:
+
+```bash
+gcloud iam workload-identity-pools list --project="$PROJECT_ID" --location=global
 ```
 
 The `attribute-condition` is the part that matters: only this repository can
