@@ -67,8 +67,15 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "21" }
 
-      - name: Sync the web app into the native shell
-        run: npx cap sync android
+      # android/ is generated, not committed, so it is created here and then
+      # re-branded: cap add ships Capacitor's default icons and splash
+      - name: Generate the native project
+        run: npx cap add android || npx cap sync android
+
+      - name: Apply the Xurface icons and splash
+        run: |
+          python3 -m pip install --quiet pillow
+          python3 tools/brand.py --only android
 
       - name: Validate the store listing
         run: |
@@ -98,8 +105,15 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "21" }
 
-      - name: Sync the web app into the native shell
-        run: npx cap sync android
+      # android/ is generated, not committed, so it is created here and then
+      # re-branded: cap add ships Capacitor's default icons and splash
+      - name: Generate the native project
+        run: npx cap add android || npx cap sync android
+
+      - name: Apply the Xurface icons and splash
+        run: |
+          python3 -m pip install --quiet pillow
+          python3 tools/brand.py --only android
 
       - name: Version from the tag, or from the run number
         id: ver

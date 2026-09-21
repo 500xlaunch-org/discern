@@ -218,9 +218,16 @@ def play_assets():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="fail if any output is missing")
+    ap.add_argument("--only", choices=["all", "android", "web", "play"], default="all",
+                    help="android skips the store graphics, which are the only outputs needing fonts")
     args = ap.parse_args()
 
-    web_icons(); android_icons(); android_splash(); play_assets()
+    if args.only in ("all", "web"):
+        web_icons()
+    if args.only in ("all", "android"):
+        android_icons(); android_splash()
+    if args.only in ("all", "play"):
+        play_assets()
 
     if args.check:
         missing = [p for p in written if not p.exists()]
