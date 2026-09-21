@@ -6,3 +6,9 @@ electron/dist/
 electron/node_modules/
 *.log
 .DS_Store
+tools/.fonts/
+node_modules/
+android/app/build/
+android/build/
+android/.gradle/
+android/upload.jks

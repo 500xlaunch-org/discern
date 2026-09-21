@@ -2,9 +2,26 @@
   "appId": "com.xurface.discern",
   "appName": "Xurface Discern",
   "webDir": "www",
-  "backgroundColor": "#eef1f5",
-  "server": { "androidScheme": "https" },
+  "backgroundColor": "#0E1116",
+  "server": {
+    "androidScheme": "https"
+  },
   "plugins": {
-    "SplashScreen": { "backgroundColor": "#ffffff", "launchAutoHide": true, "launchShowDuration": 900 }
+    "SplashScreen": {
+      "launchShowDuration": 700,
+      "backgroundColor": "#0E1116",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "launchAutoHide": true
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0E1116"
+    }
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#0E1116"
   }
 }

@@ -1,26 +1,126 @@
-name: Android build
+name: Android
+
+# Builds the signed App Bundle and, when asked, publishes it to Play.
+#
+# The build needs JDK 21 and Android SDK 35, which the Ubuntu runner already
+# carries, so nothing has to be installed on anyone's laptop.
+#
+# Secrets required to build:
+#   ANDROID_KEYSTORE_B64     base64 of the upload keystore
+#   ANDROID_KEYSTORE_PASS    keystore password
+#   ANDROID_KEY_ALIAS        key alias
+#   ANDROID_KEY_PASS         key password
+# Secret required to publish:
+#   PLAY_SERVICE_ACCOUNT     a service account key with Play release permission,
+#                            or an external_account config usable from CI
+#
+# Without the publish secret the workflow still builds and uploads the AAB as an
+# artifact, which is enough to sideload or to upload by hand.
+
 on:
-  push: { branches: [main] }
-  pull_request:
   workflow_dispatch:
+    inputs:
+      track:
+        description: Play track
+        type: choice
+        options: [internal, alpha, beta, production]
+        default: internal
+      publish:
+        description: Publish to Play (otherwise build only)
+        type: boolean
+        default: false
+      release_notes:
+        description: Release notes
+        type: string
+        default: First release.
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
 jobs:
-  apk:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+
+      - name: Client tests
+        run: npm test
+
       - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 21 }
+        with: { distribution: temurin, java-version: "21" }
       - uses: android-actions/setup-android@v3
-      - name: Install Capacitor + generate the Android project
+
+      - name: Sync the web app into the native shell
+        run: npx cap sync android
+
+      - name: Version from the tag, or from the run number
+        id: ver
         run: |
-          npm install --no-audit --no-fund
-          npx cap add android || npx cap sync android
-      - name: Build debug APK
-        run: cd android && ./gradlew assembleDebug --no-daemon
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            NAME="${GITHUB_REF#refs/tags/v}"
+          else
+            NAME="0.1.${GITHUB_RUN_NUMBER}"
+          fi
+          # versionCode must never be reused and must only increase
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          sed -i "s/versionCode 1/versionCode ${GITHUB_RUN_NUMBER}/" android/app/build.gradle
+          sed -i "s/versionName \"1.0\"/versionName \"$NAME\"/" android/app/build.gradle
+
+      - name: Decode the upload keystore
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KS" ]; then echo "::error::ANDROID_KEYSTORE_B64 is not set"; exit 1; fi
+          echo "$KS" | base64 -d > android/upload.jks
+
+      - name: Build the App Bundle
+        working-directory: android
+        env:
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASS }}
+        run: |
+          ./gradlew bundleRelease --no-daemon \
+            -Pandroid.injected.signing.store.file=$PWD/upload.jks \
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASS" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASS"
+
+      - name: Validate the store listing
+        run: |
+          python3 -m pip install --quiet pillow
+          python3 play/publish.py --dry-run
+
       - uses: actions/upload-artifact@v4
         with:
-          name: xurface-discern-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: xurface-discern-${{ steps.ver.outputs.name }}
+          path: |
+            android/app/build/outputs/bundle/release/*.aab
+            android/app/build/outputs/mapping/release/mapping.txt
           if-no-files-found: error
+
+      - name: Publish to Play
+        if: ${{ inputs.publish || startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          SA: ${{ secrets.PLAY_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA" ]; then
+            echo "::warning::PLAY_SERVICE_ACCOUNT is not set; the bundle is attached to this run instead."
+            exit 0
+          fi
+          python3 -m pip install --quiet google-api-python-client google-auth pillow
+          printf '%s' "$SA" > /tmp/play.json
+          python3 play/publish.py \
+            --aab android/app/build/outputs/bundle/release/app-release.aab \
+            --track "${{ inputs.track || 'internal' }}" \
+            --release-name "${{ steps.ver.outputs.name }}" \
+            --release-notes "${{ inputs.release_notes || 'Release ' }}${{ steps.ver.outputs.name }}" \
+            --creds /tmp/play.json
+          rm -f /tmp/play.json

@@ -78,7 +78,13 @@ const DEVICES = {
   android:{label:"Android",phone:{name:"Pixel 8",w:412,h:892,cam:"hole"},tablet:{name:"Galaxy Tab",w:800,h:1220,cam:"hole"},laptop:{name:"Chromebook",w:1280,h:800,cam:"none"}},
   windows:{label:"Windows",phone:{name:"Surface Duo",w:400,h:860,cam:"none"},tablet:{name:"Surface Pro",w:912,h:1240,cam:"none"},laptop:{name:"Surface Laptop",w:1366,h:820,cam:"none"}},
 };
-const BASE = new URLSearchParams(location.search).get("api") || location.origin;
+/* Where Horizon lives. On the web the app is served by Horizon itself, so the
+ * same origin is right. Inside the native shell the page comes from the app
+ * bundle (https://localhost), so it has to be told the real host. ?api= beats
+ * both, which is how a build gets pointed at a different Horizon. */
+const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const BASE = new URLSearchParams(location.search).get("api")
+  || (NATIVE ? (window.XURFACE_API || "https://xurface.500xlaunch.com") : location.origin);
 const ENVS = { test:{label:"Test"}, live:{label:"Live"} };
 const PAGE = 25;
 
@@ -244,6 +250,7 @@ function surfaces(sol){
 async function boot(){
   const q = new URLSearchParams(location.search);
   S.lang = window.I18N.setLang(window.I18N.pickLang(S.lang));
+  if (q.get("env") === "test" || q.get("env") === "live") S.env = q.get("env");
   if (q.get("view")) S.view = q.get("view");
   applyTheme();
   render();
@@ -259,7 +266,11 @@ async function boot(){
   if (S.token){ try{ await Backend.refresh(); }catch(e){ if (e.status===401){ S.token=null; S.user=null; savePrefs(); } } }
   S.ready = true; render();
 
+  // deep links: ?review= the permission label before connecting, ?solution= a
+  // connected solution's settings. Both are how a notification tap lands you on
+  // the right screen rather than the inbox.
   if (q.get("review")) openReview(q.get("review"));
+  else if (q.get("solution")) { S.view = "solutions"; S.selectedSol = q.get("solution"); render(); }
   registerSW();
 }
 
@@ -352,7 +363,7 @@ function appHTML(){
   const nav = NAV();
   return `<div class="safe-top"></div>
   <header class="topbar">${MK}<span class="title">${esc(t("app.short"))}</span>
-    <button class="envchip ${S.env}" data-toggle-env aria-label="${esc(t("set.env"))}">${ENVS[S.env].label}</button>
+    ${S.env !== "live" ? `<button class="envchip ${S.env}" data-toggle-env aria-label="${esc(t("set.env"))}">${ENVS[S.env].label}</button>` : ""}
     <span class="spacer"></span>
     <button class="iconbtn" data-nav="inbox" aria-label="${esc(t("nav.inbox"))}">${I.bell}${pending?`<span class="count">${pending>9?'9+':pending}</span>`:''}</button>
   </header>

@@ -419,3 +419,12 @@ html[lang="ar"] .studio-brand b,html[lang="ar"] h1,html[lang="ar"] .soldn{font-f
 html[lang="ar"] .eyebrow,html[lang="ar"] .envchip,html[lang="ar"] .stpill,
 html[lang="ar"] .sech,html[lang="ar"] .sevtag,html[lang="ar"] .rchip{letter-spacing:0;text-transform:none}
 html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",var(--sans)}
+
+/* Content written by a developer (a solution's name, its description, an
+   ability's wording) can be in any script, and it sits inside our chrome which
+   follows the reader's language. Left alone, a Latin sentence inside an Arabic
+   page has its trailing full stop reordered to the wrong end. plaintext makes
+   the browser judge each string on its own characters, which is what dir="auto"
+   does, without having to thread an attribute through every template. */
+.catd,.abt,.abs,.soldn,.catn,.soln,.solmeta,.iact,.isol,.iagent,.tlt,.tls,.dv,.dv-in,.sub{
+  unicode-bidi:plaintext;text-align:start}

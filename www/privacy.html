@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy Policy | Xurface Discern</title>
+<style>
+  :root{ --bg:#f6f7f9; --surface:#fff; --ink:#16212c; --muted:#5b6b7a; --line:#e3e8ee; --xur:#3B6EA3; }
+  :root:not([data-theme="light"]){ @media (prefers-color-scheme: dark){
+    --bg:#0b1017; --surface:#141d27; --ink:#e9eef4; --muted:#9aabbb; --line:#22303d; --xur:#7ba9d8; } }
+  :root[data-theme="dark"]{ --bg:#0b1017; --surface:#141d27; --ink:#e9eef4; --muted:#9aabbb; --line:#22303d; --xur:#7ba9d8; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.65 "IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:min(720px,100%);margin:0 auto;padding-block:48px;padding-inline:20px}
+  h1{font-size:1.9rem;line-height:1.2;margin:0 0 6px;text-wrap:balance}
+  .sub{color:var(--muted);margin:0 0 34px}
+  h2{font-size:1.05rem;margin:34px 0 8px;letter-spacing:.01em}
+  p,li{color:var(--ink)}
+  li{margin:5px 0}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:18px 0}
+  .card h2{margin-top:0}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:.93rem}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase}
+  a{color:var(--xur)}
+  footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:.9rem}
+  @media (max-width:520px){ table,thead,tbody,th,td,tr{display:block} th{display:none}
+    td{border:0;padding:2px 0} tr{border-bottom:1px solid var(--line);padding:10px 0;display:block} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Privacy Policy</h1>
+  <p class="sub">Xurface Discern, by 500xLaunch. Last updated 21 September 2026.</p>
+
+  <p>Xurface Discern exists so you can decide what an AI agent may do on your behalf. That
+  job only works if the record of those decisions is trustworthy, so we keep the data we
+  hold small, specific and yours.</p>
+
+  <div class="card">
+    <h2>The short version</h2>
+    <ul>
+      <li>We do not sell your data, and we do not share it with advertisers.</li>
+      <li>There is no advertising SDK, no analytics SDK and no third party tracker in the app.</li>
+      <li>Notification content is encrypted end to end. The delivery service cannot read it.</li>
+      <li>You can delete your account and everything attached to it at any time.</li>
+    </ul>
+  </div>
+
+  <h2>What we collect, and why</h2>
+  <table>
+    <thead><tr><th>Data</th><th>Why</th><th>Kept</th></tr></thead>
+    <tbody>
+      <tr><td>Email address</td><td>Identifies your account and lets a connected solution find you</td><td>Until you delete the account</td></tr>
+      <tr><td>Display name, if you give one</td><td>Shown to you in the app</td><td>Until you delete the account</td></tr>
+      <tr><td>Notification subscription</td><td>Delivers the question when an agent asks. Issued by your device, not by us</td><td>Until you turn notifications off or the browser retires it</td></tr>
+      <tr><td>Your connected solutions, and the limits you set for each</td><td>Decides what runs without you and what stops to ask</td><td>Until you disconnect the solution</td></tr>
+      <tr><td>Actions agents proposed, and your decisions</td><td>This is the product: a record you can read back and rely on</td><td>Until you delete the account</td></tr>
+    </tbody>
+  </table>
+
+  <p>We do not collect your location, contacts, photos, camera, microphone, calendar, health
+  data, installed apps or an advertising identifier. The app requests no Android runtime
+  permission other than notifications, which you grant explicitly and can revoke.</p>
+
+  <h2>The audit record</h2>
+  <p>Every action an agent takes through Xurface is written to a signed, hash chained ledger.
+  Each entry carries the hash of the one before it, so an entry cannot be altered or removed
+  without breaking the chain. This is what makes the record worth trusting. It also means
+  entries are not individually editable: when you delete your account we delete the entries
+  belonging to you rather than rewriting them in place.</p>
+
+  <h2>Notifications</h2>
+  <p>When an agent needs your judgement, the message is encrypted on our server to a key your
+  own device generated, using the Web Push standard (RFC 8291). It travels through your
+  browser or operating system vendor's push service, which can see that a message was sent to
+  your device but cannot read what it says. Only your device can decrypt it.</p>
+
+  <h2>Who else sees your data</h2>
+  <p>A solution you connect learns only what it needs to act: that you exist as a pseudonymous
+  reference, and the outcome of decisions you made about its own requested actions. It does
+  not receive your email address unless it already knew it, and it never receives your
+  decisions about other solutions.</p>
+  <p>We use Microsoft Azure to host the service, in the United States. We do not use any other
+  processor for your data.</p>
+
+  <h2>Your choices</h2>
+  <ul>
+    <li><strong>See everything.</strong> The Activity screen shows every recorded action.</li>
+    <li><strong>Stop an agent.</strong> Every connected solution has a kill switch that pauses all of its agents at once.</li>
+    <li><strong>Turn notifications off.</strong> In the app's Settings, or in your device settings.</li>
+    <li><strong>Delete your account.</strong> Write to the address below and we will delete your account and its records within 30 days.</li>
+    <li><strong>Ask what we hold.</strong> We will send you a machine readable copy.</li>
+  </ul>
+
+  <h2>Children</h2>
+  <p>Xurface Discern is not directed at children and we do not knowingly collect data from
+  anyone under 13, or under 16 where local law sets that age.</p>
+
+  <h2>Changes</h2>
+  <p>If we change this policy in a way that affects what we collect or who sees it, we will
+  say so in the app before the change takes effect.</p>
+
+  <footer>
+    <p>500xLaunch, Delaware, USA.<br />
+    Questions, requests or complaints: <a href="mailto:privacy@500xlaunch.com">privacy@500xlaunch.com</a></p>
+  </footer>
+</div>
+</body>
+</html>
