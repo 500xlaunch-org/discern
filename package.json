@@ -4,7 +4,7 @@
   "private": true,
   "description": "Xurface Discern - approve, edit or deny the critical actions AI agents take on your behalf. One web app, shipped native to Android, Apple and Windows.",
   "scripts": {
-    "test": "node --test --test-timeout=20000 test/",
+    "test": "node --test --test-timeout=20000 test/*.test.mjs",
     "serve": "npx --yes http-server www -p 5173 -c-1 -o",
     "cap:add:android": "cap add android",
     "cap:add:ios": "cap add ios",
