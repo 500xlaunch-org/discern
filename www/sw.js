@@ -13,7 +13,7 @@
 /* eslint-env serviceworker */
 "use strict";
 
-const VERSION = "discern-v3";
+const VERSION = "discern-v4";
 const SHELL = ["./", "./index.html", "./styles.css", "./i18n.js", "./net.js", "./app.js", "./manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
@@ -47,11 +47,52 @@ self.addEventListener("fetch", (e) => {
 
 /* ---- push: the whole point of the service worker ---- */
 
+/* The notification is the one part of the app that renders outside the app, so
+ * it cannot reach the dictionary. The page tells the worker which language the
+ * person chose, and it is kept in a cache entry so a cold start still knows.
+ * navigator.language is the fallback when nobody has told us yet. */
+const NOTIF = {
+  en:{ title:"An agent needs your call", review:"Review", later:"Later" },
+  zh:{ title:"有智能体需要你的判断", review:"查看", later:"稍后" },
+  hi:{ title:"एक एजेंट को आपके निर्णय की ज़रूरत है", review:"देखें", later:"बाद में" },
+  es:{ title:"Un agente necesita tu decisión", review:"Revisar", later:"Más tarde" },
+  fr:{ title:"Un agent attend votre décision", review:"Examiner", later:"Plus tard" },
+  ar:{ title:"وكيل ينتظر قرارك", review:"مراجعة", later:"لاحقًا" },
+  pt:{ title:"Um agente precisa da sua decisão", review:"Revisar", later:"Depois" },
+  ru:{ title:"Агент ждёт вашего решения", review:"Посмотреть", later:"Позже" },
+  ja:{ title:"エージェントがあなたの判断を待っています", review:"確認", later:"あとで" },
+  de:{ title:"Ein Agent wartet auf Ihre Entscheidung", review:"Ansehen", later:"Später" },
+};
+let LANG = null;
+const LANG_KEY = "./__lang";
+
+async function lang() {
+  if (LANG) return LANG;
+  try {
+    const c = await caches.open(VERSION);
+    const hit = await c.match(LANG_KEY);
+    if (hit) LANG = (await hit.text()).slice(0, 2);
+  } catch {}
+  if (!LANG) LANG = String(self.navigator.language || "en").slice(0, 2);
+  return NOTIF[LANG] ? LANG : "en";
+}
+const words = async () => NOTIF[await lang()] || NOTIF.en;
+
+self.addEventListener("message", (e) => {
+  const d = e.data || {};
+  if (d.type === "lang" && d.lang) {
+    LANG = String(d.lang).slice(0, 2);
+    e.waitUntil(caches.open(VERSION).then((c) => c.put(LANG_KEY, new Response(LANG))));
+  }
+});
+
 self.addEventListener("push", (e) => {
   let d = {};
-  try { d = e.data ? e.data.json() : {}; } catch { d = { title: "Xurface Discern", body: e.data ? e.data.text() : "" }; }
+  try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data ? e.data.text() : "" }; }
   const severe = d.severity === "SEVERE" || d.severity === "HIGH";
-  e.waitUntil(self.registration.showNotification(d.title || "An agent needs your discernment", {
+  e.waitUntil((async () => {
+  const w = await words();
+  return self.registration.showNotification(d.title || w.title, {
     body: d.body || "",
     tag: d.intentId || "xurface",          // one card, one notification
     renotify: true,
@@ -61,8 +102,9 @@ self.addEventListener("push", (e) => {
     icon: "./icons/icon-192.png",
     vibrate: severe ? [40, 60, 40] : [30],
     actions: d.intentId && d.intentId !== "test"
-      ? [{ action: "open", title: "Review" }, { action: "dismiss", title: "Later" }] : [],
-  }));
+      ? [{ action: "open", title: w.review }, { action: "dismiss", title: w.later }] : [],
+  });
+  })());
 });
 
 self.addEventListener("notificationclick", (e) => {

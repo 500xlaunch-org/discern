@@ -1,4 +1,4 @@
-/* Xurface Discern - the app.
+/* Discern - the app.
  *
  * One responsive web app, wrapped by Capacitor for Android and iOS and by
  * Electron for desktop. It talks to a real Horizon (same origin when served at
@@ -263,7 +263,7 @@ async function boot(){
   render();
 
   Net.start({ base:BASE, env:()=>S.env, token:()=>S.token,
-    onReplayed:(n)=>{ toast(`<span class="tic">${I.sync}</span><div class="tm">${esc(tn("net.queued",n))} · ${esc(t("net.back"))}</div>`,"ok"); silentRefresh(); } });
+    onReplayed:(n)=>{ toast(`<span class="tic">${I.sync}</span><div class="tm">${esc(t("net.back"))}. ${esc(tn("net.queued",n))}</div>`,"ok"); silentRefresh(); } });
   Net.subscribe((st)=>{ const was=S.net.link; S.net=st;
     if (st.link==="online" && was!=="online" && was!=="unknown"){ S.mode="connected"; silentRefresh(); }
     paintNet(); });
@@ -354,11 +354,18 @@ async function registerSW(){
       if (d.type==="open-intent"){ S.view="inbox"; silentRefresh(); }
       if (d.type==="resubscribe") enablePush(true);
     });
+    // the worker renders notifications outside the app, so it needs to be told
+    // which language the person picked
+    const tellLang = () => reg.active && reg.active.postMessage({ type:"lang", lang: window.I18N.lang });
+    tellLang(); navigator.serviceWorker.ready.then(tellLang);
     const sub = await reg.pushManager.getSubscription();
     S.push.on = !!sub;
     if (sub && S.token && S.mode==="connected") await sendSubscription(sub);
     paintNet();
   } catch(e){ /* file:// or an insecure origin: push simply is not available */ }
+}
+function tellWorkerLang(){
+  try { navigator.serviceWorker?.ready?.then(r => r.active?.postMessage({ type:"lang", lang: window.I18N.lang })); } catch {}
 }
 const b64ToU8 = (s)=>{ const pad="=".repeat((4-s.length%4)%4); const b=atob((s+pad).replace(/-/g,"+").replace(/_/g,"/"));
   return Uint8Array.from([...b].map(c=>c.charCodeAt(0))); };
@@ -409,7 +416,7 @@ function shellHTML(){
   const dev = DEVICES[S.plat][S.form];
   return `<div class="studio" data-plat="${S.plat}">
     <div class="studio-bar">
-      <span class="studio-brand">${MK}<b>Xurface Discern</b><small>preview</small></span>
+      <span class="studio-brand">${MK}<b>Discern</b><small>preview</small></span>
       <span class="grow"></span>
       <select class="studio-select" data-ctl="lang" aria-label="Language">${LANGS.map(l=>`<option value="${l.code}" ${window.I18N.lang===l.code?"selected":""}>${l.native}</option>`).join("")}</select>
       <select class="studio-select" data-ctl="plat">${Object.entries(DEVICES).map(([k,d])=>`<option value="${k}" ${S.plat===k?"selected":""}>${d.label}</option>`).join("")}</select>
@@ -435,7 +442,7 @@ function appHTML(){
   </header>
   <div id="netbar"></div>
   <div class="body">
-    ${wide?`<nav class="rail">${nav.map(([v,l,ic])=>`<a href="#" data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${esc(l)}</span>${v==="inbox"&&pending?`<span class="railcount">${pending}</span>`:''}</a>`).join("")}<span class="railgrow"></span><div class="railuser">${esc((S.user&&S.user.name)||"You")}</div></nav>`:''}
+    ${wide?`<nav class="rail">${nav.map(([v,l,ic])=>`<a href="#" data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${esc(l)}</span>${v==="inbox"&&pending?`<span class="railcount">${pending}</span>`:''}</a>`).join("")}<span class="railgrow"></span><div class="railuser">${esc((S.user&&S.user.name)||t("set.you"))}</div></nav>`:''}
     <main class="screen-wrap"><div class="wrap">${!S.ready?skeletonHTML():screenHTML()}</div></main>
   </div>
   ${wide?'':`<nav class="tabbar">${nav.map(([v,l,ic])=>`<button data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${esc(l)}</span>${v==="inbox"&&pending?'<span class="tabdot"></span>':''}</button>`).join("")}</nav>`}
@@ -449,7 +456,7 @@ function paintNet(){
   const n = S.net, q = n.queue ? n.queue.length : 0;
   let html = "";
   if (S.mode==="demo"){
-    html = `<div class="netbar demo"><span class="dot"></span><b>Demo</b><span class="nsub">${esc(t("net.offlineBody"))}</span></div>`;
+    html = `<div class="netbar demo"><span class="dot"></span><b>${esc(t("net.demo"))}</b><span class="nsub">${esc(t("net.offlineBody"))}</span></div>`;
   } else if (n.link==="offline" || n.link==="reconnecting" || S.mode==="degraded"){
     const label = n.link==="reconnecting" ? t("net.reconnecting") : t("net.offline");
     html = `<div class="netbar off"><span class="tic">${I.cloudoff}</span><b>${esc(label)}</b>
@@ -502,7 +509,7 @@ function cardHTML(it){
     return `<div class="drow"><span class="dk">${esc(k)}</span>${editable?`<input class="dv-in" data-edit="${it.id}" data-key="${esc(k)}" value="${esc(v)}"/>`:`<span class="dv">${esc(Array.isArray(v)?v.join(", "):v)}</span>`}</div>`;
   }).join("");
   const risks = Object.entries(it.risk||{}).sort((a,b)=>ORD[b[1]]-ORD[a[1]])
-    .map(([c,s])=>`<span class="rchip" style="--c:${sevColor(s)};--b:${sevBg(s)}">${esc(tCat(c))} · ${esc(tSev(s))}</span>`).join("");
+    .map(([c,s])=>`<span class="rchip" style="--c:${sevColor(s)};--b:${sevBg(s)}">${esc(t("risk.chip",{cat:tCat(c),sev:tSev(s)}))}</span>`).join("");
   const why = tWhy(it, it.appetite, it.reasons)[0];
   return `<article class="icard ${settling?("settling "+settling):""}" data-card="${it.id}" style="--sev:${sevColor(sev)};--sevb:${sevBg(sev)}">
     <div class="icard-top">
@@ -529,7 +536,7 @@ function activityHTML(){
   return head + `<div class="tl">${S.timeline.map(it=>`<div class="tlrow">
     <span class="tlic" style="--c:${sevColor(it.severity)};--b:${sevBg(it.severity)}">${it.state==="denied"?I.pause:I.play}</span>
     <div class="tlm"><div class="tlt">${esc(pretty(it.capability))}</div>
-      <div class="tls">${esc(iName(it))} · ${esc(iAgent(it))} · ${esc(tAgo(iAt(it)))}</div></div>
+      <div class="tls">${esc(iAgent(it))} at ${esc(iName(it))}, ${esc(tAgo(iAt(it)))}</div></div>
     <div class="tlend"><span class="stpill st-${it.state}">${esc(stateLabel(it.state))}</span><span class="ref">${iRef(it)}</span></div>
   </div>`).join("")}</div>` + moreHTML("activity");
 }
@@ -554,7 +561,7 @@ function solrowHTML(s){
   return `<button class="solrow" data-sol="${s.uid}">
     <span class="slogo big">${I.logo}</span>
     <div class="solm"><div class="soln">${esc(s.name)}</div>
-      <div class="solmeta">${esc(tn("sol.agents",(s.agents||[]).length))} · ${esc(tn("sol.abilities",nab))}</div>
+      <div class="solmeta">${esc(tn("sol.agents",(s.agents||[]).length))}, ${esc(tn("sol.abilities",nab))}</div>
       ${surf.length?`<div class="solasks">${esc(t("sol.asksAbout",{list:tList(surf.slice(0,3).map(tCat))}))}</div>`:`<div class="solasks quiet">${esc(t("sol.runsRoutine"))}</div>`}
     </div>
     <div class="solend"><span class="stpill st-${s.status}">${esc(linkLabel(s.status))}</span>${I.chevron}</div>
@@ -571,7 +578,7 @@ function soldetailHTML(s){
   const nab = (s.agents||[]).reduce((n,a)=>n+(a.abilities||[]).length,0);
   return `<button class="back" data-back>${I.chevron}<span>${esc(t("sol.back"))}</span></button>
   <div class="soldhead"><span class="slogo xl grad">${I.logo}</span><div><div class="soldn">${esc(s.name)}</div>
-    <div class="soldsub">${esc(tn("sol.agents",(s.agents||[]).length))} · ${esc(tn("sol.abilities",nab))}</div></div>
+    <div class="soldsub">${esc(tn("sol.agents",(s.agents||[]).length))}, ${esc(tn("sol.abilities",nab))}</div></div>
     <span class="stpill st-${s.status}">${esc(linkLabel(s.status))}</span></div>
   <section class="panel"><div class="panelhd"><h3>${esc(t("sol.appetite"))}</h3><p>${esc(t("sol.appetiteSub"))}</p></div>
     <div class="apwrap">${CAT_KEYS.map(c=>appetiteRow(s,c)).join("")}</div></section>
@@ -592,7 +599,7 @@ function abilityRow(a, kind, appetite){
   const why = kind==="ask" ? (tWhy(a, appetite, a.why)[0] || t("rev.needsYou")) : t("rev.allowed");
   return `<div class="abrow"><span class="abdot" style="--c:${c};--b:${b}">${kind==="ask"?I.bell:I.check}</span>
     <div class="abm"><div class="abt">${esc(a.description||pretty(a.key))}</div>
-      <div class="abs">${esc(a.agent)} · <span class="abkey">${esc(a.key)}</span></div>
+      <div class="abs">${esc(a.agent)}<span class="abkey">${esc(a.key)}</span></div>
       <div class="abwhy">${esc(why)}</div></div>
     <span class="sevtag" style="--sev:${c};--sevb:${b}">${esc(tSev(a.severity))}</span></div>`;
 }
@@ -605,7 +612,7 @@ function reviewHTML(){
   const s = p.solution;
   return `<button class="back" data-back-review>${I.chevron}<span>${esc(t("sol.back"))}</span></button>
   <div class="soldhead"><span class="slogo xl grad">${I.logo}</span>
-    <div><div class="soldn">${esc(s.name)}</div><div class="soldsub">${esc(tn("sol.agents",p.counts.agents))} · ${esc(tn("sol.abilities",p.counts.abilities))}</div></div></div>
+    <div><div class="soldn">${esc(s.name)}</div><div class="soldsub">${esc(tn("sol.agents",p.counts.agents))}, ${esc(tn("sol.abilities",p.counts.abilities))}</div></div></div>
   ${s.description?`<p class="sub" style="margin:-2px 0 4px">${esc(s.description)}</p>`:''}
   <section class="panel"><div class="panelhd"><h3>${esc(t("rev.asks"))} <span class="cnt ask">${p.counts.asks}</span></h3>
     <p>${esc(t("rev.asksSub"))}</p></div>
@@ -626,12 +633,12 @@ async function openReview(uid){
 
 /* ---- settings ---- */
 function settingsHTML(){
-  const conn = S.mode==="connected" ? `${t("set.live")} · ${BASE.replace(/^https?:\/\//,"")}`
-    : S.mode==="degraded" ? `${t("set.offline")} · ${tAgo(S.net.lastSync)}` : "Demo";
+  const conn = S.mode==="connected" ? `${t("set.live")} at ${BASE.replace(/^https?:\/\//,"")}`
+    : S.mode==="degraded" ? `${t("set.offline")}, ${t("net.synced",{ago:tAgo(S.net.lastSync)})}` : t("net.demo");
   const p = S.push;
   return `<div class="scrhead"><span class="eyebrow">${esc(t("set.eyebrow"))}</span><h1>${esc(t("set.title"))}</h1></div>
   <section class="panel">
-    <div class="kv"><span>${esc(t("set.signedIn"))}</span><b>${esc((S.user&&S.user.name)||"You")}</b></div>
+    <div class="kv"><span>${esc(t("set.signedIn"))}</span><b>${esc((S.user&&S.user.name)||t("set.you"))}</b></div>
     <div class="kv"><span>${esc(t("set.email"))}</span><b>${esc((S.user&&S.user.email)||"")}</b></div>
     <div class="kv"><span>${esc(t("set.connection"))}</span><b class="${S.mode==="connected"?'ok':'warn'}">${esc(conn)}</b></div>
   </section>
@@ -735,7 +742,7 @@ function wire(){
     if(el.closest("[data-ctl='fullscreen']")){ S.fullscreen=!S.fullscreen; savePrefs(); render(); return; }
     if(el.closest("[data-toggle-env]")){ S.env=S.env==="test"?"live":"test"; savePrefs(); reloadEnv(); return; }
     const envb=el.closest("[data-env]"); if(envb){ S.env=envb.dataset.env; savePrefs(); reloadEnv(); return; }
-    const lg=el.closest("[data-lang]"); if(lg){ S.lang=window.I18N.setLang(lg.dataset.lang); savePrefs(); render(); return; }
+    const lg=el.closest("[data-lang]"); if(lg){ S.lang=window.I18N.setLang(lg.dataset.lang); savePrefs(); tellWorkerLang(); render(); return; }
     const th=el.closest("[data-theme-set]"); if(th){ S.theme=th.dataset.themeSet; savePrefs(); applyTheme(); render(); return; }
     const dec=el.closest("[data-decide]"); if(dec){ decide(dec.dataset.id,dec.dataset.decide); return; }
     const mr=el.closest("[data-more]"); if(mr){ loadMore(mr.dataset.more); return; }
@@ -757,7 +764,7 @@ function wire(){
   root.onchange = e=>{ const c=e.target.closest("[data-ctl]"); if(!c)return;
     if(c.dataset.ctl==="plat")S.plat=e.target.value;
     if(c.dataset.ctl==="form")S.form=e.target.value;
-    if(c.dataset.ctl==="lang"){ S.lang=window.I18N.setLang(e.target.value); }
+    if(c.dataset.ctl==="lang"){ S.lang=window.I18N.setLang(e.target.value); tellWorkerLang(); }
     savePrefs(); render(); };
 }
 
@@ -820,7 +827,7 @@ async function connect(uid){
   try{
     const r=await Backend.connect(uid);
     await Backend.refresh(); S.review=null; S.reviewData=null; S.view="inbox"; render();
-    toast(`<span class="slogo sm">${I.logo}</span><div class="tm"><b>${esc(t("t.connected",{name}))}</b>${r&&r.pending?` · ${esc(tn("t.toReview",r.pending))}`:''}</div>`,"ok");
+    toast(`<span class="slogo sm">${I.logo}</span><div class="tm"><b>${esc(t("t.connected",{name}))}</b>${r&&r.pending?`. ${esc(tn("t.toReview",r.pending))}`:''}</div>`,"ok");
   } catch(e){ toast(`<div class="tm">${esc(t("t.connectFail",{msg:e.message}))}</div>`,"warn"); }
 }
 async function setAppetite(link,cat,level){

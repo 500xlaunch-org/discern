@@ -117,3 +117,57 @@ test("a missing key shows itself rather than rendering empty", () => {
   I.setLang("en");
   assert.equal(I.t("no.such.key"), "no.such.key");
 });
+
+/* Punctuation nobody types.
+ *
+ * Long dashes, the single character ellipsis and the interpunct are the marks
+ * that make copy read as machine written. They creep back in every time a
+ * string is added, so the dictionary and the views that hardcode text are
+ * checked rather than trusted.
+ */
+const TELLS = {
+  "em dash":        "—",
+  "en dash":        "–",
+  "figure dash":    "‒",
+  "horizontal bar": "―",
+  "minus sign":     "−",
+  "ellipsis":       "…",
+  "middle dot":     "·",
+  "bullet":         "•",
+  "left quote":     "“",
+  "right quote":    "”",
+};
+
+test("no machine punctuation anywhere in the dictionary", () => {
+  const found = [];
+  for (const { code } of I.LANGS) {
+    for (const [key, value] of Object.entries(I.DICT[code])) {
+      for (const [name, ch] of Object.entries(TELLS)) {
+        if (String(value).includes(ch)) found.push(`${code}:${key} has a ${name}`);
+      }
+    }
+  }
+  assert.deepEqual(found, [], found.slice(0, 8).join(" | "));
+});
+
+test("no machine punctuation in the views that hardcode text", () => {
+  const found = [];
+  for (const f of ["app.js", "index.html", "privacy.html", "manifest.webmanifest"]) {
+    const src = readFileSync(join(here, "..", "www", f), "utf8");
+    for (const [name, ch] of Object.entries(TELLS)) {
+      if (src.includes(ch)) found.push(`www/${f} has a ${name}`);
+    }
+  }
+  assert.deepEqual(found, [], found.join(" | "));
+});
+
+test("the store listing and captions read the same way", () => {
+  const found = [];
+  for (const f of ["listing.i18n.json", "captions.i18n.json"]) {
+    const src = readFileSync(join(here, "..", "play", f), "utf8");
+    for (const [name, ch] of Object.entries(TELLS)) {
+      if (src.includes(ch)) found.push(`play/${f} has a ${name}`);
+    }
+  }
+  assert.deepEqual(found, [], found.join(" | "));
+});
