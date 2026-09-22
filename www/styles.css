@@ -428,3 +428,40 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
    does, without having to thread an attribute through every template. */
 .catd,.abt,.abs,.soldn,.catn,.soln,.solmeta,.iact,.isol,.iagent,.tlt,.tls,.dv,.dv-in,.sub{
   unicode-bidi:plaintext;text-align:start}
+
+/* ================== launch and lock ================== */
+
+/* The mark draws itself, the name and motto arrive under it. One moment to say
+   what the product is before it asks for anything. */
+.splash{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:2px;background:var(--bg);animation:splashout .4s ease 1.25s both}
+.splash-mk{width:104px;height:104px;color:var(--xur);animation:mkpop .7s cubic-bezier(.2,.9,.3,1.1) both}
+.splash-mk .mk{width:104px;height:104px}
+.splash-mk .mk .wave{stroke-dasharray:420;stroke-dashoffset:420;animation:draw 1.05s cubic-bezier(.4,0,.2,1) .12s forwards}
+.splash-mk .mk circle{transform-origin:200px 128px;transform:scale(0);animation:ring .5s cubic-bezier(.2,.9,.3,1.4) .72s forwards}
+.splash-name{margin-top:18px;font-family:var(--serif);font-size:1.72rem;font-weight:600;letter-spacing:.2px;
+  color:var(--ink);opacity:0;animation:rise .55s ease .62s both}
+.splash-motto{margin:7px 0 0;text-align:center;color:var(--muted);font-size:.9rem;line-height:1.5;
+  opacity:0;animation:rise .55s ease .82s both}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes ring{to{transform:scale(1)}}
+@keyframes mkpop{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:none}}
+@keyframes rise{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+@keyframes splashout{to{opacity:0}}
+@media (prefers-reduced-motion: reduce){
+  .splash,.splash-mk,.splash-name,.splash-motto,.splash-mk .mk .wave,.splash-mk .mk circle{animation:none!important}
+  .splash-mk .mk .wave{stroke-dashoffset:0}
+  .splash-mk .mk circle{transform:none}
+  .splash-name,.splash-motto{opacity:1}
+}
+
+/* The lock is a gate on this device, not a second sign in: the session is
+   already valid, so the way out is the same face or PIN the phone uses. */
+.lockscreen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:10px;padding:32px 26px;text-align:center;background:var(--bg)}
+.lock-mk{width:64px;height:64px;color:var(--xur);opacity:.9}
+.lock-mk .mk{width:64px;height:64px}
+.lockscreen h1{margin:10px 0 0;font-family:var(--serif);font-size:1.5rem;font-weight:600}
+.lock-body{margin:0 0 18px;color:var(--muted);font-size:.92rem;max-width:30ch;line-height:1.5}
+.lockscreen .btn{max-width:340px}
+.lockscreen .btn svg{width:19px;height:19px}

@@ -1,72 +1,72 @@
 {
   "en-US": [
-    "Every risky action, waiting on you",
-    "See what it can do, before you connect",
-    "Set how far each agent may go alone",
-    "A signed record of everything",
-    "Works offline, in your language"
+    "Discern what AI agents do for you",
+    "Know every ability before you allow it",
+    "You set how far an agent may go",
+    "Every AI action, signed and traceable",
+    "Human on the go, in your language"
   ],
   "zh-CN": [
-    "每个风险操作，都等你判断",
-    "连接前，先看它能做什么",
-    "为每个智能体设定判断尺度",
-    "每一步都有签名记录",
-    "离线可用，说你的语言"
+    "用 Discern 看清 AI 为你做的事",
+    "授权之前，先看清每项能力",
+    "判断尺度，由你设定",
+    "每一次 AI 操作，签名可溯",
+    "人在路上，用你的语言"
   ],
   "hi-IN": [
-    "हर जोखिम भरा काम, आपके निर्णय पर",
-    "जोड़ने से पहले, यह क्या कर सकता है",
-    "हर एजेंट की निर्णय सीमा तय करें",
-    "हर कदम का हस्ताक्षरित रिकॉर्ड",
-    "ऑफ़लाइन भी, आपकी भाषा में"
+    "Discern: AI आपके लिए क्या करता है",
+    "अनुमति से पहले, हर क्षमता जानें",
+    "निर्णय की सीमा, आप तय करें",
+    "हर AI कार्य: हस्ताक्षरित, पता-योग्य",
+    "चलते-फिरते इंसान, आपकी भाषा में"
   ],
   "es-ES": [
-    "Cada acción de riesgo, a tu criterio",
-    "Mira qué puede hacer antes de conectar",
-    "Tú fijas el margen de cada agente",
-    "Un registro firmado de todo",
-    "Funciona sin conexión, en tu idioma"
+    "Discern: lo que la IA hace por ti",
+    "Cada capacidad, antes de permitirla",
+    "Tú fijas el margen de decisión",
+    "Cada acción de IA, firmada y rastreable",
+    "El humano en movimiento, en tu idioma"
   ],
   "fr-FR": [
-    "Toute action risquée passe par vous",
-    "Voir ses capacités avant de connecter",
-    "Fixez la marge de chaque agent",
-    "Un registre signé de tout",
-    "Hors ligne, dans votre langue"
+    "Discern : ce que l'IA fait pour vous",
+    "Chaque capacité, avant d'autoriser",
+    "Vous fixez la marge de décision",
+    "Chaque action IA, signée et traçable",
+    "L'humain en mouvement, dans sa langue"
   ],
   "ar": [
-    "كل إجراء خطير ينتظر قرارك",
-    "اطّلع على ما يمكنه فعله قبل الربط",
-    "حدّد حدود التفويض لكل وكيل",
-    "سجل موقَّع لكل ما جرى",
-    "يعمل دون اتصال، وبلغتك"
+    "Discern: ما يفعله الوكلاء نيابة عنك",
+    "اعرف كل قدرة قبل أن تسمح بها",
+    "أنت تحدّد حدود التفويض",
+    "كل إجراء: موقَّع وقابل للتتبع",
+    "إنسان في تنقّل، بلغتك"
   ],
   "pt-BR": [
-    "Toda ação de risco passa por você",
-    "Veja o que ela faz antes de conectar",
-    "Você define a margem de cada agente",
-    "Um registro assinado de tudo",
-    "Funciona sem conexão, no seu idioma"
+    "Discern: o que a IA faz por você",
+    "Cada capacidade, antes de permitir",
+    "Você define a margem de decisão",
+    "Cada ação de IA, assinada e rastreável",
+    "O humano em movimento, no seu idioma"
   ],
   "ru-RU": [
-    "Каждый риск ждёт вашего решения",
-    "Узнайте, что оно умеет, до подключения",
-    "Задайте порог доверия каждому агенту",
-    "Подписанная запись обо всём",
-    "Работает офлайн, на вашем языке"
+    "Discern: что ИИ делает для вас",
+    "Что он умеет, до вашего разрешения",
+    "Вы задаёте порог доверия",
+    "Действия ИИ: подписаны и прослеживаемы",
+    "Человек в движении, на вашем языке"
   ],
   "ja-JP": [
-    "危険な操作は、あなたの判断を待つ",
-    "つなぐ前に、できることを見る",
-    "エージェントごとに委ねる範囲を決める",
-    "すべてに署名付きの記録",
-    "オフラインでも、あなたの言語で"
+    "Discern：AI の行動をあなたが判断",
+    "許可の前に、できることを確認",
+    "委ねる範囲は、あなたが決める",
+    "すべての AI 操作に、署名と追跡",
+    "動きながら判断する人へ、あなたの言語で"
   ],
   "de-DE": [
-    "Jede riskante Aktion wartet auf Sie",
-    "Sehen, was sie darf, vor dem Verbinden",
-    "Entscheidungsspielraum je Agent",
-    "Ein signierter Nachweis von allem",
-    "Offline nutzbar, in Ihrer Sprache"
+    "Discern: Was KI für Sie tut",
+    "Jede Fähigkeit vor der Freigabe",
+    "Sie setzen den Entscheidungsspielraum",
+    "KI-Aktionen: signiert, nachvollziehbar",
+    "Der Mensch unterwegs, in Ihrer Sprache"
   ]
 }

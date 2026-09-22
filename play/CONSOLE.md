@@ -12,7 +12,7 @@ Rebuild it any time with `python3 tools/play_bundle.py`.
 
 | | |
 |---|---|
-| App name | Xurface Discern |
+| App name | Discern |
 | Package | `com.xurface.discern.app` |
 | Default language | English (United States) |
 | Category | Productivity |
@@ -62,10 +62,12 @@ The app requires sign in, so reviewers need a way in. Choose **All or some
 functionality is restricted** and add one instruction:
 
 > Name: Sign in
-> Instructions: On the sign in screen, enter any name and any email address,
-> then tap Continue. No password, code or email confirmation is required.
-> To see the app with content, tap Solutions and connect one of the listed
-> solutions; actions needing a decision then appear under Discern.
+> Instructions: Email test@500xlaunch.com, password TestXurface2029!
+> This account opens with four example solutions already connected, so the
+> inbox, the activity record and the solution screens all have content. It is
+> also exempt from the biometric confirmation that a severe action normally
+> requires, and it is never offered the optional screen lock, so no Face ID or
+> device PIN enrolment is needed anywhere.
 
 ### Content rating
 Start the questionnaire. Category **Utility, Productivity, Communication or

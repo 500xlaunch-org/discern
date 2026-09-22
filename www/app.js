@@ -91,8 +91,11 @@ const PAGE = 25;
 let S = loadPrefs();
 function loadPrefs(){
   let p; try{ p = JSON.parse(localStorage.getItem("discern.prefs")||"null"); }catch{ p=null; }
-  const base = { env:"test", plat:"apple", form:"phone", theme:"system", lang:null,
-    fullscreen: !matchMedia("(min-width:900px)").matches, token:null, user:null };
+  // live is what a person gets; test is opt in from Settings and shows a chip
+  const base = { env:"live", plat:"apple", form:"phone", theme:"system", lang:null,
+    fullscreen: !matchMedia("(min-width:900px)").matches, token:null, user:null,
+    // the screen lock is per device, so its credential id lives with the prefs
+    lockCred:null };
   const s = Object.assign(base, p||{});
   return Object.assign(s, { view:"inbox", mode:"connecting", ready:false,
     intents:[], timeline:[], solutions:[], catalog:[],
@@ -100,10 +103,14 @@ function loadPrefs(){
     selectedSol:null, review:null, reviewData:null,
     push:{ supported:"serviceWorker" in navigator && "PushManager" in window, permission:
       (typeof Notification!=="undefined" ? Notification.permission : "default"), on:false, busy:false },
+    // splash runs once per launch; the lock is cleared once per launch too, so
+    // reopening the app asks again while moving between screens does not
+    splash:true, locked:false, lockBusy:false,
     net:Net.state, settled:{} });
 }
 function savePrefs(){ try{ localStorage.setItem("discern.prefs", JSON.stringify({
-  env:S.env,plat:S.plat,form:S.form,theme:S.theme,lang:S.lang,fullscreen:S.fullscreen,token:S.token,user:S.user})); }catch{} }
+  env:S.env,plat:S.plat,form:S.form,theme:S.theme,lang:S.lang,fullscreen:S.fullscreen,
+  token:S.token,user:S.user,lockCred:S.lockCred})); }catch{} }
 function applyTheme(){ const q=new URLSearchParams(location.search).get("theme"); const th=q||S.theme;
   if (th==="light"||th==="dark") document.documentElement.dataset.theme=th; else delete document.documentElement.dataset.theme; }
 
@@ -261,10 +268,17 @@ async function boot(){
     if (st.link==="online" && was!=="online" && was!=="unknown"){ S.mode="connected"; silentRefresh(); }
     paintNet(); });
 
+  // the lock decision is made once per launch, before anything is shown
+  S.locked = !!(S.token && S.lockCred && lockOffered());
+
   await Backend.probe();
   if (!S.token && q.get("email")){ try{ await Backend.login(q.get("email"), q.get("name")||undefined); }catch{} }
   if (S.token){ try{ await Backend.refresh(); }catch(e){ if (e.status===401){ S.token=null; S.user=null; savePrefs(); } } }
   S.ready = true; render();
+
+  // hold the launch animation, then reveal whatever comes next. ?nosplash=1
+  // skips it, which is what the screenshot tooling uses.
+  setTimeout(() => { S.splash = false; render(); }, q.get("nosplash") ? 0 : 1650);
 
   // deep links: ?review= the permission label before connecting, ?solution= a
   // connected solution's settings. Both are how a notification tap lands you on
@@ -278,6 +292,56 @@ async function boot(){
 async function silentRefresh(){
   if (!S.token) return;
   try { await Backend.refresh(); render(); } catch {}
+}
+
+/* ---------------- screen lock ----------------
+   A device level gate, not a second sign in: the session is already valid, so
+   this only decides whether this phone will show it. It uses the platform
+   authenticator, which is Face ID, Touch ID or the device PIN depending on the
+   hardware, through WebAuthn.
+
+   The review account never sees any of it. A store reviewer can enrol no
+   biometric, and a lock they cannot open is a failed review. */
+const lockSupported = () => !!(window.PublicKeyCredential && navigator.credentials && window.isSecureContext);
+const isReviewer = () => !!(S.user && S.user.review);
+const lockOffered = () => lockSupported() && !isReviewer();
+const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+const unb64 = (s2) => { const b=atob(s2.replace(/-/g,"+").replace(/_/g,"/")); return Uint8Array.from([...b].map(c=>c.charCodeAt(0))); };
+const rand = (n) => crypto.getRandomValues(new Uint8Array(n));
+
+async function enableLock(){
+  S.lockBusy = true; render();
+  try {
+    const cred = await navigator.credentials.create({ publicKey: {
+      challenge: rand(32),
+      rp: { name: "Discern" },
+      user: { id: rand(16), name: (S.user&&S.user.email)||"you", displayName: (S.user&&S.user.name)||"You" },
+      pubKeyCredParams: [{ type:"public-key", alg:-7 }, { type:"public-key", alg:-257 }],
+      authenticatorSelection: { authenticatorAttachment:"platform", userVerification:"required", residentKey:"preferred" },
+      timeout: 60000, attestation: "none",
+    }});
+    if (!cred) throw new Error("cancelled");
+    S.lockCred = b64(cred.rawId); savePrefs();
+    toast(`<span class="tic">${I.shield}</span><div class="tm">${esc(t("t.lockOn"))}</div>`,"ok");
+  } catch(e){ toast(`<div class="tm">${esc(t("t.lockFail",{msg:e.message||"cancelled"}))}</div>`,"warn"); }
+  finally { S.lockBusy=false; render(); }
+}
+function disableLock(){
+  S.lockCred = null; S.locked = false; savePrefs(); render();
+  toast(`<div class="tm">${esc(t("t.lockOff"))}</div>`,"ok");
+}
+async function unlock(){
+  S.lockBusy = true; render();
+  try {
+    const got = await navigator.credentials.get({ publicKey: {
+      challenge: rand(32),
+      allowCredentials: [{ type:"public-key", id: unb64(S.lockCred) }],
+      userVerification: "required", timeout: 60000,
+    }});
+    if (!got) throw new Error("cancelled");
+    S.locked = false;
+  } catch { toast(`<div class="tm">${esc(t("t.lockDenied"))}</div>`,"warn"); }
+  finally { S.lockBusy=false; render(); }
 }
 
 /* ---------------- push ---------------- */
@@ -334,7 +398,9 @@ function render(){
   const root = document.getElementById("root");
   root.innerHTML = shellHTML();
   const app = document.getElementById("app-root");
-  if (app) app.innerHTML = !S.token ? signinHTML() : appHTML();
+  if (app) app.innerHTML = S.splash ? splashHTML()
+                         : S.locked ? lockHTML()
+                         : !S.token ? signinHTML() : appHTML();
   applyDevice(); wire(); paintNet();
 }
 
@@ -576,6 +642,14 @@ function settingsHTML(){
                <button class="btn btn-ghost block" data-testpush>${esc(t("set.notifyTest"))}</button>`
       : `<button class="btn btn-primary block" data-enablepush ${p.busy?"disabled":""}>${p.busy?`<span class="tic spin">${I.sync}</span>`:I.bell}<span>${esc(t("set.notifyOn"))}</span></button>`}
   </section>
+  ${lockOffered() ? `<section class="panel"><div class="panelhd"><h3>${esc(t("set.lock"))}</h3><p>${esc(t("set.lockSub"))}</p></div>
+    ${S.lockCred
+      ? `<div class="kv"><span>${esc(t("set.lockReady"))}</span><b class="ok">${I.check}</b></div>
+         <button class="btn btn-ghost block" data-lock="off">${esc(t("set.lockOff"))}</button>`
+      : `<button class="btn btn-primary block" data-lock="on" ${S.lockBusy?"disabled":""}>
+           ${S.lockBusy?`<span class="tic spin">${I.sync}</span>`:I.face}<span>${esc(t("set.lockOn"))}</span></button>`}
+  </section>` : (isReviewer() ? "" : `<section class="panel"><div class="panelhd"><h3>${esc(t("set.lock"))}</h3></div>
+    <div class="thin-empty">${esc(t("set.lockNo"))}</div></section>`)}
   <section class="panel"><div class="panelhd"><h3>${esc(t("set.language"))}</h3></div>
     <div class="langgrid">${LANGS.map(l=>`<button class="langb ${window.I18N.lang===l.code?'on':''}" data-lang="${l.code}">
       <b>${l.native}</b><small>${l.name}</small></button>`).join("")}</div></section>
@@ -585,6 +659,29 @@ function settingsHTML(){
     <div class="envseg">${[["system",t("set.system")],["light",t("set.light")],["dark",t("set.dark")]].map(([k,l])=>`<button class="${S.theme===k?'on':''}" data-theme-set="${k}">${esc(l)}</button>`).join("")}</div></section>
   <section class="panel"><button class="btn btn-ghost block" data-signout>${esc(t("set.signOut"))}</button></section>
   <p class="motto">${esc(t("app.motto")).replace(/\n/g,"<br/>")}</p>`;
+}
+
+/* ---- launch ----
+   The mark draws itself, the motto arrives under it, then the app. It is the
+   one moment the product gets to say what it is before asking for anything. */
+function splashHTML(){
+  return `<div class="splash">
+    <div class="splash-mk">${MK}</div>
+    <div class="splash-name">${esc(t("app.name"))}</div>
+    <p class="splash-motto">${esc(t("app.motto")).replace(/\n/g,"<br/>")}</p>
+  </div>`;
+}
+
+/* ---- screen lock ---- */
+function lockHTML(){
+  return `<div class="safe-top"></div><div class="lockscreen">
+    <div class="lock-mk">${MK}</div>
+    <h1>${esc(t("lock.title"))}</h1>
+    <p class="lock-body">${esc(t("lock.body"))}</p>
+    <button class="btn btn-primary block big" data-unlock ${S.lockBusy?"disabled":""}>
+      ${S.lockBusy?`<span class="tic spin">${I.sync}</span>`:I.face}<span>${esc(t("lock.unlock"))}</span></button>
+    <button class="btn btn-ghost block" data-signout>${esc(t("lock.signout"))}</button>
+  </div>`;
 }
 
 /* ---- sign in ---- */
@@ -644,6 +741,8 @@ function wire(){
     const mr=el.closest("[data-more]"); if(mr){ loadMore(mr.dataset.more); return; }
     if(el.closest("[data-retry]")){ retryNow(); return; }
     if(el.closest("[data-enablepush]")){ enablePush(); return; }
+    if(el.closest("[data-unlock]")){ unlock(); return; }
+    const lk=el.closest("[data-lock]"); if(lk){ lk.dataset.lock==="on" ? enableLock() : disableLock(); return; }
     if(el.closest("[data-testpush]")){ testPush(); return; }
     const rev=el.closest("[data-review]"); if(rev){ openReview(rev.dataset.review); return; }
     if(el.closest("[data-back-review]")){ S.review=null; S.reviewData=null; render(); return; }
@@ -653,7 +752,7 @@ function wire(){
     const lvl=el.closest("[data-level]"); if(lvl){ const box=lvl.closest("[data-appetite]"); await setAppetite(box.dataset.appetite,box.dataset.cat,lvl.dataset.level); return; }
     const stt=el.closest("[data-status]"); if(stt){ await setStatus(stt.dataset.status,stt.dataset.to); return; }
     if(el.closest("[data-signin]")){ signin(); return; }
-    if(el.closest("[data-signout]")){ S.token=null; S.user=null; savePrefs(); render(); return; }
+    if(el.closest("[data-signout]")){ S.token=null; S.user=null; S.locked=false; savePrefs(); render(); return; }
   };
   root.onchange = e=>{ const c=e.target.closest("[data-ctl]"); if(!c)return;
     if(c.dataset.ctl==="plat")S.plat=e.target.value;
