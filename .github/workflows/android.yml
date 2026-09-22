@@ -5,8 +5,9 @@ name: Android
 #   check    every push and pull request: builds a debug APK. Fast feedback that
 #            the native shell still compiles, and an artifact you can sideload
 #            without Play or a signing key.
-#   release  a v* tag, or Run workflow with Publish on: builds the signed App
-#            Bundle and pushes it to Play together with the store listing.
+#   release  any Run workflow, or a v* tag: builds the SIGNED App Bundle. It is
+#            only uploaded to Play when Publish is on, or when a tag triggered
+#            it, so signing can be exercised without committing to a release.
 #
 # The Ubuntu runner already carries JDK 21 and the Android SDK, so neither lane
 # installs a toolchain. android-actions/setup-android is deliberately absent: it
@@ -55,7 +56,7 @@ concurrency:
 jobs:
   # ---------------------------------------------------------------- check ---
   check:
-    if: ${{ !startsWith(github.ref, 'refs/tags/v') && !inputs.publish }}
+    if: ${{ github.event_name != 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -93,7 +94,7 @@ jobs:
 
   # -------------------------------------------------------------- release ---
   release:
-    if: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.publish }}
+    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -166,7 +167,7 @@ jobs:
 
       - name: Authenticate to Google (keyless)
         id: gcpauth
-        if: ${{ vars.GCP_WIF_PROVIDER != '' }}
+        if: ${{ (inputs.publish || startsWith(github.ref, 'refs/tags/v')) && vars.GCP_WIF_PROVIDER != '' }}
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
@@ -175,6 +176,7 @@ jobs:
           access_token_scopes: https://www.googleapis.com/auth/androidpublisher
 
       - name: Publish to Play
+        if: ${{ inputs.publish || startsWith(github.ref, 'refs/tags/v') }}
         env:
           TOKEN: ${{ steps.gcpauth.outputs.access_token }}
           SA: ${{ secrets.PLAY_SERVICE_ACCOUNT }}
