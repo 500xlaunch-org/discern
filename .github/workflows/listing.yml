@@ -19,6 +19,8 @@ on:
     paths:
       - "play/listing.i18n.json"
       - "play/screenshots/**"
+      - "play/framed/**"
+      - "play/captions.i18n.json"
       - "play/icon-512.png"
       - "play/feature-graphic.png"
       - "play/publish.py"

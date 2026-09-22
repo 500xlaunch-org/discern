@@ -22,9 +22,20 @@ Regenerate the images and text after a UI change:
 ```bash
 python3 tools/brand.py                       # icons, splash, store graphics
 LANGS=en,zh,hi,es,fr,ar,pt,ru,ja,de \
-  node tools/screenshots.mjs                 # needs a Horizon running locally
+  node tools/screenshots.mjs                 # raw captures, needs a local Horizon
+node tools/frames.mjs                        # headline + brand frame -> play/framed
 python3 play/publish.py --dry-run            # validates against Play's rules
 ```
+
+`play/screenshots/` holds the raw captures and `play/framed/` the store versions:
+the same capture on the brand gradient with a headline above it, in that
+language. The publisher uploads `framed` when it exists and falls back to the
+raw captures otherwise, so a missing frame degrades rather than breaks.
+
+Framing is rendered in a browser, not drawn with Pillow. Pillow here has no
+raqm, so Arabic would come out as disconnected letterforms and Devanagari would
+lose its conjuncts. A browser shapes every script correctly and handles right to
+left, which is the whole reason the captions are worth having.
 
 `--dry-run` checks every character limit, every image dimension, the 2:1 aspect
 cap, the 2 to 8 screenshots per language rule, and that no long dash slipped into

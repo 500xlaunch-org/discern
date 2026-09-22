@@ -89,7 +89,11 @@ def validate() -> dict:
 
     shots: dict[str, list[Path]] = {}
     for code, play_locale in LOCALES.items():
-        d = PLAY / "screenshots" / code
+        # framed captures carry a headline on the brand background and are what
+        # the store should show; the raw ones are the fallback and the source
+        d = PLAY / "framed" / code
+        if not d.exists() or not any(d.glob("*.png")):
+            d = PLAY / "screenshots" / code
         files = sorted(d.glob("*.png")) if d.exists() else []
         if not files:
             warns.append(f"{play_locale}: no screenshots, Play will fall back to the default language")

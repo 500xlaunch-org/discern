@@ -1,0 +1,72 @@
+{
+  "en-US": [
+    "Every risky action, waiting on you",
+    "See what it can do, before you connect",
+    "Set how far each agent may go alone",
+    "A signed record of everything",
+    "Works offline, in your language"
+  ],
+  "zh-CN": [
+    "每个风险操作，都等你判断",
+    "连接前，先看它能做什么",
+    "为每个智能体设定判断尺度",
+    "每一步都有签名记录",
+    "离线可用，说你的语言"
+  ],
+  "hi-IN": [
+    "हर जोखिम भरा काम, आपके निर्णय पर",
+    "जोड़ने से पहले, यह क्या कर सकता है",
+    "हर एजेंट की निर्णय सीमा तय करें",
+    "हर कदम का हस्ताक्षरित रिकॉर्ड",
+    "ऑफ़लाइन भी, आपकी भाषा में"
+  ],
+  "es-ES": [
+    "Cada acción de riesgo, a tu criterio",
+    "Mira qué puede hacer antes de conectar",
+    "Tú fijas el margen de cada agente",
+    "Un registro firmado de todo",
+    "Funciona sin conexión, en tu idioma"
+  ],
+  "fr-FR": [
+    "Toute action risquée passe par vous",
+    "Voir ses capacités avant de connecter",
+    "Fixez la marge de chaque agent",
+    "Un registre signé de tout",
+    "Hors ligne, dans votre langue"
+  ],
+  "ar": [
+    "كل إجراء خطير ينتظر قرارك",
+    "اطّلع على ما يمكنه فعله قبل الربط",
+    "حدّد حدود التفويض لكل وكيل",
+    "سجل موقَّع لكل ما جرى",
+    "يعمل دون اتصال، وبلغتك"
+  ],
+  "pt-BR": [
+    "Toda ação de risco passa por você",
+    "Veja o que ela faz antes de conectar",
+    "Você define a margem de cada agente",
+    "Um registro assinado de tudo",
+    "Funciona sem conexão, no seu idioma"
+  ],
+  "ru-RU": [
+    "Каждый риск ждёт вашего решения",
+    "Узнайте, что оно умеет, до подключения",
+    "Задайте порог доверия каждому агенту",
+    "Подписанная запись обо всём",
+    "Работает офлайн, на вашем языке"
+  ],
+  "ja-JP": [
+    "危険な操作は、あなたの判断を待つ",
+    "つなぐ前に、できることを見る",
+    "エージェントごとに委ねる範囲を決める",
+    "すべてに署名付きの記録",
+    "オフラインでも、あなたの言語で"
+  ],
+  "de-DE": [
+    "Jede riskante Aktion wartet auf Sie",
+    "Sehen, was sie darf, vor dem Verbinden",
+    "Entscheidungsspielraum je Agent",
+    "Ein signierter Nachweis von allem",
+    "Offline nutzbar, in Ihrer Sprache"
+  ]
+}

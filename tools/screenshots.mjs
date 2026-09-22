@@ -22,6 +22,12 @@ const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const BASE = process.argv[2] ?? "http://localhost:8899";
 const OUT = process.argv[3] ?? "play/screenshots";
 const APPDIR = process.argv[4] ?? "../horizon-platform/app";   // where the app is served from
+// The page has to be served locally so the harness iframe is same origin, but it
+// can talk to any Horizon. Pointing it at production keeps the real hostname out
+// of the Settings screenshot, where "localhost" would otherwise be on display.
+const API = process.env.API ?? BASE;
+// SHOTS=5-settings re-captures one screen without redoing all five.
+const ONLY = (process.env.SHOTS ?? "").split(",").filter(Boolean);
 
 const W = 540, H = 960, SCALE = 2;          // -> 1080x1920
 
@@ -34,6 +40,7 @@ const NEWCOMER = "preview@example.com";
 async function seed() {
   const ENV = process.env.ENV ?? "live";   // a consumer sees live, with no environment chip
   const H0 = { "content-type": "application/json", "x-xurface-env": ENV };
+  const BASE = API;   // seed against whichever Horizon the app will talk to
   const post = async (p, b, tk) => (await fetch(BASE + p, { method: "POST", headers: { ...H0,
     ...(tk ? { authorization: `Bearer ${tk}` } : {}) }, body: JSON.stringify(b ?? {}) })).json();
   const get = async (p, tk) => (await fetch(BASE + p, { headers: { ...H0, authorization: `Bearer ${tk}` } })).json();
@@ -83,9 +90,9 @@ const { execSync } = await import("node:child_process");
 for (const lang of LANGS) {
   const dir = join(OUT, lang);
   mkdirSync(dir, { recursive: true });
-  for (const s of SHOTS) {
+  for (const s of SHOTS.filter((x) => !ONLY.length || ONLY.includes(x.id))) {
     const raw = join(dir, `${s.id}.raw.png`);
-    const url = `${BASE}/app/?env=${process.env.ENV ?? "live"}&email=${encodeURIComponent(s.user)}&lang=${lang}&${s.q}`;
+    const url = `${BASE}/app/?env=${process.env.ENV ?? "live"}&api=${encodeURIComponent(API)}&email=${encodeURIComponent(s.user)}&lang=${lang}&${s.q}`;
     await shot(raw, url);
     // crop the iframe region out of the harness capture
     execSync(`python3 -c "

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="hi-IN" dir="ltr"><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@600;700&family=Noto+Sans+Arabic:wght@700&family=Noto+Sans+Devanagari:wght@700&family=Noto+Sans+SC:wght@700&family=Noto+Sans+JP:wght@700&display=swap">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;width:540px;height:960px;overflow:hidden}
+  body{
+    background:
+      radial-gradient(120% 70% at 50% -10%, #4C82BC 0%, rgba(76,130,188,0) 60%),
+      linear-gradient(168deg, #3B6EA3 0%, #234668 42%, #10161F 100%);
+    font-family:"IBM Plex Sans","Noto Sans Arabic","Noto Sans Devanagari",
+                "Noto Sans SC","Noto Sans JP",system-ui,sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+  }
+  .cap{
+    padding:46px 38px 0;margin:0;text-align:center;
+    font-size:29px;line-height:1.24;font-weight:700;letter-spacing:-.012em;
+    color:#fff;text-wrap:balance;
+    text-shadow:0 1px 14px rgba(0,0,0,.30);
+    max-width:100%;
+  }
+  /* CJK sets tighter and needs no negative tracking */
+  html[lang="zh-CN"] .cap, html[lang="ja-JP"] .cap{letter-spacing:0;font-size:31px}
+  html[dir="rtl"] .cap{letter-spacing:0}
+  .rule{width:54px;height:3px;border-radius:2px;background:rgba(255,255,255,.55);margin:18px 0 0}
+  .shotwrap{
+    margin-top:26px;width:434px;flex:none;
+    border-radius:27px;overflow:hidden;
+    border:1px solid rgba(255,255,255,.16);
+    box-shadow:0 26px 64px rgba(0,0,0,.50), 0 2px 8px rgba(0,0,0,.30);
+  }
+  .shotwrap img{display:block;width:100%;height:auto}
+</style></head>
+<body>
+  <p class="cap">हर कदम का हस्ताक्षरित रिकॉर्ड</p>
+  <div class="rule"></div>
+  <div class="shotwrap"><img src="4-activity.png"></div>
+</body></html>

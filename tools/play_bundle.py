@@ -70,6 +70,7 @@ REGENERATING
 These files are generated, never hand edited. After a UI change:
     python3 tools/brand.py
     LANGS=en,zh,hi,es,fr,ar,pt,ru,ja,de node tools/screenshots.mjs
+    node tools/frames.mjs
     python3 play/publish.py --dry-run
     python3 tools/play_bundle.py
 """
@@ -99,7 +100,9 @@ def main():
 
         n = 0
         for src_stem, nice in sorted(SHOT_NAMES.items()):
-            src = PLAY / "screenshots" / code / f"{src_stem}.png"
+            src = PLAY / "framed" / code / f"{src_stem}.png"
+            if not src.exists():
+                src = PLAY / "screenshots" / code / f"{src_stem}.png"
             if src.exists():
                 shutil.copy2(src, d / f"{nice}.png")
                 n += 1

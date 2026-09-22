@@ -105,15 +105,22 @@ def place(canvas: Image.Image, g: Image.Image, frac: float, center=None):
     return g2
 
 
-def tile(size: int, bg, fg=PAPER, radius=0.235, frac=0.62, round_mask=False) -> Image.Image:
+def tile(size: int, bg, fg=PAPER, radius=0.235, frac=0.62, round_mask=False,
+         bg2=None) -> Image.Image:
+    """One launcher tile. `bg2` ramps the background from bg to bg2, which stops
+    a flat fill reading cheap at 48px."""
     S = size * SS
     im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     if bg is not None:
+        mask = Image.new("L", (S, S), 0)
+        md = ImageDraw.Draw(mask)
         if round_mask:
-            d.ellipse([0, 0, S-1, S-1], fill=bg)
+            md.ellipse([0, 0, S-1, S-1], fill=255)
         else:
-            d.rounded_rectangle([0, 0, S-1, S-1], radius=int(S*radius), fill=bg)
+            md.rounded_rectangle([0, 0, S-1, S-1], radius=int(S*radius), fill=255)
+        fill = gradient(S, S, bg, bg2).convert("RGBA") if bg2 else Image.new("RGBA", (S, S), bg)
+        im.paste(fill, (0, 0), mask)
     place(im, glyph(S, fg), frac)
     return im.resize((size, size), Image.LANCZOS)
 
@@ -148,18 +155,18 @@ def out(img: Image.Image, path: Path, rgb=False):
 
 
 def web_icons():
-    out(tile(192, INK), ROOT/"www/icons/icon-192.png")
-    out(tile(512, INK), ROOT/"www/icons/icon-512.png")
+    out(tile(192, BLUE, bg2=BLUE_D), ROOT/"www/icons/icon-192.png")
+    out(tile(512, BLUE, bg2=BLUE_D), ROOT/"www/icons/icon-512.png")
     # maskable: platforms crop to a circle, so the mark sits well inside
-    out(tile(512, BLUE, frac=0.44), ROOT/"www/icons/icon-maskable.png")
+    out(tile(512, BLUE, bg2=BLUE_D, frac=0.44), ROOT/"www/icons/icon-maskable.png")
     out(tile(96, None, (255,255,255,255), frac=0.86), ROOT/"www/icons/badge.png")
 
 
 def android_icons():
     res = ROOT/"android/app/src/main/res"
     for dens, (launcher, fgpx, _) in DENSITIES.items():
-        out(tile(launcher, INK), res/f"mipmap-{dens}/ic_launcher.png")
-        out(tile(launcher, INK, round_mask=True), res/f"mipmap-{dens}/ic_launcher_round.png")
+        out(tile(launcher, BLUE, bg2=BLUE_D), res/f"mipmap-{dens}/ic_launcher.png")
+        out(tile(launcher, BLUE, bg2=BLUE_D, round_mask=True), res/f"mipmap-{dens}/ic_launcher_round.png")
         # adaptive foreground: 108dp canvas, only the central 72dp always shows,
         # so the mark is kept to ~58% and the rest is transparent bleed
         fg = Image.new("RGBA", (fgpx*2, fgpx*2), (0, 0, 0, 0))
@@ -169,7 +176,7 @@ def android_icons():
     (res/"values").mkdir(parents=True, exist_ok=True)
     (res/"values/ic_launcher_background.xml").write_text(
         '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n'
-        f'    <color name="ic_launcher_background">#{INK[0]:02X}{INK[1]:02X}{INK[2]:02X}</color>\n'
+        f'    <color name="ic_launcher_background">#{BLUE[0]:02X}{BLUE[1]:02X}{BLUE[2]:02X}</color>\n'
         '</resources>\n')
     written.append(res/"values/ic_launcher_background.xml")
 
@@ -189,7 +196,7 @@ def android_splash():
 def play_assets():
     play = ROOT/"play"
     # store icon: 512x512, no transparency in the final upload
-    out(tile(512, INK), play/"icon-512.png", rgb=True)
+    out(tile(512, BLUE, bg2=BLUE_D), play/"icon-512.png", rgb=True)
 
     # feature graphic: 1024x500, read at thumbnail size, so it stays typographic
     W, H = 1024, 500
