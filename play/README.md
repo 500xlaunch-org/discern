@@ -35,12 +35,23 @@ the copy. It catches what Play would otherwise reject after the upload.
 | | |
 |---|---|
 | package | `com.xurface.discern.app` |
-| min / target SDK | 23 / 35 |
+| min / target SDK | 23 / 36 |
 | default language | en-US |
 | privacy policy | `https://xurface.500xlaunch.com/privacy` |
 
 The package name is permanent. It is deliberately not under `com.edger`: Discern
 is a Xurface product, and a package cannot be changed after the first upload.
+
+## Target API level
+
+Google Play requires new apps and updates to target Android 16 (API 36) as of
+31 August 2026, and raises the bar every August. Capacitor 7 generates 35, and
+`cap add` regenerates `variables.gradle`, so the workflow rewrites it from the
+`ANDROID_TARGET_SDK` env var rather than committing the value.
+
+Targeting too low is rejected at commit time with a message that reads oddly:
+`Target SDK of artifact is too low: 13`, where 13 is the artifact's versionCode,
+not an API level.
 
 ## What is still a human step
 
