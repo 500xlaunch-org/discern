@@ -13,8 +13,8 @@
 /* eslint-env serviceworker */
 "use strict";
 
-const VERSION = "discern-v5";
-const SHELL = ["./", "./index.html", "./styles.css", "./i18n.js", "./net.js", "./app.js", "./manifest.webmanifest"];
+const VERSION = "discern-v6";
+const SHELL = ["./", "./index.html", "./styles.css", "./i18n.js", "./phone.js", "./net.js", "./app.js", "./manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

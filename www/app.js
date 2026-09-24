@@ -107,7 +107,9 @@ function loadPrefs(){
     // reopening the app asks again while moving between screens does not
     splash:true, locked:false, lockBusy:false,
     // sign in walks: identifier, then a password or a name, never both at once
-    signin:{ step:"id", id:"", busy:false, error:"" },
+    signin:{ step:"id", id:"", busy:false, error:"",
+             // the field decides for itself which of the two it is holding
+             kind:"empty", iso:(window.Phone ? window.Phone.detect() : "US"), picker:false, search:"" },
     net:Net.state, settled:{} });
 }
 function savePrefs(){ try{ localStorage.setItem("discern.prefs", JSON.stringify({
@@ -721,7 +723,7 @@ function signinHTML(){
   if (st.step === "name") {
     return `<div class="safe-top"></div><div class="signin">${head}
       <div class="signin-lead"><b>${esc(t("signin.newTitle"))}</b>
-        <span>${esc(t("signin.newBody",{id:st.id}))}</span></div>
+        <span>${esc(t("signin.newBody",{id:st.identifier || st.id}))}</span></div>
       ${err}
       <div class="field"><label for="nm">${esc(t("signin.name"))}</label>
         <input id="nm" autocomplete="name" enterkeyhint="done" placeholder="Ada Lovelace"/></div>
@@ -733,7 +735,7 @@ function signinHTML(){
 
   if (st.step === "password") {
     return `<div class="safe-top"></div><div class="signin">${head}
-      <div class="signin-lead"><b>${esc(st.id)}</b><span>${esc(t("signin.pwNote"))}</span></div>
+      <div class="signin-lead"><b>${esc(st.identifier || st.id)}</b><span>${esc(t("signin.pwNote"))}</span></div>
       ${err}
       <div class="field"><label for="pw">${esc(t("signin.pw"))}</label>
         <input id="pw" type="password" autocomplete="current-password" enterkeyhint="go"/></div>
@@ -743,16 +745,58 @@ function signinHTML(){
       <div id="overlay"></div></div>`;
   }
 
+  const P = window.Phone;
+  const isPhone = st.kind === "phone";
+  const c = P.BY_ISO[st.iso] || P.BY_ISO.US;
+  const picker = st.picker ? countryPickerHTML() : "";
+
   return `<div class="safe-top"></div><div class="signin">${head}
     ${err}
-    <div class="field"><label for="id">${esc(t("signin.id"))}</label>
-      <input id="id" type="email" inputmode="email" autocomplete="username"
-             enterkeyhint="go" placeholder="${esc(t("signin.idPh"))}" value="${esc(st.id)}"/></div>
+    <div class="field idfield">
+      <label for="id">${esc(t("signin.id"))}</label>
+      <div class="idwrap ${isPhone ? "phone" : ""}">
+        ${isPhone ? `<button type="button" class="cc" data-picker aria-label="${esc(t("signin.country"))}">
+          <span class="ccflag">${P.flag(c.iso)}</span><span class="ccdial">+${c.dial}</span></button>` : ""}
+        <input id="id" type="${isPhone ? "tel" : "email"}"
+               inputmode="${isPhone ? "tel" : "email"}"
+               autocomplete="${isPhone ? "tel-national" : "username"}"
+               enterkeyhint="go" spellcheck="false" autocapitalize="none"
+               placeholder="${esc(t("signin.idPh"))}" value="${esc(st.id)}"/>
+      </div>
+      ${isPhone ? `<div class="idhint">${esc(P.name(c.iso, window.I18N.lang))} ${esc(P.e164(c.iso, st.id))}</div>` : ""}
+    </div>
     <button class="btn btn-primary block big" data-signin ${st.busy?"disabled":""}>
       ${st.busy?`<span class="tic spin">${I.sync}</span>`:""}<span>${esc(t("signin.next"))}</span></button>
     <div class="signin-note">${I.shield}<span>${esc(t("signin.note"))}</span></div>
     <div class="signin-langs">${I.globe}${LANGS.map(l=>`<button class="${window.I18N.lang===l.code?'on':''}" data-lang="${l.code}">${l.native}</button>`).join("")}</div>
+    ${picker}
     <div id="overlay"></div></div>`;
+}
+
+function paintCountryList(){
+  const host = document.querySelector(".ccscrim");
+  if (!host) return;
+  const tmp = document.createElement("div");
+  tmp.innerHTML = countryPickerHTML();
+  host.querySelector(".cclist").replaceWith(tmp.querySelector(".cclist"));
+}
+
+/** The country list, named in the reader's language and searchable, because
+ * scrolling 229 rows to find one is not a design. */
+function countryPickerHTML(){
+  const P = window.Phone, lang = window.I18N.lang, q = S.signin.search.trim().toLowerCase();
+  const rows = P.COUNTRIES
+    .map((c) => ({ ...c, label: P.name(c.iso, lang) }))
+    .filter((c) => !q || c.label.toLowerCase().includes(q) || c.dial.startsWith(q.replace(/^\+/, "")) || c.iso.toLowerCase() === q)
+    .sort((a, b) => a.label.localeCompare(b.label, lang));
+  return `<div class="scrim ccscrim" data-picker-close>
+    <div class="sheet ccsheet" role="dialog" aria-label="${esc(t("signin.country"))}">
+      <h3>${esc(t("signin.country"))}</h3>
+      <input id="ccsearch" class="ccsearch" placeholder="${esc(t("signin.search"))}" value="${esc(S.signin.search)}" autocomplete="off"/>
+      <div class="cclist">${rows.map((c)=>`<button class="ccrow ${c.iso===S.signin.iso?"on":""}" data-cc="${c.iso}">
+        <span class="ccflag">${P.flag(c.iso)}</span><span class="ccname">${esc(c.label)}</span>
+        <span class="ccdial">+${c.dial}</span></button>`).join("") || `<div class="thin-empty">${esc(t("more.end"))}</div>`}</div>
+    </div></div>`;
 }
 
 /* ---- overlays ---- */
@@ -809,6 +853,12 @@ function wire(){
     if(el.closest("[data-back]")){ S.selectedSol=null; render(); return; }
     const lvl=el.closest("[data-level]"); if(lvl){ const box=lvl.closest("[data-appetite]"); await setAppetite(box.dataset.appetite,box.dataset.cat,lvl.dataset.level); return; }
     const stt=el.closest("[data-status]"); if(stt){ await setStatus(stt.dataset.status,stt.dataset.to); return; }
+    if(el.closest("[data-picker]")){ S.signin.picker = true; S.signin.search = ""; render();
+      const q=document.getElementById("ccsearch"); if(q) q.focus(); return; }
+    const cc = el.closest("[data-cc]");
+    if(cc){ S.signin.iso = cc.dataset.cc; S.signin.picker = false; S.signin.error = ""; render();
+      const f=document.getElementById("id"); if(f) f.focus(); return; }
+    if(el.closest("[data-picker-close]") && !el.closest(".ccsheet")){ S.signin.picker = false; render(); return; }
     if(el.closest("[data-signin]")){ signin(); return; }
     if(el.closest("[data-pw]")){ signinPassword(); return; }
     if(el.closest("[data-create]")){ signinRegister(); return; }
@@ -823,6 +873,35 @@ function wire(){
     else if (id === "pw") { e.preventDefault(); signinPassword(); }
     else if (id === "nm" && S.signin.step === "name") { e.preventDefault(); signinRegister(); }
   };
+  // typing decides what the field is. Re-rendering on every keystroke would
+  // fight the caret, so the shape is only redrawn when the kind actually flips.
+  root.oninput = e=>{
+    if (e.target.id === "ccsearch") { S.signin.search = e.target.value; paintCountryList(); return; }
+    if (e.target.id !== "id" || S.token) return;
+    const P = window.Phone, st = S.signin, raw = e.target.value;
+
+    const pasted = P.splitPasted(raw);
+    if (pasted) {                       // a full international number was pasted
+      st.iso = pasted.iso; st.kind = "phone"; st.id = P.group(pasted.national, pasted.iso);
+      st.error = ""; render();
+      const el = document.getElementById("id"); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+      return;
+    }
+
+    const kind = P.kindOf(raw);
+    st.id = kind === "phone" ? P.group(raw, st.iso) : raw;
+    if (kind !== st.kind) { st.kind = kind; st.error = ""; render();
+      const el = document.getElementById("id");
+      if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+      return; }
+    if (kind === "phone" && e.target.value !== st.id) {
+      e.target.value = st.id;           // regroup in place, caret at the end
+      e.target.setSelectionRange(st.id.length, st.id.length);
+    }
+    const hint = document.querySelector(".idhint");
+    if (hint && kind === "phone") hint.textContent = `${P.name(st.iso, window.I18N.lang)} ${P.e164(st.iso, st.id)}`;
+  };
+
   root.onchange = e=>{ const c=e.target.closest("[data-ctl]"); if(!c)return;
     if(c.dataset.ctl==="plat")S.plat=e.target.value;
     if(c.dataset.ctl==="form")S.form=e.target.value;
@@ -907,15 +986,27 @@ async function setStatus(link,to){
 async function signin(){
   const el = document.getElementById("id");
   const id = (el ? el.value : "").trim();
-  // keep what was typed before anything can send us back to this screen
-  S.signin.id = id;
-  if (!id) { S.signin.error = t("signin.needId"); render(); return; }
-  // sign in is by email. The server still knows people by phone, because a
-  // solution can find someone that way, but nobody signs in with one.
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id)) { S.signin.error = t("signin.badId"); render(); return; }
-  S.signin.error = ""; S.signin.busy = true; render();
+  const P = window.Phone, st = S.signin;
+  st.id = id;                            // keep what was typed, whatever happens next
+  if (!id) { st.error = t("signin.needId"); render(); return; }
+
+  let identifier;
+  if (st.kind === "phone") {
+    if (!P.validPhone(st.iso, id)) {
+      const n = P.digits(id).length, span = { US:10, CA:10 }[st.iso];
+      const dir = t(n && span && n > span ? "signin.tooLong" : "signin.tooShort");
+      st.error = t("signin.badPhone", { dir, country: P.name(st.iso, window.I18N.lang) });
+      render(); return;
+    }
+    identifier = P.e164(st.iso, id);     // stored and sent in E.164, always
+  } else {
+    if (!P.validEmail(id)) { st.error = t("signin.badId"); render(); return; }
+    identifier = id.trim();
+  }
+  st.identifier = identifier;
+  st.error = ""; st.busy = true; render();
   try {
-    await Backend.login(id);
+    await Backend.login(identifier);
     S.signin = { step:"id", id:"", busy:false, error:"" };
     await Backend.refresh(); S.view = "inbox"; render();
   } catch (e) {
@@ -934,7 +1025,7 @@ async function signinPassword(){
   if (!pw) { S.signin.error = t("signin.needPw"); render(); return; }
   S.signin.error = ""; S.signin.busy = true; render();
   try {
-    await Backend.login(S.signin.id, pw);
+    await Backend.login(S.signin.identifier || S.signin.id, pw);
     S.signin = { step:"id", id:"", busy:false, error:"" };
     await Backend.refresh(); S.view = "inbox"; render();
   } catch (e) {
@@ -950,7 +1041,7 @@ async function signinRegister(){
   const name = (el ? el.value : "").trim();
   S.signin.error = ""; S.signin.busy = true; render();
   try {
-    await Backend.register(S.signin.id, name || undefined);
+    await Backend.register(S.signin.identifier || S.signin.id, name || undefined);
     S.signin = { step:"id", id:"", busy:false, error:"" };
     await Backend.refresh(); S.view = "inbox"; render();
   } catch (e) {

@@ -475,3 +475,40 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
   border:1px solid color-mix(in srgb,var(--sv) 30%,transparent);animation:cardin .25s ease both}
 .signin .btn .tic{display:grid;place-items:center}
 .signin .btn .tic svg{width:17px;height:17px}
+
+/* ---- one field for an email or a number ---- */
+.idfield{width:100%;max-width:340px}
+.idwrap{display:flex;align-items:stretch;gap:0;width:100%}
+.idwrap input{flex:1;min-width:0}
+.idwrap.phone input{border-start-start-radius:0;border-end-start-radius:0;border-inline-start:0}
+.cc{display:flex;align-items:center;gap:6px;flex:none;padding:0 11px;
+  border:1px solid var(--line);border-radius:12px;border-start-end-radius:0;border-end-end-radius:0;
+  background:var(--sunken);color:var(--ink);font-size:.92rem;font-weight:600;
+  transition:background .15s,border-color .15s}
+.cc:hover{background:var(--surface-2);border-color:var(--xur)}
+.ccflag{font-size:1.12rem;line-height:1}
+.ccdial{font-family:var(--mono);font-size:.84rem;color:var(--muted)}
+.idhint{margin-top:7px;font-family:var(--mono);font-size:.76rem;color:var(--faint);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:ltr;text-align:start}
+
+/* the country sheet */
+.ccscrim{align-items:flex-end}
+.ccsheet{width:100%;max-width:460px;max-height:78vh;display:flex;flex-direction:column;gap:10px}
+.ccsheet h3{margin:0}
+.ccsearch{width:100%;box-sizing:border-box;border:1px solid var(--line);background:var(--sunken);
+  color:var(--ink);border-radius:12px;padding:10px 13px;font-size:.94rem}
+.cclist{flex:1;overflow-y:auto;overscroll-behavior:contain;margin:0 -6px;padding:0 6px}
+.ccrow{display:flex;align-items:center;gap:11px;width:100%;padding:10px 10px;border:0;
+  border-radius:11px;background:transparent;text-align:start;color:var(--ink);font-size:.94rem}
+.ccrow:hover{background:var(--surface-2)}
+.ccrow.on{background:var(--xur-soft);color:var(--xur-ink)}
+.ccname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ccrow .ccdial{flex:none}
+[dir="rtl"] .idwrap.phone input{border-start-start-radius:12px;border-end-start-radius:12px;
+  border-start-end-radius:0;border-end-end-radius:0;border-inline-start:1px solid var(--line);border-inline-end:0}
+[dir="rtl"] .cc{border-start-end-radius:12px;border-end-end-radius:12px;
+  border-start-start-radius:0;border-end-start-radius:0}
+/* A dial code is a number that reads left to right in every language. Left to
+   the paragraph direction, Arabic renders "+972" as "972+". */
+.ccdial,.idhint{direction:ltr;unicode-bidi:embed}
+[dir="rtl"] .ccrow .ccdial,[dir="rtl"] .cc .ccdial{direction:ltr;unicode-bidi:embed}
