@@ -907,8 +907,13 @@ async function setStatus(link,to){
 async function signin(){
   const el = document.getElementById("id");
   const id = (el ? el.value : "").trim();
+  // keep what was typed before anything can send us back to this screen
+  S.signin.id = id;
   if (!id) { S.signin.error = t("signin.needId"); render(); return; }
-  S.signin.id = id; S.signin.error = ""; S.signin.busy = true; render();
+  // sign in is by email. The server still knows people by phone, because a
+  // solution can find someone that way, but nobody signs in with one.
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id)) { S.signin.error = t("signin.badId"); render(); return; }
+  S.signin.error = ""; S.signin.busy = true; render();
   try {
     await Backend.login(id);
     S.signin = { step:"id", id:"", busy:false, error:"" };

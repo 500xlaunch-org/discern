@@ -92,7 +92,7 @@ en: {
   "set.lock":"Screen lock","set.lockSub":"Ask for Face ID, Touch ID or your device PIN each time the app opens. You stay signed in either way.","set.lockOn":"Require Face ID or PIN","set.lockReady":"Screen lock is on","set.lockOff":"Turn off screen lock","set.lockNo":"This device has no screen lock to use.","t.lockOn":"Screen lock is on.","t.lockOff":"Screen lock is off.","t.lockFail":"Could not set that up: {msg}","t.lockDenied":"That did not match. Have another go.",
   "risk.chip":"{sev} {cat} risk",
   "net.demo":"Demo","set.you":"You",
-  "signin.id":"Email or phone","signin.idPh":"you@company.com","signin.next":"Continue","signin.pw":"Password","signin.pwNote":"This account uses a password.","signin.newTitle":"Welcome. What should we call you?","signin.newBody":"No account yet for {id}. Tell us your name and we will set one up.","signin.create":"Create my account","signin.back":"Use a different one","signin.needId":"Enter an email address or a phone number.","signin.needPw":"Enter the password for this account.",
+  "signin.id":"Email","signin.idPh":"you@company.com","signin.next":"Continue","signin.pw":"Password","signin.pwNote":"This account uses a password.","signin.newTitle":"Welcome. What should we call you?","signin.newBody":"No account yet for {id}. Tell us your name and we will set one up.","signin.create":"Create my account","signin.back":"Use a different one","signin.badId":"That does not look like an email address.","signin.needId":"Enter your email address.","signin.needPw":"Enter the password for this account.",
   "boot.connecting":"Waking things up",
 },
 zh: {
@@ -157,7 +157,7 @@ zh: {
   "set.lock":"应用锁","set.lockSub":"每次打开应用时验证面容、指纹或设备密码。无论如何你都保持登录状态。","set.lockOn":"启用面容或密码验证","set.lockReady":"应用锁已开启","set.lockOff":"关闭应用锁","set.lockNo":"此设备没有可用的锁屏方式。","t.lockOn":"应用锁已开启。","t.lockOff":"应用锁已关闭。","t.lockFail":"设置失败：{msg}","t.lockDenied":"没对上，再试一次。",
   "risk.chip":"{cat}风险：{sev}",
   "net.demo":"演示","set.you":"你",
-  "signin.id":"邮箱或手机号","signin.idPh":"you@company.com","signin.next":"继续","signin.pw":"密码","signin.pwNote":"此账户使用密码登录。","signin.newTitle":"欢迎。我们该怎么称呼你？","signin.newBody":"{id} 还没有账户。告诉我们你的名字，我们来创建一个。","signin.create":"创建账户","signin.back":"换一个","signin.needId":"请输入邮箱或手机号。","signin.needPw":"请输入此账户的密码。",
+  "signin.id":"邮箱","signin.idPh":"you@company.com","signin.next":"继续","signin.pw":"密码","signin.pwNote":"此账户使用密码登录。","signin.newTitle":"欢迎。我们该怎么称呼你？","signin.newBody":"{id} 还没有账户。告诉我们你的名字，我们来创建一个。","signin.create":"创建账户","signin.back":"换一个","signin.badId":"这看起来不像邮箱地址。","signin.needId":"请输入你的邮箱地址。","signin.needPw":"请输入此账户的密码。",
   "boot.connecting":"正在唤醒",
 },
 hi: {
@@ -224,7 +224,7 @@ hi: {
   "set.lock":"स्क्रीन लॉक","set.lockSub":"ऐप खुलते ही Face ID, Touch ID या डिवाइस पिन माँगें। दोनों स्थितियों में आप साइन इन रहते हैं।","set.lockOn":"Face ID या पिन अनिवार्य करें","set.lockReady":"स्क्रीन लॉक चालू है","set.lockOff":"स्क्रीन लॉक बंद करें","set.lockNo":"इस डिवाइस पर कोई स्क्रीन लॉक उपलब्ध नहीं।","t.lockOn":"स्क्रीन लॉक चालू है।","t.lockOff":"स्क्रीन लॉक बंद है।","t.lockFail":"सेट नहीं कर सके: {msg}","t.lockDenied":"मेल नहीं खाया। एक बार और कोशिश करें।",
   "risk.chip":"{cat} जोखिम: {sev}",
   "net.demo":"डेमो","set.you":"आप",
-  "signin.id":"ईमेल या फ़ोन","signin.idPh":"you@company.com","signin.next":"आगे बढ़ें","signin.pw":"पासवर्ड","signin.pwNote":"यह खाता पासवर्ड से चलता है।","signin.newTitle":"स्वागत है। आपको क्या कहकर बुलाएँ?","signin.newBody":"{id} के लिए अभी कोई खाता नहीं है। अपना नाम बताइए, हम बना देते हैं।","signin.create":"मेरा खाता बनाएँ","signin.back":"दूसरा इस्तेमाल करें","signin.needId":"ईमेल पता या फ़ोन नंबर डालें।","signin.needPw":"इस खाते का पासवर्ड डालें।",
+  "signin.id":"ईमेल","signin.idPh":"you@company.com","signin.next":"आगे बढ़ें","signin.pw":"पासवर्ड","signin.pwNote":"यह खाता पासवर्ड से चलता है।","signin.newTitle":"स्वागत है। आपको क्या कहकर बुलाएँ?","signin.newBody":"{id} के लिए अभी कोई खाता नहीं है। अपना नाम बताइए, हम बना देते हैं।","signin.create":"मेरा खाता बनाएँ","signin.back":"दूसरा इस्तेमाल करें","signin.badId":"यह ईमेल पते जैसा नहीं लगता।","signin.needId":"अपना ईमेल पता डालें।","signin.needPw":"इस खाते का पासवर्ड डालें।",
   "boot.connecting":"सब कुछ जगाया जा रहा है",
 },
 es: {
@@ -291,7 +291,7 @@ es: {
   "set.lock":"Bloqueo de pantalla","set.lockSub":"Pide Face ID, Touch ID o el PIN del dispositivo cada vez que abres la app. En ambos casos sigues con la sesión iniciada.","set.lockOn":"Exigir Face ID o PIN","set.lockReady":"El bloqueo está activado","set.lockOff":"Desactivar el bloqueo","set.lockNo":"Este dispositivo no tiene bloqueo disponible.","t.lockOn":"Bloqueo activado.","t.lockOff":"Bloqueo desactivado.","t.lockFail":"No se pudo configurar: {msg}","t.lockDenied":"No ha coincidido. Prueba otra vez.",
   "risk.chip":"Riesgo {cat}: {sev}",
   "net.demo":"Demo","set.you":"Tú",
-  "signin.id":"Correo o teléfono","signin.idPh":"tu@empresa.com","signin.next":"Continuar","signin.pw":"Contraseña","signin.pwNote":"Esta cuenta usa contraseña.","signin.newTitle":"Hola. ¿Cómo te llamamos?","signin.newBody":"Todavía no hay cuenta para {id}. Dinos tu nombre y la creamos.","signin.create":"Crear mi cuenta","signin.back":"Usar otro","signin.needId":"Escribe un correo o un teléfono.","signin.needPw":"Escribe la contraseña de esta cuenta.",
+  "signin.id":"Correo electrónico","signin.idPh":"tu@empresa.com","signin.next":"Continuar","signin.pw":"Contraseña","signin.pwNote":"Esta cuenta usa contraseña.","signin.newTitle":"Hola. ¿Cómo te llamamos?","signin.newBody":"Todavía no hay cuenta para {id}. Dinos tu nombre y la creamos.","signin.create":"Crear mi cuenta","signin.back":"Usar otro","signin.badId":"Eso no parece un correo electrónico.","signin.needId":"Escribe tu correo electrónico.","signin.needPw":"Escribe la contraseña de esta cuenta.",
   "boot.connecting":"Despertando todo",
 },
 fr: {
@@ -358,7 +358,7 @@ fr: {
   "set.lock":"Verrouillage","set.lockSub":"Demande Face ID, Touch ID ou le code de l’appareil à chaque ouverture. Vous restez connecté dans les deux cas.","set.lockOn":"Exiger Face ID ou le code","set.lockReady":"Le verrouillage est actif","set.lockOff":"Désactiver le verrouillage","set.lockNo":"Cet appareil n’a aucun verrouillage disponible.","t.lockOn":"Verrouillage activé.","t.lockOff":"Verrouillage désactivé.","t.lockFail":"Configuration impossible : {msg}","t.lockDenied":"Ça ne correspond pas. Encore un essai.",
   "risk.chip":"Risque {cat} : {sev}",
   "net.demo":"Démo","set.you":"Vous",
-  "signin.id":"E-mail ou téléphone","signin.idPh":"vous@entreprise.com","signin.next":"Continuer","signin.pw":"Mot de passe","signin.pwNote":"Ce compte utilise un mot de passe.","signin.newTitle":"Bienvenue. Comment vous appelle-t-on ?","signin.newBody":"Pas encore de compte pour {id}. Dites-nous votre nom et nous le créons.","signin.create":"Créer mon compte","signin.back":"En utiliser un autre","signin.needId":"Saisissez un e-mail ou un téléphone.","signin.needPw":"Saisissez le mot de passe de ce compte.",
+  "signin.id":"E-mail","signin.idPh":"vous@entreprise.com","signin.next":"Continuer","signin.pw":"Mot de passe","signin.pwNote":"Ce compte utilise un mot de passe.","signin.newTitle":"Bienvenue. Comment vous appelle-t-on ?","signin.newBody":"Pas encore de compte pour {id}. Dites-nous votre nom et nous le créons.","signin.create":"Créer mon compte","signin.back":"En utiliser un autre","signin.badId":"Cela ne ressemble pas à une adresse e-mail.","signin.needId":"Saisissez votre adresse e-mail.","signin.needPw":"Saisissez le mot de passe de ce compte.",
   "boot.connecting":"On réveille tout",
 },
 ar: {
@@ -427,7 +427,7 @@ ar: {
   "set.lock":"قفل الشاشة","set.lockSub":"اطلب بصمة الوجه أو الإصبع أو رمز الجهاز عند كل فتح للتطبيق. تبقى مسجّل الدخول في الحالتين.","set.lockOn":"تفعيل القفل بالبصمة أو الرمز","set.lockReady":"قفل الشاشة مفعّل","set.lockOff":"إيقاف قفل الشاشة","set.lockNo":"لا يتوفر قفل شاشة على هذا الجهاز.","t.lockOn":"تم تفعيل قفل الشاشة.","t.lockOff":"تم إيقاف قفل الشاشة.","t.lockFail":"تعذّر الإعداد: {msg}","t.lockDenied":"لم يتطابق. جرّب مرة أخرى.",
   "risk.chip":"خطر {cat}: {sev}",
   "net.demo":"عرض تجريبي","set.you":"أنت",
-  "signin.id":"البريد أو الهاتف","signin.idPh":"you@company.com","signin.next":"متابعة","signin.pw":"كلمة المرور","signin.pwNote":"هذا الحساب يستخدم كلمة مرور.","signin.newTitle":"أهلًا. بماذا نناديك؟","signin.newBody":"لا يوجد حساب بعد لـ {id}. أخبرنا باسمك وسننشئ واحدًا.","signin.create":"أنشئ حسابي","signin.back":"استخدم غيره","signin.needId":"أدخل بريدًا إلكترونيًا أو رقم هاتف.","signin.needPw":"أدخل كلمة مرور هذا الحساب.",
+  "signin.id":"البريد الإلكتروني","signin.idPh":"you@company.com","signin.next":"متابعة","signin.pw":"كلمة المرور","signin.pwNote":"هذا الحساب يستخدم كلمة مرور.","signin.newTitle":"أهلًا. بماذا نناديك؟","signin.newBody":"لا يوجد حساب بعد لـ {id}. أخبرنا باسمك وسننشئ واحدًا.","signin.create":"أنشئ حسابي","signin.back":"استخدم غيره","signin.badId":"هذا لا يبدو بريدًا إلكترونيًا.","signin.needId":"أدخل بريدك الإلكتروني.","signin.needPw":"أدخل كلمة مرور هذا الحساب.",
   "boot.connecting":"جارٍ إيقاظ كل شيء",
 },
 pt: {
@@ -494,7 +494,7 @@ pt: {
   "set.lock":"Bloqueio de tela","set.lockSub":"Pede Face ID, Touch ID ou o PIN do aparelho sempre que o app abre. Nos dois casos você continua conectado.","set.lockOn":"Exigir Face ID ou PIN","set.lockReady":"O bloqueio está ativado","set.lockOff":"Desativar o bloqueio","set.lockNo":"Este aparelho não tem bloqueio disponível.","t.lockOn":"Bloqueio ativado.","t.lockOff":"Bloqueio desativado.","t.lockFail":"Não foi possível configurar: {msg}","t.lockDenied":"Não bateu. Tente mais uma vez.",
   "risk.chip":"Risco {cat}: {sev}",
   "net.demo":"Demo","set.you":"Você",
-  "signin.id":"E-mail ou telefone","signin.idPh":"voce@empresa.com","signin.next":"Continuar","signin.pw":"Senha","signin.pwNote":"Esta conta usa senha.","signin.newTitle":"Boas-vindas. Como podemos te chamar?","signin.newBody":"Ainda não há conta para {id}. Diga seu nome e a gente cria.","signin.create":"Criar minha conta","signin.back":"Usar outro","signin.needId":"Digite um e-mail ou telefone.","signin.needPw":"Digite a senha desta conta.",
+  "signin.id":"E-mail","signin.idPh":"voce@empresa.com","signin.next":"Continuar","signin.pw":"Senha","signin.pwNote":"Esta conta usa senha.","signin.newTitle":"Boas-vindas. Como podemos te chamar?","signin.newBody":"Ainda não há conta para {id}. Diga seu nome e a gente cria.","signin.create":"Criar minha conta","signin.back":"Usar outro","signin.badId":"Isso não parece um e-mail.","signin.needId":"Digite seu e-mail.","signin.needPw":"Digite a senha desta conta.",
   "boot.connecting":"Acordando tudo",
 },
 ru: {
@@ -563,7 +563,7 @@ ru: {
   "set.lock":"Блокировка экрана","set.lockSub":"Запрашивать Face ID, отпечаток или PIN устройства при каждом открытии. В любом случае вы остаётесь в аккаунте.","set.lockOn":"Требовать Face ID или PIN","set.lockReady":"Блокировка включена","set.lockOff":"Отключить блокировку","set.lockNo":"На этом устройстве нет доступной блокировки.","t.lockOn":"Блокировка включена.","t.lockOff":"Блокировка отключена.","t.lockFail":"Не удалось настроить: {msg}","t.lockDenied":"Не совпало. Попробуйте ещё раз.",
   "risk.chip":"{cat}: риск {sev}",
   "net.demo":"Демо","set.you":"Вы",
-  "signin.id":"Почта или телефон","signin.idPh":"you@company.com","signin.next":"Продолжить","signin.pw":"Пароль","signin.pwNote":"Этот аккаунт входит по паролю.","signin.newTitle":"Здравствуйте. Как к вам обращаться?","signin.newBody":"Для {id} аккаунта пока нет. Назовите имя, и мы его создадим.","signin.create":"Создать аккаунт","signin.back":"Ввести другой","signin.needId":"Введите почту или телефон.","signin.needPw":"Введите пароль от этого аккаунта.",
+  "signin.id":"Почта","signin.idPh":"you@company.com","signin.next":"Продолжить","signin.pw":"Пароль","signin.pwNote":"Этот аккаунт входит по паролю.","signin.newTitle":"Здравствуйте. Как к вам обращаться?","signin.newBody":"Для {id} аккаунта пока нет. Назовите имя, и мы его создадим.","signin.create":"Создать аккаунт","signin.back":"Ввести другой","signin.badId":"Это не похоже на адрес почты.","signin.needId":"Введите вашу почту.","signin.needPw":"Введите пароль от этого аккаунта.",
   "boot.connecting":"Будим всё",
 },
 ja: {
@@ -627,7 +627,7 @@ ja: {
   "set.lock":"画面ロック","set.lockSub":"アプリを開くたびに Face ID、指紋、または端末のパスコードを求めます。どちらの場合もサインインしたままです。","set.lockOn":"Face ID またはパスコードを要求","set.lockReady":"画面ロックはオンです","set.lockOff":"画面ロックをオフにする","set.lockNo":"この端末で使える画面ロックがありません。","t.lockOn":"画面ロックをオンにしました。","t.lockOff":"画面ロックをオフにしました。","t.lockFail":"設定できませんでした: {msg}","t.lockDenied":"一致しませんでした。もう一度どうぞ。",
   "risk.chip":"{cat}リスク: {sev}",
   "net.demo":"デモ","set.you":"あなた",
-  "signin.id":"メールまたは電話番号","signin.idPh":"you@company.com","signin.next":"次へ","signin.pw":"パスワード","signin.pwNote":"このアカウントはパスワードを使います。","signin.newTitle":"ようこそ。お名前を教えてください。","signin.newBody":"{id} のアカウントはまだありません。お名前を教えていただければ作成します。","signin.create":"アカウントを作成","signin.back":"別のものを使う","signin.needId":"メールアドレスか電話番号を入力してください。","signin.needPw":"このアカウントのパスワードを入力してください。",
+  "signin.id":"メールアドレス","signin.idPh":"you@company.com","signin.next":"次へ","signin.pw":"パスワード","signin.pwNote":"このアカウントはパスワードを使います。","signin.newTitle":"ようこそ。お名前を教えてください。","signin.newBody":"{id} のアカウントはまだありません。お名前を教えていただければ作成します。","signin.create":"アカウントを作成","signin.back":"別のものを使う","signin.badId":"メールアドレスではないようです。","signin.needId":"メールアドレスを入力してください。","signin.needPw":"このアカウントのパスワードを入力してください。",
   "boot.connecting":"システムを起こしています",
 },
 de: {
@@ -694,7 +694,7 @@ de: {
   "set.lock":"Bildschirmsperre","set.lockSub":"Fragt bei jedem Start nach Face ID, Touch ID oder der Geräte-PIN. Angemeldet bleiben Sie in beiden Fällen.","set.lockOn":"Face ID oder PIN verlangen","set.lockReady":"Die Sperre ist aktiv","set.lockOff":"Sperre ausschalten","set.lockNo":"Dieses Gerät bietet keine Sperre an.","t.lockOn":"Sperre aktiviert.","t.lockOff":"Sperre deaktiviert.","t.lockFail":"Einrichtung fehlgeschlagen: {msg}","t.lockDenied":"Das hat nicht gepasst. Versuchen Sie es noch einmal.",
   "risk.chip":"Risiko {cat}: {sev}",
   "net.demo":"Demo","set.you":"Sie",
-  "signin.id":"E-Mail oder Telefon","signin.idPh":"du@firma.de","signin.next":"Weiter","signin.pw":"Passwort","signin.pwNote":"Dieses Konto nutzt ein Passwort.","signin.newTitle":"Willkommen. Wie dürfen wir Sie nennen?","signin.newBody":"Für {id} gibt es noch kein Konto. Sagen Sie uns Ihren Namen, wir legen eines an.","signin.create":"Konto anlegen","signin.back":"Andere verwenden","signin.needId":"Geben Sie eine E-Mail oder Telefonnummer ein.","signin.needPw":"Geben Sie das Passwort dieses Kontos ein.",
+  "signin.id":"E-Mail","signin.idPh":"du@firma.de","signin.next":"Weiter","signin.pw":"Passwort","signin.pwNote":"Dieses Konto nutzt ein Passwort.","signin.newTitle":"Willkommen. Wie dürfen wir Sie nennen?","signin.newBody":"Für {id} gibt es noch kein Konto. Sagen Sie uns Ihren Namen, wir legen eines an.","signin.create":"Konto anlegen","signin.back":"Andere verwenden","signin.badId":"Das sieht nicht nach einer E-Mail-Adresse aus.","signin.needId":"Geben Sie Ihre E-Mail-Adresse ein.","signin.needPw":"Geben Sie das Passwort dieses Kontos ein.",
   "boot.connecting":"Alles wird geweckt",
 },
 };

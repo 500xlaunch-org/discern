@@ -13,7 +13,7 @@
 /* eslint-env serviceworker */
 "use strict";
 
-const VERSION = "discern-v4";
+const VERSION = "discern-v5";
 const SHELL = ["./", "./index.html", "./styles.css", "./i18n.js", "./net.js", "./app.js", "./manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
@@ -34,14 +34,24 @@ self.addEventListener("fetch", (e) => {
   if (url.origin !== location.origin) return;
   if (url.pathname.startsWith("/v1/") || url.pathname === "/healthz") return;  // never cache the truth
 
-  // stale-while-revalidate for the shell: instant open, fresh next time
+  // Network first, cache as the offline fallback.
+  //
+  // This was stale-while-revalidate, which serves the cached copy and refreshes
+  // behind it. That is fine for pictures and wrong for code: every deploy
+  // reached people one load late, so a fixed screen still looked broken to
+  // whoever reported it. Correct beats instant for a shell this small.
   e.respondWith((async () => {
-    const cached = await caches.match(req, { ignoreSearch: true });
-    const net = fetch(req).then((res) => {
-      if (res && res.ok) caches.open(VERSION).then((c) => c.put(req, res.clone()));
+    try {
+      const res = await fetch(req);
+      if (res && res.ok) {
+        const copy = res.clone();
+        caches.open(VERSION).then((c) => c.put(req, copy));
+      }
       return res;
-    }).catch(() => null);
-    return cached || (await net) || caches.match("./index.html", { ignoreSearch: true });
+    } catch {
+      return (await caches.match(req, { ignoreSearch: true }))
+          || (await caches.match("./index.html", { ignoreSearch: true }));
+    }
   })());
 });
 
