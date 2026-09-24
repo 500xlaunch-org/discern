@@ -191,6 +191,34 @@ def status(args):
         except Exception: pass
 
 
+# ------------------------------------------------------------------- testers
+def set_testers(args):
+    """Point a track at one or more Google Groups.
+
+    Play has two ways to name testers. The Console can hold a plain list of
+    email addresses, which the API cannot see or change. The API can hold Google
+    Groups, which the Console also shows. So a group is the only form that can
+    be managed from here, and the only one that survives as code.
+
+    Whoever is in the group still has to accept the opt in link once, from the
+    account they use on the device."""
+    groups = [g.strip() for g in args.testers.split(",") if g.strip()]
+    svc = build_service(args.creds)
+    edits = svc.edits()
+    edit_id = edits.insert(body={}, packageName=args.package).execute()["id"]
+    try:
+        edits.testers().update(packageName=args.package, editId=edit_id, track=args.track,
+                               body={"googleGroups": groups}).execute()
+        edits.commit(packageName=args.package, editId=edit_id).execute()
+        print(f"  {args.track} testers: {', '.join(groups) if groups else 'cleared'}")
+        print("  Each member still has to accept the opt in link once. Play Console")
+        print(f"  shows it under Testing > {args.track.title()} testing > Testers.")
+    except Exception:
+        try: edits.delete(packageName=args.package, editId=edit_id).execute()
+        except Exception: pass
+        raise
+
+
 # ------------------------------------------------------------------- publish
 def publish(args, v: dict):
     from googleapiclient.http import MediaFileUpload
@@ -272,11 +300,16 @@ def main():
     ap.add_argument("--release-notes", default="First release.")
     ap.add_argument("--dry-run", action="store_true", help="validate only, no network")
     ap.add_argument("--status", action="store_true", help="report tracks and testers, change nothing")
+    ap.add_argument("--testers", help="comma separated Google Group addresses for --track; "
+                                      "individual emails are not supported by Play's API")
     ap.add_argument("--listing-only", action="store_true", help="push text and images without a bundle")
     args = ap.parse_args()
 
     if args.status:
         status(args)
+        return
+    if args.testers is not None:
+        set_testers(args)
         return
 
     v = validate()

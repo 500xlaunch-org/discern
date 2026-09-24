@@ -159,6 +159,39 @@ only through a Play support round trip. The two files are the only copies.
 
 ---
 
+## Inviting testers
+
+The build is on the internal track. Testers are a separate thing, and Play
+offers two ways to name them that behave differently.
+
+**An email list**, created in the Console. Holds up to 100 addresses, takes a
+minute, and is invisible to the API: it can neither be read nor changed from
+code. Right for one or two people.
+
+Play Console > Testing > Internal testing > Testers > Create email list, add the
+address, save. Then copy the opt in link on that same page and send it to them.
+
+**A Google Group**, which both the Console and the API can see. Right when the
+tester list changes often or should live in version control.
+
+```bash
+python3 play/publish.py --testers discern-testers@500xlaunch.com --track internal
+```
+
+or run the **Play status** workflow with the group address in the testers input.
+The group has to exist first, and to allow the members you intend: adding a
+gmail.com address to a Workspace group needs that group to permit external
+members.
+
+Either way the person still has to accept the opt in link once, signed in on the
+device with the same account. Until they do, the app will not appear for them.
+
+To see what Play currently holds, run the **Play status** workflow with no
+input. It reports the release on every track and the tester groups, and changes
+nothing.
+
+---
+
 ## Two things to decide before a public release
 
 Neither blocks internal testing, both block production.

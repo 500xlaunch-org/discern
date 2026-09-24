@@ -1,13 +1,23 @@
 name: Play status
 
-# Read only. Reports what Play currently holds for the app: the release on each
-# track, and which Google Groups are registered as testers. Changes nothing.
+# Reports what Play currently holds: the release on each track, and which Google
+# Groups are registered as testers. Optionally sets those groups first.
 #
 # Useful because the Console and the repository can drift, and because the API
 # is the only place that says what actually landed.
 
 on:
   workflow_dispatch:
+    inputs:
+      testers:
+        description: "Google Group addresses for the track (comma separated). Leave blank to only report."
+        type: string
+        default: ""
+      track:
+        description: Track to set testers on
+        type: choice
+        options: [internal, alpha, beta]
+        default: internal
 
 permissions:
   contents: read
@@ -26,6 +36,12 @@ jobs:
           service_account: ${{ vars.GCP_PLAY_SA }}
           token_format: access_token
           access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+      - name: Set the tester groups
+        if: ${{ inputs.testers != '' }}
+        env:
+          PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: python3 play/publish.py --testers "${{ inputs.testers }}" --track "${{ inputs.track }}"
+
       - name: Ask Play what it has
         env:
           PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
