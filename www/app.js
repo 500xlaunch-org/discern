@@ -106,6 +106,8 @@ function loadPrefs(){
     // splash runs once per launch; the lock is cleared once per launch too, so
     // reopening the app asks again while moving between screens does not
     splash:true, locked:false, lockBusy:false,
+    // sign in walks: identifier, then a password or a name, never both at once
+    signin:{ step:"id", id:"", busy:false, error:"" },
     net:Net.state, settled:{} });
 }
 function savePrefs(){ try{ localStorage.setItem("discern.prefs", JSON.stringify({
@@ -124,9 +126,16 @@ const Backend = {
     if (S.mode === "demo") Local.seed(); else Net.goOffline();
     return false;
   },
-  async login(email, name){
-    if (S.mode==="demo") return Local.login(email,name);
-    const out = await Net.request("POST","/v1/user/login",{email,name},{auth:false});
+  /** Sign in to an account that exists. Throws 404 when it does not, which is
+   * how the app knows to ask who this person is. */
+  async login(identifier, password){
+    if (S.mode==="demo") return Local.login(identifier);
+    const out = await Net.request("POST","/v1/user/login",{identifier,password},{auth:false});
+    S.token = out.token; S.user = out.user; savePrefs();
+  },
+  async register(identifier, name){
+    if (S.mode==="demo") return Local.login(identifier,name);
+    const out = await Net.request("POST","/v1/user/register",{identifier,name},{auth:false});
     S.token = out.token; S.user = out.user; savePrefs();
   },
   /** First page of everything. Falls back to the cached view, then to demo. */
@@ -272,7 +281,14 @@ async function boot(){
   S.locked = !!(S.token && S.lockCred && lockOffered());
 
   await Backend.probe();
-  if (!S.token && q.get("email")){ try{ await Backend.login(q.get("email"), q.get("name")||undefined); }catch{} }
+  // ?email= opens straight into the app, registering first if that address is
+  // new. It is how the screenshot tooling and a shared link both work.
+  if (!S.token && q.get("email")) {
+    try { await Backend.login(q.get("email")); }
+    catch (e) {
+      if (e.status === 404) { try { await Backend.register(q.get("email"), q.get("name")||undefined); } catch {} }
+    }
+  }
   if (S.token){ try{ await Backend.refresh(); }catch(e){ if (e.status===401){ S.token=null; S.user=null; savePrefs(); } } }
   S.ready = true; render();
 
@@ -691,17 +707,52 @@ function lockHTML(){
   </div>`;
 }
 
-/* ---- sign in ---- */
+/* ---- sign in ----
+   One question at a time. An address first, because that is all we need to know
+   whether this person already has an account. Only if they do not do we ask who
+   they are, and only the account that has a password is ever shown a password
+   field. */
 function signinHTML(){
-  return `<div class="safe-top"></div><div class="signin">
-    <div class="signin-mk">${MK}</div>
-    <h1>${esc(t("app.name"))}</h1><p class="signin-motto">${esc(t("app.motto")).replace(/\n/g,"<br/>")}</p>
-    <div class="field"><label for="nm">${esc(t("signin.name"))}</label><input id="nm" placeholder="Ada Lovelace"/></div>
-    <div class="field"><label for="em">${esc(t("signin.email"))}</label><input id="em" type="email" placeholder="you@company.com" autocomplete="username"/></div>
-    <button class="btn btn-primary block big" data-signin>${esc(t("signin.continue"))}</button>
+  const st = S.signin;
+  const err = st.error ? `<div class="signin-err">${esc(st.error)}</div>` : "";
+  const head = `<div class="signin-mk">${MK}</div>
+    <h1>${esc(t("app.name"))}</h1><p class="signin-motto">${esc(t("app.motto")).replace(/\n/g,"<br/>")}</p>`;
+
+  if (st.step === "name") {
+    return `<div class="safe-top"></div><div class="signin">${head}
+      <div class="signin-lead"><b>${esc(t("signin.newTitle"))}</b>
+        <span>${esc(t("signin.newBody",{id:st.id}))}</span></div>
+      ${err}
+      <div class="field"><label for="nm">${esc(t("signin.name"))}</label>
+        <input id="nm" autocomplete="name" enterkeyhint="done" placeholder="Ada Lovelace"/></div>
+      <button class="btn btn-primary block big" data-create ${st.busy?"disabled":""}>
+        ${st.busy?`<span class="tic spin">${I.sync}</span>`:""}<span>${esc(t("signin.create"))}</span></button>
+      <button class="btn btn-ghost block" data-signin-back>${esc(t("signin.back"))}</button>
+      <div id="overlay"></div></div>`;
+  }
+
+  if (st.step === "password") {
+    return `<div class="safe-top"></div><div class="signin">${head}
+      <div class="signin-lead"><b>${esc(st.id)}</b><span>${esc(t("signin.pwNote"))}</span></div>
+      ${err}
+      <div class="field"><label for="pw">${esc(t("signin.pw"))}</label>
+        <input id="pw" type="password" autocomplete="current-password" enterkeyhint="go"/></div>
+      <button class="btn btn-primary block big" data-pw ${st.busy?"disabled":""}>
+        ${st.busy?`<span class="tic spin">${I.sync}</span>`:""}<span>${esc(t("signin.continue"))}</span></button>
+      <button class="btn btn-ghost block" data-signin-back>${esc(t("signin.back"))}</button>
+      <div id="overlay"></div></div>`;
+  }
+
+  return `<div class="safe-top"></div><div class="signin">${head}
+    ${err}
+    <div class="field"><label for="id">${esc(t("signin.id"))}</label>
+      <input id="id" type="email" inputmode="email" autocomplete="username"
+             enterkeyhint="go" placeholder="${esc(t("signin.idPh"))}" value="${esc(st.id)}"/></div>
+    <button class="btn btn-primary block big" data-signin ${st.busy?"disabled":""}>
+      ${st.busy?`<span class="tic spin">${I.sync}</span>`:""}<span>${esc(t("signin.next"))}</span></button>
     <div class="signin-note">${I.shield}<span>${esc(t("signin.note"))}</span></div>
     <div class="signin-langs">${I.globe}${LANGS.map(l=>`<button class="${window.I18N.lang===l.code?'on':''}" data-lang="${l.code}">${l.native}</button>`).join("")}</div>
-  </div>`;
+    <div id="overlay"></div></div>`;
 }
 
 /* ---- overlays ---- */
@@ -759,7 +810,18 @@ function wire(){
     const lvl=el.closest("[data-level]"); if(lvl){ const box=lvl.closest("[data-appetite]"); await setAppetite(box.dataset.appetite,box.dataset.cat,lvl.dataset.level); return; }
     const stt=el.closest("[data-status]"); if(stt){ await setStatus(stt.dataset.status,stt.dataset.to); return; }
     if(el.closest("[data-signin]")){ signin(); return; }
+    if(el.closest("[data-pw]")){ signinPassword(); return; }
+    if(el.closest("[data-create]")){ signinRegister(); return; }
+    if(el.closest("[data-signin-back]")){ S.signin = { step:"id", id:S.signin.id, busy:false, error:"" }; render(); return; }
     if(el.closest("[data-signout]")){ S.token=null; S.user=null; S.locked=false; savePrefs(); render(); return; }
+  };
+  // a phone keyboard offers Go or Done, and people press it
+  root.onkeydown = e=>{
+    if (e.key !== "Enter") return;
+    const id = e.target.id;
+    if (id === "id") { e.preventDefault(); signin(); }
+    else if (id === "pw") { e.preventDefault(); signinPassword(); }
+    else if (id === "nm" && S.signin.step === "name") { e.preventDefault(); signinRegister(); }
   };
   root.onchange = e=>{ const c=e.target.closest("[data-ctl]"); if(!c)return;
     if(c.dataset.ctl==="plat")S.plat=e.target.value;
@@ -840,11 +902,57 @@ async function setStatus(link,to){
   const s=S.solutions.find(x=>x.link===link); if(s)s.status=to; render();
   try{ await Backend.setStatus(link,to); }catch{}
 }
+/** Step one. An address is all we need to find out whether this person has an
+ * account. What comes back decides the next question. */
 async function signin(){
-  const nm=(document.getElementById("nm")||{}).value||"You";
-  const em=(document.getElementById("em")||{}).value||"you@company.com";
-  try{ await Backend.login(em,nm); await Backend.refresh(); S.view="inbox"; render(); }
-  catch(e){ toast(`<div class="tm">${esc(t("signin.failed",{msg:e.message}))}</div>`,"warn"); }
+  const el = document.getElementById("id");
+  const id = (el ? el.value : "").trim();
+  if (!id) { S.signin.error = t("signin.needId"); render(); return; }
+  S.signin.id = id; S.signin.error = ""; S.signin.busy = true; render();
+  try {
+    await Backend.login(id);
+    S.signin = { step:"id", id:"", busy:false, error:"" };
+    await Backend.refresh(); S.view = "inbox"; render();
+  } catch (e) {
+    S.signin.busy = false;
+    if (e.status === 404)      S.signin.step = "name";       // new here, ask who they are
+    else if (e.status === 401) S.signin.step = "password";   // the one account that has one
+    else S.signin.error = e.message || t("net.failed");
+    render();
+  }
+}
+
+/** Step two, for the one account that carries a password. */
+async function signinPassword(){
+  const el = document.getElementById("pw");
+  const pw = el ? el.value : "";
+  if (!pw) { S.signin.error = t("signin.needPw"); render(); return; }
+  S.signin.error = ""; S.signin.busy = true; render();
+  try {
+    await Backend.login(S.signin.id, pw);
+    S.signin = { step:"id", id:"", busy:false, error:"" };
+    await Backend.refresh(); S.view = "inbox"; render();
+  } catch (e) {
+    S.signin.busy = false;
+    S.signin.error = e.status === 401 ? t("signin.needPw") : (e.message || t("net.failed"));
+    render();
+  }
+}
+
+/** Step two, for someone new. Registration is the only place a name is asked. */
+async function signinRegister(){
+  const el = document.getElementById("nm");
+  const name = (el ? el.value : "").trim();
+  S.signin.error = ""; S.signin.busy = true; render();
+  try {
+    await Backend.register(S.signin.id, name || undefined);
+    S.signin = { step:"id", id:"", busy:false, error:"" };
+    await Backend.refresh(); S.view = "inbox"; render();
+  } catch (e) {
+    S.signin.busy = false;
+    S.signin.error = e.message || t("net.failed");
+    render();
+  }
 }
 
 boot();
