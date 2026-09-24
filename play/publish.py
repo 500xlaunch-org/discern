@@ -149,6 +149,48 @@ def build_service(creds_path: str | None):
     return build("androidpublisher", "v3", credentials=creds, cache_discovery=False)
 
 
+# -------------------------------------------------------------------- status
+def status(args):
+    """Read the app's current state without changing anything. The edit is
+    opened only because the API has no read path outside one, and it is
+    abandoned rather than committed."""
+    svc = build_service(args.creds)
+    edits = svc.edits()
+    edit_id = edits.insert(body={}, packageName=args.package).execute()["id"]
+    try:
+        d = edits.details().get(packageName=args.package, editId=edit_id).execute()
+        print(f"  package          {args.package}")
+        print(f"  default language {d.get('defaultLanguage')}")
+        print(f"  contact          {d.get('contactEmail') or 'not set'}")
+
+        print("\n  tracks")
+        tracks = edits.tracks().list(packageName=args.package, editId=edit_id).execute()
+        for t in tracks.get("tracks", []):
+            rels = t.get("releases") or []
+            if not rels:
+                print(f"    {t['track']:12} no release")
+            for r in rels:
+                codes = ", ".join(r.get("versionCodes") or []) or "none"
+                frac = r.get("userFraction")
+                extra = f"  {frac:.0%} rollout" if frac else ""
+                print(f"    {t['track']:12} {r.get('status'):11} versionCode {codes}"
+                      f"  name {r.get('name') or '-'}{extra}")
+
+        print("\n  testers")
+        for track in ("internal", "alpha", "beta"):
+            try:
+                te = edits.testers().get(packageName=args.package, editId=edit_id, track=track).execute()
+                groups = te.get("googleGroups") or []
+                print(f"    {track:12} {', '.join(groups) if groups else 'no Google Group set'}")
+            except Exception as e:
+                print(f"    {track:12} {getattr(e, 'status_code', '')} {str(e)[:60]}")
+        print("\n  Email lists added in the Console are not visible here: the API\n"
+              "  exposes Google Groups only.")
+    finally:
+        try: edits.delete(packageName=args.package, editId=edit_id).execute()
+        except Exception: pass
+
+
 # ------------------------------------------------------------------- publish
 def publish(args, v: dict):
     from googleapiclient.http import MediaFileUpload
@@ -229,8 +271,13 @@ def main():
     ap.add_argument("--release-name", default="Discern")
     ap.add_argument("--release-notes", default="First release.")
     ap.add_argument("--dry-run", action="store_true", help="validate only, no network")
+    ap.add_argument("--status", action="store_true", help="report tracks and testers, change nothing")
     ap.add_argument("--listing-only", action="store_true", help="push text and images without a bundle")
     args = ap.parse_args()
+
+    if args.status:
+        status(args)
+        return
 
     v = validate()
     for w in v["warnings"]:
