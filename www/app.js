@@ -35,6 +35,7 @@ const I = {
   sync:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-13.7-5.3L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 13.7 5.3L20 16"/><path d="M20 20v-4h-4"/></svg>`,
   eye:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 12S6 5.6 12 5.6 21.4 12 21.4 12 18 18.4 12 18.4 2.6 12 2.6 12z"/><circle cx="12" cy="12" r="3"/></svg>`,
   eyeOff:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 6A9.9 9.9 0 0 1 12 5.9c6 0 9.4 6.1 9.4 6.1a17 17 0 0 1-3.3 4"/><path d="M6.2 7.9A16.6 16.6 0 0 0 2.6 12S6 18.1 12 18.1a9.6 9.6 0 0 0 4-.86"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>`,
+  back:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12H7.5"/><path d="M12.5 6.5 7 12l5.5 5.5"/></svg>`,
   at:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.6"/><path d="M15.6 12v1.7a2.6 2.6 0 0 0 5.2 0V12a8.8 8.8 0 1 0-3.5 7"/></svg>`,
   person:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.8 20a7.2 7.2 0 0 1 14.4 0"/></svg>`,
   work:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.2" y="8.4" width="17.6" height="11.4" rx="2"/><path d="M8.6 8.4V6.2a2 2 0 0 1 2-2h2.8a2 2 0 0 1 2 2v2.2"/><path d="M3.2 13.2h17.6"/></svg>`,
@@ -90,7 +91,9 @@ const DEVICES = {
 const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const BASE = new URLSearchParams(location.search).get("api")
   || (NATIVE ? (window.XURFACE_API || "https://xurface.500xlaunch.com") : location.origin);
-const ENVS = { test:{label:"Test"}, live:{label:"Live"} };
+// The environment key is an API contract and stays "test" on the wire. What a
+// person reads is Beta, because that is what it is to them.
+const ENVS = { test:{ label:()=>t("env.beta") }, live:{ label:()=>t("set.live") } };
 const PAGE = 25;
 
 let S = loadPrefs();
@@ -99,8 +102,8 @@ function loadPrefs(){
   // live is what a person gets; test is opt in from Settings and shows a chip
   const base = { env:"live", plat:"apple", form:"phone", theme:"system", lang:null,
     fullscreen: !matchMedia("(min-width:900px)").matches, token:null, user:null,
-    // the screen lock is per device, so its credential id lives with the prefs
-    lockCred:null };
+    // the lock is per device, so how it is set lives with the prefs
+    lockMode:"off", lockCred:null, pinSalt:null, pinHash:null };
   const s = Object.assign(base, p||{});
   return Object.assign(s, { view:"inbox", mode:"connecting", ready:false,
     intents:[], timeline:[], solutions:[], catalog:[],
@@ -110,7 +113,7 @@ function loadPrefs(){
       (typeof Notification!=="undefined" ? Notification.permission : "default"), on:false, busy:false },
     // splash runs once per launch; the lock is cleared once per launch too, so
     // reopening the app asks again while moving between screens does not
-    splash:true, locked:false, lockBusy:false,
+    splash:true, locked:false, lockBusy:false, pinEntry:"", pinSetup:null,
     // sign in walks: identifier, then a password or a name, never both at once
     signin:{ step:"id", id:"", busy:false, error:"",
              // the field decides for itself which of the two it is holding
@@ -120,7 +123,8 @@ function loadPrefs(){
 }
 function savePrefs(){ try{ localStorage.setItem("discern.prefs", JSON.stringify({
   env:S.env,plat:S.plat,form:S.form,theme:S.theme,lang:S.lang,fullscreen:S.fullscreen,
-  token:S.token,user:S.user,lockCred:S.lockCred})); }catch{} }
+  token:S.token,user:S.user,lockMode:S.lockMode,lockCred:S.lockCred,
+  pinSalt:S.pinSalt,pinHash:S.pinHash})); }catch{} }
 function applyTheme(){ const q=new URLSearchParams(location.search).get("theme"); const th=q||S.theme;
   if (th==="light"||th==="dark") document.documentElement.dataset.theme=th; else delete document.documentElement.dataset.theme; }
 
@@ -286,7 +290,8 @@ async function boot(){
     paintNet(); });
 
   // the lock decision is made once per launch, before anything is shown
-  S.locked = !!(S.token && S.lockCred && lockOffered());
+  S.locked = !!(S.token && lockOn() && lockOffered());
+  armLockOnResume();
 
   await Backend.probe();
   // ?email= opens straight into the app, registering first if that address is
@@ -315,7 +320,12 @@ async function boot(){
 /** Refresh without tearing the screen down: no skeletons, no scroll jump. */
 async function silentRefresh(){
   if (!S.token) return;
-  try { await Backend.refresh(); render(); } catch {}
+  try { await Backend.refresh(); render(); }
+  catch (e) {
+    // 401 means this session is not valid here any more. Showing empty screens
+    // instead of saying so is how a signed out app looks broken.
+    if (e && e.status === 401) { S.token=null; S.user=null; S.locked=false; savePrefs(); render(); }
+  }
 }
 
 /* ---------------- screen lock ----------------
@@ -328,12 +338,25 @@ async function silentRefresh(){
    biometric, and a lock they cannot open is a failed review. */
 const lockSupported = () => !!(window.PublicKeyCredential && navigator.credentials && window.isSecureContext);
 const isReviewer = () => !!(S.user && S.user.review);
-const lockOffered = () => lockSupported() && !isReviewer();
+/** The review account is offered no lock of any kind: a store reviewer can
+ * enrol no biometric and should not be handed a PIN to remember. */
+const lockOffered = () => !isReviewer();
+const lockOn = () => S.lockMode === "device" || S.lockMode === "pin";
 const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 const unb64 = (s2) => { const b=atob(s2.replace(/-/g,"+").replace(/_/g,"/")); return Uint8Array.from([...b].map(c=>c.charCodeAt(0))); };
 const rand = (n) => crypto.getRandomValues(new Uint8Array(n));
 
-async function enableLock(){
+/** A PIN is stretched before it is stored. It never leaves the device and is
+ * never sent anywhere, so this is about a stolen phone, not a stolen database,
+ * but four digits deserve the work factor all the same. */
+async function pinHash(pin, saltB64){
+  const salt = unb64(saltB64);
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name:"PBKDF2", salt, iterations:150000, hash:"SHA-256" }, key, 256);
+  return b64(bits);
+}
+
+async function enableDeviceLock(){
   S.lockBusy = true; render();
   try {
     const cred = await navigator.credentials.create({ publicKey: {
@@ -345,16 +368,61 @@ async function enableLock(){
       timeout: 60000, attestation: "none",
     }});
     if (!cred) throw new Error("cancelled");
-    S.lockCred = b64(cred.rawId); savePrefs();
+    S.lockCred = b64(cred.rawId); S.lockMode = "device"; savePrefs();
     toast(`<span class="tic">${I.shield}</span><div class="tm">${esc(t("t.lockOn"))}</div>`,"ok");
   } catch(e){ toast(`<div class="tm">${esc(t("t.lockFail",{msg:e.message||"cancelled"}))}</div>`,"warn"); }
   finally { S.lockBusy=false; render(); }
 }
+
 function disableLock(){
-  S.lockCred = null; S.locked = false; savePrefs(); render();
+  S.lockMode = "off"; S.lockCred = null; S.pinSalt = null; S.pinHash = null;
+  S.locked = false; S.pinEntry = ""; S.pinSetup = null; savePrefs(); render();
   toast(`<div class="tm">${esc(t("t.lockOff"))}</div>`,"ok");
 }
+
+/** Setting a PIN asks for it twice, which is the only way to catch a typo that
+ * would otherwise lock someone out of their own phone. */
+function startPinSetup(){ S.pinSetup = { first:"", stage:"first" }; S.pinEntry = ""; render(); }
+
+async function pinDigit(d){
+  if (d === "back") { S.pinEntry = S.pinEntry.slice(0, -1); render(); return; }
+  if (S.pinEntry.length >= 6) return;
+  S.pinEntry += d;
+  render();
+  if (S.pinEntry.length < 4) return;
+  if (S.pinEntry.length === 6) await pinSubmit();
+}
+
+async function pinSubmit(){
+  const pin = S.pinEntry;
+  if (pin.length < 4) { S.signinError = ""; return; }
+  if (S.pinSetup) {
+    if (S.pinSetup.stage === "first") {
+      S.pinSetup = { first: pin, stage: "again" }; S.pinEntry = ""; render(); return;
+    }
+    if (pin !== S.pinSetup.first) {
+      S.pinSetup = { first:"", stage:"first" }; S.pinEntry = "";
+      toast(`<div class="tm">${esc(t("t.pinMismatch"))}</div>`,"warn"); render(); return;
+    }
+    S.lockBusy = true; render();
+    S.pinSalt = b64(rand(16));
+    S.pinHash = await pinHash(pin, S.pinSalt);
+    S.lockMode = "pin"; S.pinSetup = null; S.pinEntry = ""; S.lockBusy = false;
+    savePrefs(); render();
+    toast(`<span class="tic">${I.shield}</span><div class="tm">${esc(t("t.lockOn"))}</div>`,"ok");
+    return;
+  }
+  // unlocking
+  S.lockBusy = true; render();
+  const ok = (await pinHash(pin, S.pinSalt)) === S.pinHash;
+  S.lockBusy = false; S.pinEntry = "";
+  if (ok) { S.locked = false; }
+  else toast(`<div class="tm">${esc(t("t.lockDenied"))}</div>`,"warn");
+  render();
+}
+
 async function unlock(){
+  if (S.lockMode === "pin") return;            // the keypad drives that path
   S.lockBusy = true; render();
   try {
     const got = await navigator.credentials.get({ publicKey: {
@@ -366,6 +434,28 @@ async function unlock(){
     S.locked = false;
   } catch { toast(`<div class="tm">${esc(t("t.lockDenied"))}</div>`,"warn"); }
   finally { S.lockBusy=false; render(); }
+}
+
+/** Coming back to the app is the moment the lock is for. A phone does not tell
+ * a web view it was killed, so anything that looks like leaving counts:
+ * hiding the page, losing focus, or the native shell reporting a pause. */
+function armLockOnResume(){
+  let left = 0;
+  const leaving = () => { left = Date.now(); };
+  const returning = () => {
+    if (!left || !S.token || !lockOn() || !lockOffered()) return;
+    // a glance at the notification shade should not demand a face; a real
+    // departure should. Ten seconds is the line.
+    if (Date.now() - left > 10000) { S.locked = true; S.pinEntry = ""; render(); }
+    left = 0;
+  };
+  document.addEventListener("visibilitychange", () => (document.hidden ? leaving() : returning()));
+  addEventListener("blur", leaving);
+  addEventListener("focus", returning);
+  try {
+    const App = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+    if (App && App.addListener) App.addListener("appStateChange", ({ isActive }) => (isActive ? returning() : leaving()));
+  } catch {}
 }
 
 /* ---------------- push ---------------- */
@@ -430,6 +520,7 @@ function render(){
   root.innerHTML = shellHTML();
   const app = document.getElementById("app-root");
   if (app) app.innerHTML = S.splash ? splashHTML()
+                         : S.pinSetup ? pinSetupHTML()
                          : S.locked ? lockHTML()
                          : !S.token ? signinHTML() : appHTML();
   applyDevice(); wire(); paintNet();
@@ -458,9 +549,9 @@ function appHTML(){
   const wide = S.form!=="phone" && !S.fullscreen ? true : (S.fullscreen && matchMedia("(min-width:820px)").matches);
   const pending = S.intents.length;
   const nav = NAV();
-  return `<div class="safe-top"></div>
+  return `
   <header class="topbar">${MK}<span class="title">${esc(t("app.short"))}</span>
-    ${S.env !== "live" ? `<button class="envchip ${S.env}" data-toggle-env aria-label="${esc(t("set.env"))}">${ENVS[S.env].label}</button>` : ""}
+    ${S.env !== "live" ? `<button class="envchip ${S.env}" data-toggle-env aria-label="${esc(t("set.env"))}">${esc(ENVS[S.env].label())}</button>` : ""}
     <span class="spacer"></span>
     <button class="iconbtn" data-nav="inbox" aria-label="${esc(t("nav.inbox"))}">${I.bell}${pending?`<span class="count">${pending>9?'9+':pending}</span>`:''}</button>
   </header>
@@ -674,18 +765,20 @@ function settingsHTML(){
       : `<button class="btn btn-primary block" data-enablepush ${p.busy?"disabled":""}>${p.busy?`<span class="tic spin">${I.sync}</span>`:I.bell}<span>${esc(t("set.notifyOn"))}</span></button>`}
   </section>
   ${lockOffered() ? `<section class="panel"><div class="panelhd"><h3>${esc(t("set.lock"))}</h3><p>${esc(t("set.lockSub"))}</p></div>
-    ${S.lockCred
-      ? `<div class="kv"><span>${esc(t("set.lockReady"))}</span><b class="ok">${I.check}</b></div>
-         <button class="btn btn-ghost block" data-lock="off">${esc(t("set.lockOff"))}</button>`
-      : `<button class="btn btn-primary block" data-lock="on" ${S.lockBusy?"disabled":""}>
-           ${S.lockBusy?`<span class="tic spin">${I.sync}</span>`:I.face}<span>${esc(t("set.lockOn"))}</span></button>`}
-  </section>` : (isReviewer() ? "" : `<section class="panel"><div class="panelhd"><h3>${esc(t("set.lock"))}</h3></div>
-    <div class="thin-empty">${esc(t("set.lockNo"))}</div></section>`)}
+    <div class="lockopts">
+      <button class="lockopt ${S.lockMode==="off"?"on":""}" data-lockmode="off">
+        <b>${esc(t("set.lockOff2"))}</b><small>${esc(t("set.lockOffSub"))}</small></button>
+      ${lockSupported() ? `<button class="lockopt ${S.lockMode==="device"?"on":""}" data-lockmode="device" ${S.lockBusy?"disabled":""}>
+        <b>${esc(t("set.lockDevice"))}</b><small>${esc(t("set.lockDeviceSub"))}</small></button>` : ""}
+      <button class="lockopt ${S.lockMode==="pin"?"on":""}" data-lockmode="pin" ${S.lockBusy?"disabled":""}>
+        <b>${esc(t("set.lockPin"))}</b><small>${esc(t("set.lockPinSub"))}</small></button>
+    </div>
+  </section>` : ""}
   <section class="panel"><div class="panelhd"><h3>${esc(t("set.language"))}</h3></div>
     <div class="langgrid">${LANGS.map(l=>`<button class="langb ${window.I18N.lang===l.code?'on':''}" data-lang="${l.code}">
       <b>${l.native}</b><small>${l.name}</small></button>`).join("")}</div></section>
   <section class="panel"><div class="panelhd"><h3>${esc(t("set.env"))}</h3><p>${esc(t("set.envSub"))}</p></div>
-    <div class="envseg">${Object.entries(ENVS).map(([k,e])=>`<button class="${S.env===k?'on':''}" data-env="${k}">${e.label}</button>`).join("")}</div></section>
+    <div class="envseg">${Object.entries(ENVS).map(([k,e])=>`<button class="${S.env===k?'on':''}" data-env="${k}">${esc(e.label())}</button>`).join("")}</div></section>
   <section class="panel"><div class="panelhd"><h3>${esc(t("set.appearance"))}</h3></div>
     <div class="envseg">${[["system",t("set.system")],["light",t("set.light")],["dark",t("set.dark")]].map(([k,l])=>`<button class="${S.theme===k?'on':''}" data-theme-set="${k}">${esc(l)}</button>`).join("")}</div></section>
   <section class="panel"><button class="btn btn-ghost block" data-signout>${esc(t("set.signOut"))}</button></section>
@@ -704,14 +797,41 @@ function splashHTML(){
 }
 
 /* ---- screen lock ---- */
+function keypadHTML(setup){
+  const len = S.pinEntry.length;
+  const dots = Array.from({length:6},(_,i)=>`<span class="pindot ${i<len?"on":""}"></span>`).join("");
+  const keys = ["1","2","3","4","5","6","7","8","9","","0","back"];
+  return `<div class="pindots">${dots}</div>
+    <div class="keypad">${keys.map(k=>k===""
+      ? `<span class="keygap"></span>`
+      : `<button class="key ${k==="back"?"kback":""}" data-pin="${k}" ${S.lockBusy?"disabled":""}>
+           ${k==="back"?I.back:k}</button>`).join("")}</div>
+    <button class="btn btn-primary block" data-pin-ok ${len<4||S.lockBusy?"disabled":""}>
+      ${S.lockBusy?`<span class="tic spin">${I.sync}</span>`:""}<span>${esc(t(setup?"lock.setPin":"lock.unlock"))}</span></button>`;
+}
+
 function lockHTML(){
-  return `<div class="safe-top"></div><div class="lockscreen">
+  const pin = S.lockMode === "pin";
+  return `<div class="lockscreen">
     <div class="lock-mk">${MK}</div>
     <h1>${esc(t("lock.title"))}</h1>
-    <p class="lock-body">${esc(t("lock.body"))}</p>
-    <button class="btn btn-primary block big" data-unlock ${S.lockBusy?"disabled":""}>
-      ${S.lockBusy?`<span class="tic spin">${I.sync}</span>`:I.face}<span>${esc(t("lock.unlock"))}</span></button>
+    <p class="lock-body">${esc(t(pin ? "lock.bodyPin" : "lock.body"))}</p>
+    ${pin ? keypadHTML(false) : `<button class="btn btn-primary block big" data-unlock ${S.lockBusy?"disabled":""}>
+      ${S.lockBusy?`<span class="tic spin">${I.sync}</span>`:I.face}<span>${esc(t("lock.unlock"))}</span></button>`}
     <button class="btn btn-ghost block" data-signout>${esc(t("lock.signout"))}</button>
+  </div>`;
+}
+
+/** Choosing a PIN, which is a full screen because getting it wrong twice is
+ * worse than any amount of space saved. */
+function pinSetupHTML(){
+  const again = S.pinSetup.stage === "again";
+  return `<div class="lockscreen">
+    <div class="lock-mk">${MK}</div>
+    <h1>${esc(t(again ? "lock.pinAgain" : "lock.pinNew"))}</h1>
+    <p class="lock-body">${esc(t("lock.pinHint"))}</p>
+    ${keypadHTML(true)}
+    <button class="btn btn-ghost block" data-pin-cancel>${esc(t("bio.cancel"))}</button>
   </div>`;
 }
 
@@ -727,7 +847,7 @@ function signinHTML(){
     <h1>${esc(t("app.name"))}</h1><p class="signin-motto">${esc(t("app.motto")).replace(/\n/g,"<br/>")}</p>`;
 
   if (st.step === "name") {
-    return `<div class="safe-top"></div><div class="signin">${head}
+    return `<div class="signin">${head}
       <div class="signin-lead"><b>${esc(t("signin.newTitle"))}</b>
         <span>${esc(t("signin.newBody",{id:st.identifier || st.id}))}</span></div>
       ${err}
@@ -740,7 +860,7 @@ function signinHTML(){
   }
 
   if (st.step === "password") {
-    return `<div class="safe-top"></div><div class="signin">${head}
+    return `<div class="signin">${head}
       <div class="signin-lead"><b>${esc(st.identifier || st.id)}</b><span>${esc(t("signin.pwNote"))}</span></div>
       ${err}
       <div class="field"><label for="pw">${esc(t("signin.pw"))}</label>
@@ -762,7 +882,7 @@ function signinHTML(){
   const c = P.BY_ISO[st.iso] || P.BY_ISO.US;
   const picker = st.picker ? countryPickerHTML() : "";
 
-  return `<div class="safe-top"></div><div class="signin">${head}
+  return `<div class="signin">${head}
     ${err}
     <div class="field idfield">
       <label for="id">${esc(t("signin.id"))}</label>
@@ -882,7 +1002,15 @@ function wire(){
     if(el.closest("[data-retry]")){ retryNow(); return; }
     if(el.closest("[data-enablepush]")){ enablePush(); return; }
     if(el.closest("[data-unlock]")){ unlock(); return; }
-    const lk=el.closest("[data-lock]"); if(lk){ lk.dataset.lock==="on" ? enableLock() : disableLock(); return; }
+    const lm=el.closest("[data-lockmode]");
+    if(lm){ const m=lm.dataset.lockmode;
+      if(m==="off") disableLock();
+      else if(m==="device") enableDeviceLock();
+      else startPinSetup();
+      return; }
+    const kp=el.closest("[data-pin]"); if(kp){ pinDigit(kp.dataset.pin); return; }
+    if(el.closest("[data-pin-ok]")){ pinSubmit(); return; }
+    if(el.closest("[data-pin-cancel]")){ S.pinSetup=null; S.pinEntry=""; render(); return; }
     if(el.closest("[data-testpush]")){ testPush(); return; }
     const rev=el.closest("[data-review]"); if(rev){ openReview(rev.dataset.review); return; }
     if(el.closest("[data-back-review]")){ S.review=null; S.reviewData=null; render(); return; }
@@ -960,9 +1088,14 @@ function wire(){
 }
 
 async function reloadEnv(){
-  S.ready=false; S.intents=[];S.timeline=[];S.solutions=[];S.catalog=[];S.inboxNext=null;S.tlNext=null; render();
+  // Identities are per environment, so a session from one is meaningless in the
+  // other. Carrying it over is what made every screen come back empty.
+  S.token=null; S.user=null; S.locked=false;
+  S.signin={ ...S.signin, step:"id", id:"", error:"", busy:false, pw:"", showPw:false };
+  savePrefs();
+  S.ready=false; S.intents=[];S.timeline=[];S.solutions=[];S.catalog=[];S.inboxNext=null;S.tlNext=null;
+  render();
   await Backend.probe();
-  if(S.token){ try{ await Backend.refresh(); }catch{} }
   S.ready=true; render();
 }
 async function retryNow(){

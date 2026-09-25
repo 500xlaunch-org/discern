@@ -17,6 +17,20 @@
 </head>
 <body>
   <div id="root"></div>
+  <script>
+    // The plugin publishes the real window insets as CSS variables. It only
+    // exists in the native shell; on the web env() already tells the truth.
+    window.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const SafeArea = window.Capacitor?.Plugins?.SafeArea;
+        if (SafeArea) await SafeArea.enable({ config: {
+          customColorsForSystemBars: true,
+          statusBarColor: "#00000000", statusBarContent: "light",
+          navigationBarColor: "#00000000", navigationBarContent: "light",
+        }});
+      } catch {}
+    });
+  </script>
   <script src="i18n.js"></script>
   <script src="phone.js"></script>
   <script src="net.js"></script>

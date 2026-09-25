@@ -74,11 +74,34 @@ input{font-family:inherit}
 /* ---------------- app shell ---------------- */
 .app-fill{position:fixed;inset:0;background:var(--bg)}
 .app{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg);font-size:15px;line-height:1.5;color:var(--ink)}
-.safe-top{height:0}
-.device.phone .app .safe-top{height:38px}
-.device.tablet .app .safe-top{height:18px}
+/* Safe areas.
+   We target API 36, where Android draws the app edge to edge under the status
+   and navigation bars whether it wants to or not, and iOS has always done this
+   with viewport-fit=cover. So the insets are not decoration: without them the
+   header sits under the clock and the tab bar sits under the back button, where
+   it cannot even be tapped.
 
-.topbar{display:flex;align-items:center;gap:10px;padding:11px 16px;background:color-mix(in srgb,var(--surface) 88%, transparent);
+   One set of variables, so the simulated phone in the preview and a real handset
+   are driven by the same rules. The simulator substitutes plausible numbers
+   because env() is zero in a desktop browser. */
+.app{
+  /* Android WebView maps env(safe-area-inset-*) to display cutouts only, not to
+     the status and navigation bars, so on a phone with no notch it reports zero
+     while the bars still cover the app. The safe-area plugin reads the real
+     window insets and publishes them as --safe-area-inset-*; env() remains the
+     fallback, which is what iOS and desktop use. */
+  --sat: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --sab: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --sal: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  --sar: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+}
+.device.phone .app{--sat:38px;--sab:22px}
+.device.tablet .app{--sat:18px;--sab:14px}
+.device.laptop .app{--sat:0px;--sab:0px}
+.safe-top{display:none}
+
+.topbar{display:flex;align-items:center;gap:10px;
+  padding:calc(11px + var(--sat)) calc(16px + var(--sar)) 11px calc(16px + var(--sal));background:color-mix(in srgb,var(--surface) 88%, transparent);
   backdrop-filter:saturate(150%) blur(12px);border-bottom:1px solid var(--line-2);position:relative;z-index:5}
 .topbar .mk{width:23px;height:23px;color:var(--xur);flex:none}
 .topbar .title{font-weight:650;font-size:1.06rem;letter-spacing:-.01em}
@@ -103,8 +126,11 @@ input{font-family:inherit}
 .app.wide .rail .railcount{margin-left:auto;font-family:var(--mono);font-size:.66rem;font-weight:700;color:var(--sv);background:var(--sv-bg);padding:2px 7px;border-radius:99px}
 .app.wide .railgrow{flex:1}
 .app.wide .railuser{padding:10px 13px;color:var(--faint);font-size:.82rem;border-top:1px solid var(--line-2)}
-.tabbar{display:flex;background:color-mix(in srgb,var(--surface) 92%, transparent);backdrop-filter:blur(12px);border-top:1px solid var(--line-2);padding:6px 6px}
-.device.phone .app .tabbar{padding-bottom:22px}
+.tabbar{display:flex;background:color-mix(in srgb,var(--surface) 92%, transparent);
+  backdrop-filter:blur(12px);border-top:1px solid var(--line-2);
+  padding:6px calc(6px + var(--sar)) calc(6px + var(--sab)) calc(6px + var(--sal))}
+/* a tap target stays a tap target even when the inset is generous */
+.tabbar button{min-height:46px}
 .app.wide .tabbar{display:none}
 .tabbar button{position:relative;flex:1;border:0;background:transparent;color:var(--faint);display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 0;border-radius:11px;font-size:.64rem;font-weight:600}
 .tabbar button svg{width:23px;height:23px}
@@ -536,3 +562,37 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
   color:var(--faint);border-radius:10px;transition:color .15s,background .15s}
 .pweye:hover{color:var(--ink);background:var(--surface-2)}
 .pweye svg{width:19px;height:19px}
+
+/* the full height screens need the same room */
+.signin,.lockscreen{padding-top:calc(30px + var(--sat));padding-bottom:calc(26px + var(--sab));
+  padding-inline:calc(26px + var(--sal)) calc(26px + var(--sar))}
+.splash{padding-top:var(--sat);padding-bottom:var(--sab)}
+.rail{padding-top:calc(16px + var(--sat));padding-bottom:calc(16px + var(--sab))}
+.wrap{padding-inline:calc(16px + var(--sal)) calc(16px + var(--sar))}
+/* nothing should end up under the navigation bar when a list runs long */
+.app.wide .screen-wrap{padding-bottom:var(--sab)}
+
+/* ---- lock choices and the keypad ---- */
+.lockopts{display:flex;flex-direction:column;gap:7px}
+.lockopt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;
+  border:1px solid var(--line);border-radius:13px;background:var(--surface-2);text-align:start;
+  transition:border-color .15s,background .15s}
+.lockopt b{font-weight:650;font-size:.95rem}
+.lockopt small{color:var(--muted);font-size:.79rem;line-height:1.4}
+.lockopt.on{border-color:var(--xur);background:var(--xur-soft);color:var(--xur-ink)}
+.lockopt.on small{color:inherit;opacity:.78}
+.lockopt:disabled{opacity:.6}
+
+.pindots{display:flex;gap:11px;margin:4px 0 20px}
+.pindot{width:11px;height:11px;border-radius:99px;background:var(--line);
+  transition:background .18s,transform .18s}
+.pindot.on{background:var(--xur);transform:scale(1.18)}
+.keypad{display:grid;grid-template-columns:repeat(3,72px);gap:12px;margin-bottom:20px}
+.key{height:62px;border-radius:18px;border:1px solid var(--line);background:var(--surface-2);
+  color:var(--ink);font-size:1.4rem;font-weight:550;font-variant-numeric:tabular-nums;
+  transition:background .12s,transform .06s}
+.key:active{transform:scale(.95);background:var(--sunken)}
+.key.kback{background:transparent;border-color:transparent;color:var(--muted)}
+.key svg{width:22px;height:22px}
+.keygap{height:62px}
+.lockscreen .btn{max-width:340px;width:100%}
