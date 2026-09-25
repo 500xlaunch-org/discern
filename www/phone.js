@@ -64,6 +64,42 @@ const LENGTHS = {
 
 const digits = (s) => String(s || "").replace(/\D+/g, "");
 
+/* Mailboxes people keep for themselves. Anything outside this is treated as a
+ * work address, which is a guess and is meant to be: the icon is a small
+ * courtesy, not a claim, and nothing in the product behaves differently. Some
+ * are whole domains, some are families with a domain per country. */
+const PERSONAL_EXACT = new Set([
+  "gmail.com","googlemail.com","icloud.com","me.com","mac.com","aol.com","aim.com",
+  "protonmail.com","proton.me","pm.me","tutanota.com","tuta.io","fastmail.com",
+  "zoho.com","mail.com","email.com","usa.com","inbox.com","gmx.com","web.de",
+  "t-online.de","freenet.de","arcor.de","posteo.de","mailbox.org",
+  "orange.fr","wanadoo.fr","free.fr","laposte.net","sfr.fr","bbox.fr","numericable.fr",
+  "libero.it","virgilio.it","alice.it","tiscali.it","tin.it",
+  "terra.com.br","uol.com.br","bol.com.br","ig.com.br","globo.com",
+  "mail.ru","bk.ru","list.ru","inbox.ru","internet.ru","rambler.ru",
+  "qq.com","163.com","126.com","sina.com","sohu.com","foxmail.com","aliyun.com",
+  "naver.com","daum.net","hanmail.net","nate.com",
+  "rediffmail.com","sify.com","indiatimes.com",
+  "bluewin.ch","sunrise.ch","telenet.be","skynet.be","ziggo.nl","kpnmail.nl",
+  "bigpond.com","optusnet.com.au","xtra.co.nz",
+  "seznam.cz","wp.pl","o2.pl","interia.pl","onet.pl",
+  "abv.bg","mynet.com","hotmail.co.uk","btinternet.com","virginmedia.com","sky.com",
+]);
+// families that exist under many country domains
+const PERSONAL_PREFIX = ["yahoo.","hotmail.","outlook.","live.","msn.","gmx.","yandex.","ymail.","rocketmail.","zoho."];
+
+/** personal, work, or unknown while the address is still being typed. */
+function emailKind(raw) {
+  const v = String(raw || "").trim().toLowerCase();
+  const at = v.indexOf("@");
+  if (at < 0) return "unknown";
+  const domain = v.slice(at + 1);
+  if (!domain || !domain.includes(".") || domain.endsWith(".")) return "unknown";
+  if (PERSONAL_EXACT.has(domain)) return "personal";
+  if (PERSONAL_PREFIX.some((pre) => domain.startsWith(pre))) return "personal";
+  return "work";
+}
+
 /** A flag from the country code: two regional indicator letters. */
 const flag = (iso) => String.fromCodePoint(...[...iso.toUpperCase()].map((c) => 127397 + c.charCodeAt(0)));
 
@@ -135,6 +171,7 @@ function validPhone(iso, national) {
 function splitPasted(raw) {
   const v = String(raw || "").trim();
   if (!/^\+/.test(v)) return null;
+  if (digits(v).length < 1) return null;
   const d = digits(v);
   // longest dial code wins, so +1 does not swallow +1268
   const matches = COUNTRIES.filter((c) => d.startsWith(c.dial));
@@ -146,7 +183,7 @@ function splitPasted(raw) {
   return { iso, national: d.slice(dial.length) };
 }
 
-window.Phone = { COUNTRIES, BY_ISO, flag, name, detect, kindOf, validEmail,
+window.Phone = { COUNTRIES, BY_ISO, flag, name, detect, kindOf, validEmail, emailKind,
                  validPhone, group, e164, digits, splitPasted };
 
 })();

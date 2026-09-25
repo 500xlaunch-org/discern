@@ -33,6 +33,11 @@ const I = {
   play:`<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>`,
   cloudoff:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M7.5 18h9.2a3.8 3.8 0 0 0 .8-7.5A6 6 0 0 0 8.2 7.4"/><path d="M5.8 9.4A3.8 3.8 0 0 0 6.5 18"/></svg>`,
   sync:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-13.7-5.3L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 13.7 5.3L20 16"/><path d="M20 20v-4h-4"/></svg>`,
+  eye:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 12S6 5.6 12 5.6 21.4 12 21.4 12 18 18.4 12 18.4 2.6 12 2.6 12z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  eyeOff:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 6A9.9 9.9 0 0 1 12 5.9c6 0 9.4 6.1 9.4 6.1a17 17 0 0 1-3.3 4"/><path d="M6.2 7.9A16.6 16.6 0 0 0 2.6 12S6 18.1 12 18.1a9.6 9.6 0 0 0 4-.86"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>`,
+  at:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.6"/><path d="M15.6 12v1.7a2.6 2.6 0 0 0 5.2 0V12a8.8 8.8 0 1 0-3.5 7"/></svg>`,
+  person:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.8 20a7.2 7.2 0 0 1 14.4 0"/></svg>`,
+  work:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.2" y="8.4" width="17.6" height="11.4" rx="2"/><path d="M8.6 8.4V6.2a2 2 0 0 1 2-2h2.8a2 2 0 0 1 2 2v2.2"/><path d="M3.2 13.2h17.6"/></svg>`,
   globe:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.5 9h17M3.5 15h17"/><path d="M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"/></svg>`,
 };
 
@@ -109,7 +114,8 @@ function loadPrefs(){
     // sign in walks: identifier, then a password or a name, never both at once
     signin:{ step:"id", id:"", busy:false, error:"",
              // the field decides for itself which of the two it is holding
-             kind:"empty", iso:(window.Phone ? window.Phone.detect() : "US"), picker:false, search:"" },
+             kind:"empty", iso:(window.Phone ? window.Phone.detect() : "US"), picker:false, search:"",
+             pw:"", showPw:false },
     net:Net.state, settled:{} });
 }
 function savePrefs(){ try{ localStorage.setItem("discern.prefs", JSON.stringify({
@@ -738,7 +744,13 @@ function signinHTML(){
       <div class="signin-lead"><b>${esc(st.identifier || st.id)}</b><span>${esc(t("signin.pwNote"))}</span></div>
       ${err}
       <div class="field"><label for="pw">${esc(t("signin.pw"))}</label>
-        <input id="pw" type="password" autocomplete="current-password" enterkeyhint="go"/></div>
+        <div class="pwwrap">
+          <input id="pw" type="${st.showPw ? "text" : "password"}" autocomplete="current-password"
+                 enterkeyhint="go" value="${esc(st.pw || "")}"/>
+          <button type="button" class="pweye" data-pweye
+                  aria-label="${esc(t(st.showPw ? "signin.hidePw" : "signin.showPw"))}"
+                  aria-pressed="${st.showPw ? "true" : "false"}">${st.showPw ? I.eyeOff : I.eye}</button>
+        </div></div>
       <button class="btn btn-primary block big" data-pw ${st.busy?"disabled":""}>
         ${st.busy?`<span class="tic spin">${I.sync}</span>`:""}<span>${esc(t("signin.continue"))}</span></button>
       <button class="btn btn-ghost block" data-signin-back>${esc(t("signin.back"))}</button>
@@ -754,16 +766,19 @@ function signinHTML(){
     ${err}
     <div class="field idfield">
       <label for="id">${esc(t("signin.id"))}</label>
-      <div class="idwrap ${isPhone ? "phone" : ""}">
-        ${isPhone ? `<button type="button" class="cc" data-picker aria-label="${esc(t("signin.country"))}">
-          <span class="ccflag">${P.flag(c.iso)}</span><span class="ccdial">+${c.dial}</span></button>` : ""}
+      <div class="idwrap ${isPhone ? "phone" : "mail"}">
+        ${idLeadHTML()}
         <input id="id" type="${isPhone ? "tel" : "email"}"
                inputmode="${isPhone ? "tel" : "email"}"
                autocomplete="${isPhone ? "tel-national" : "username"}"
                enterkeyhint="go" spellcheck="false" autocapitalize="none"
                placeholder="${esc(t("signin.idPh"))}" value="${esc(st.id)}"/>
       </div>
-      ${isPhone ? `<div class="idhint">${esc(P.name(c.iso, window.I18N.lang))} ${esc(P.e164(c.iso, st.id))}</div>` : ""}
+      ${isPhone
+        ? `<div class="idhint">${esc(P.name(c.iso, window.I18N.lang))} ${esc(P.e164(c.iso, st.id))}</div>`
+        : (P.emailKind(st.id) !== "unknown"
+            ? `<div class="idhint">${esc(P.emailKind(st.id) === "personal" ? t("signin.personal") : t("signin.work"))}</div>`
+            : "")}
     </div>
     <button class="btn btn-primary block big" data-signin ${st.busy?"disabled":""}>
       ${st.busy?`<span class="tic spin">${I.sync}</span>`:""}<span>${esc(t("signin.next"))}</span></button>
@@ -779,6 +794,29 @@ function paintCountryList(){
   const tmp = document.createElement("div");
   tmp.innerHTML = countryPickerHTML();
   host.querySelector(".cclist").replaceWith(tmp.querySelector(".cclist"));
+}
+
+/** What sits at the head of the field right now. A flag when it is a number,
+ * so the country is both visible and changeable; an icon when it is an address,
+ * so the field is never empty-headed while someone types. */
+function idLeadHTML(){
+  const P = window.Phone, st = S.signin;
+  if (st.kind === "phone") {
+    const c = P.BY_ISO[st.iso] || P.BY_ISO.US;
+    return `<button type="button" class="cc" data-picker aria-label="${esc(t("signin.country"))}">
+      <span class="ccflag">${P.flag(c.iso)}</span><span class="ccdial">+${c.dial}</span></button>`;
+  }
+  const kind = st.kind === "email" ? P.emailKind(st.id) : "empty";
+  const icon = kind === "personal" ? I.person : kind === "work" ? I.work : I.at;
+  const label = kind === "personal" ? t("signin.personal") : kind === "work" ? t("signin.work") : "";
+  return `<span class="idlead ${kind}" title="${esc(label)}" aria-label="${esc(label)}">${icon}</span>`;
+}
+
+/** Everything that changes what the head of the field looks like. Rendering is
+ * driven off this so the caret is only disturbed when the shape really moves. */
+function idShape(){
+  const P = window.Phone, st = S.signin;
+  return st.kind === "phone" ? `phone:${st.iso}` : `${st.kind}:${P.emailKind(st.id)}`;
 }
 
 /** The country list, named in the reader's language and searchable, because
@@ -853,6 +891,12 @@ function wire(){
     if(el.closest("[data-back]")){ S.selectedSol=null; render(); return; }
     const lvl=el.closest("[data-level]"); if(lvl){ const box=lvl.closest("[data-appetite]"); await setAppetite(box.dataset.appetite,box.dataset.cat,lvl.dataset.level); return; }
     const stt=el.closest("[data-status]"); if(stt){ await setStatus(stt.dataset.status,stt.dataset.to); return; }
+    if(el.closest("[data-pweye]")){
+      const f=document.getElementById("pw"); S.signin.pw = f ? f.value : "";
+      S.signin.showPw = !S.signin.showPw; render();
+      const g=document.getElementById("pw");
+      if(g){ g.focus(); g.setSelectionRange(g.value.length, g.value.length); }
+      return; }
     if(el.closest("[data-picker]")){ S.signin.picker = true; S.signin.search = ""; render();
       const q=document.getElementById("ccsearch"); if(q) q.focus(); return; }
     const cc = el.closest("[data-cc]");
@@ -875,31 +919,37 @@ function wire(){
   };
   // typing decides what the field is. Re-rendering on every keystroke would
   // fight the caret, so the shape is only redrawn when the kind actually flips.
+  // Typing decides what the field is. A full redraw on every keystroke would
+  // fight the caret, so it only happens when the head of the field actually
+  // changes: a different kind, a different country, a different sort of
+  // address. Everything else is patched in place.
   root.oninput = e=>{
     if (e.target.id === "ccsearch") { S.signin.search = e.target.value; paintCountryList(); return; }
     if (e.target.id !== "id" || S.token) return;
-    const P = window.Phone, st = S.signin, raw = e.target.value;
+    const P = window.Phone, st = S.signin, before = idShape();
+    const raw = e.target.value;
 
-    const pasted = P.splitPasted(raw);
-    if (pasted) {                       // a full international number was pasted
-      st.iso = pasted.iso; st.kind = "phone"; st.id = P.group(pasted.national, pasted.iso);
-      st.error = ""; render();
-      const el = document.getElementById("id"); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
-      return;
+    // a dial code, typed or pasted, moves the country as it is recognised
+    const dialed = P.splitPasted(raw);
+    if (dialed) { st.iso = dialed.iso; st.kind = "phone"; st.id = P.group(dialed.national, dialed.iso); }
+    else {
+      st.kind = P.kindOf(raw);
+      st.id = st.kind === "phone" ? P.group(raw, st.iso) : raw;
     }
+    st.error = "";
 
-    const kind = P.kindOf(raw);
-    st.id = kind === "phone" ? P.group(raw, st.iso) : raw;
-    if (kind !== st.kind) { st.kind = kind; st.error = ""; render();
+    if (idShape() !== before) {
+      render();
       const el = document.getElementById("id");
       if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
-      return; }
-    if (kind === "phone" && e.target.value !== st.id) {
-      e.target.value = st.id;           // regroup in place, caret at the end
+      return;
+    }
+    if (e.target.value !== st.id) {                  // regrouped, caret at the end
+      e.target.value = st.id;
       e.target.setSelectionRange(st.id.length, st.id.length);
     }
     const hint = document.querySelector(".idhint");
-    if (hint && kind === "phone") hint.textContent = `${P.name(st.iso, window.I18N.lang)} ${P.e164(st.iso, st.id)}`;
+    if (hint && st.kind === "phone") hint.textContent = `${P.name(st.iso, window.I18N.lang)} ${P.e164(st.iso, st.id)}`;
   };
 
   root.onchange = e=>{ const c=e.target.closest("[data-ctl]"); if(!c)return;
@@ -1007,7 +1057,7 @@ async function signin(){
   st.error = ""; st.busy = true; render();
   try {
     await Backend.login(identifier);
-    S.signin = { step:"id", id:"", busy:false, error:"" };
+    S.signin = { ...S.signin, step:"id", id:"", error:"", busy:false, pw:"", showPw:false };
     await Backend.refresh(); S.view = "inbox"; render();
   } catch (e) {
     S.signin.busy = false;
@@ -1026,7 +1076,7 @@ async function signinPassword(){
   S.signin.error = ""; S.signin.busy = true; render();
   try {
     await Backend.login(S.signin.identifier || S.signin.id, pw);
-    S.signin = { step:"id", id:"", busy:false, error:"" };
+    S.signin = { ...S.signin, step:"id", id:"", error:"", busy:false, pw:"", showPw:false };
     await Backend.refresh(); S.view = "inbox"; render();
   } catch (e) {
     S.signin.busy = false;
@@ -1042,7 +1092,7 @@ async function signinRegister(){
   S.signin.error = ""; S.signin.busy = true; render();
   try {
     await Backend.register(S.signin.identifier || S.signin.id, name || undefined);
-    S.signin = { step:"id", id:"", busy:false, error:"" };
+    S.signin = { ...S.signin, step:"id", id:"", error:"", busy:false, pw:"", showPw:false };
     await Backend.refresh(); S.view = "inbox"; render();
   } catch (e) {
     S.signin.busy = false;
