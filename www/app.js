@@ -1684,6 +1684,10 @@ function wire(){
   const root=document.getElementById("root");
   root.onclick = async e=>{
     const el=e.target;
+    // An open menu closes on a tap anywhere else, but that tap still counts:
+    // swallowing it means everything on the screen needs pressing twice.
+    let closedDrop = false;
+    if (S.drop && !el.closest(".fdrop")) { S.drop = null; closedDrop = true; }
     const nav=el.closest("[data-nav]"); if(nav){ e.preventDefault(); S.view=nav.dataset.nav; S.selectedSol=null; render(); return; }
     if(el.closest("[data-ctl='fullscreen']")){ S.fullscreen=!S.fullscreen; savePrefs(); render(); return; }
     if(el.closest("[data-toggle-env]")){ S.env=S.env==="test"?"live":"test"; savePrefs(); reloadEnv(); return; }
@@ -1766,8 +1770,7 @@ function wire(){
     const fv = el.closest("[data-fsev]");
     if(fv){ toggleFilter("severities", fv.dataset.fsev); return; }
     if(el.closest("[data-fclear]")){ S.filter={solutions:[],severities:[]}; S.drop=null; savePrefs(); applyFilter(); return; }
-    // a tap anywhere else closes an open menu, which is what people expect
-    if(S.drop && !el.closest(".fdrop")){ S.drop=null; render(); return; }
+
     const op = el.closest("[data-open]");
     if(op){ const id=op.dataset.open;
       S.detail = S.timeline.find(x=>x.id===id) || S.intents.find(x=>x.id===id) || null; render(); return; }
@@ -1788,6 +1791,8 @@ function wire(){
     if(el.closest("[data-signin-back]")){ S.signin = { step:"id", id:S.signin.id, busy:false, error:"" }; render(); return; }
     if(el.closest("[data-signout]")){ S.token=null; S.user=null; S.locked=false;
       S.envAcked=false; S.envAsk=false; savePrefs(); render(); return; }
+    // nothing else claimed the tap, so the only thing that changed is the menu
+    if (closedDrop) render();
   };
   // a phone keyboard offers Go or Done, and people press it
   root.onkeydown = e=>{

@@ -358,13 +358,16 @@ input{font-family:inherit}
 .sk-review .abrow{align-items:center}
 
 /* ---- a card leaving after a decision ---- */
-.icard.settling{pointer-events:none}
-.icard.settling.approve{animation:settleok .34s cubic-bezier(.34,1.2,.64,1) both}
-.icard.settling.deny{animation:settleno .34s cubic-bezier(.34,1.2,.64,1) both}
+.icard.settling,.arow.settling{pointer-events:none}
+.icard.settling.approve,.arow.settling.approve{animation:settleok .34s cubic-bezier(.34,1.2,.64,1) both}
+.icard.settling.deny,.arow.settling.deny{animation:settleno .34s cubic-bezier(.34,1.2,.64,1) both}
+/* reflect leaves the same way a deny does: the action is not going ahead */
+.icard.settling.reflect,.arow.settling.reflect{animation:settleno .34s cubic-bezier(.34,1.2,.64,1) both}
 @keyframes settleok{to{opacity:0;transform:translateX(14px) scale(.97)}}
 @keyframes settleno{to{opacity:0;transform:translateX(-14px) scale(.97)}}
-[dir="rtl"] .icard.settling.approve{animation-name:settleokR}
-[dir="rtl"] .icard.settling.deny{animation-name:settlenoR}
+[dir="rtl"] .icard.settling.approve,[dir="rtl"] .arow.settling.approve{animation-name:settleokR}
+[dir="rtl"] .icard.settling.deny,[dir="rtl"] .arow.settling.deny,
+[dir="rtl"] .icard.settling.reflect,[dir="rtl"] .arow.settling.reflect{animation-name:settlenoR}
 @keyframes settleokR{to{opacity:0;transform:translateX(-14px) scale(.97)}}
 @keyframes settlenoR{to{opacity:0;transform:translateX(14px) scale(.97)}}
 
@@ -406,7 +409,9 @@ input{font-family:inherit}
    Arabic reads the other way. Logical properties do most of the work; these
    are the places where a physical direction was baked in. */
 [dir="rtl"] .solmeta,[dir="rtl"] .abs,[dir="rtl"] .awhen{direction:rtl}
-[dir="rtl"] .back svg,[dir="rtl"] .solend svg{transform:scaleX(-1)}
+/* a chevron that means "onward" has to point the way the language reads */
+[dir="rtl"] .back svg,[dir="rtl"] .solend svg,[dir="rtl"] .fx svg,
+[dir="rtl"] .gsolgo svg,[dir="rtl"] .gone svg{transform:scaleX(-1)}
 [dir="rtl"] .iconbtn .count{right:auto;left:-5px}
 [dir="rtl"] .app.wide .rail{border-right:0;border-left:1px solid var(--line-2)}
 [dir="rtl"] .app.wide .rail .railcount{margin-left:0;margin-right:auto}
@@ -827,7 +832,7 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .focusbar{display:flex;align-items:center;gap:10px;margin-bottom:2px}
 .fx{display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--muted);
   font-size:.86rem;font-weight:600;padding:4px 0}
-.fx svg{width:16px;height:16px;transform:scaleX(-1)}
+.fx svg{width:16px;height:16px}
 [dir="rtl"] .fx svg{transform:none}
 .fxpos{margin-inline-start:auto;font-family:var(--mono);font-size:.78rem;color:var(--faint)}
 .focusone .icard{animation:cardin .3s ease both}
