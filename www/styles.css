@@ -35,6 +35,7 @@
   --sh-lg:0 26px 60px -26px rgba(0,0,0,.8); --sh-sm:0 1px 2px rgba(0,0,0,.4);
 }
 *{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{margin:0;background:var(--stage);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 button{font-family:inherit;cursor:pointer;color:inherit}
 input{font-family:inherit}
@@ -275,7 +276,10 @@ input{font-family:inherit}
 .signin-motto{font-family:var(--serif);font-style:italic;color:var(--faint);font-size:1.02rem;text-align:center;margin:-6px 0 6px;line-height:1.4}
 .field{display:flex;flex-direction:column;gap:6px}
 .field label{font-size:.78rem;font-weight:600;color:var(--muted)}
-.field input{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:13px 14px;font-size:1rem}
+.field input{border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  border-radius:12px;padding:11px 13px;
+  /* 16px exactly: iOS zooms the whole page when a focused field is smaller */
+  font-size:16px;line-height:1.3}
 .signin-note{display:flex;align-items:center;justify-content:center;gap:7px;color:var(--faint);font-size:.78rem}
 .signin-note svg{width:16px;height:16px}
 
@@ -461,14 +465,16 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
    what the product is before it asks for anything. */
 .splash{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:2px;background:var(--bg);animation:splashout .4s ease 1.25s both}
-.splash-mk{width:104px;height:104px;color:var(--xur);animation:mkpop .7s cubic-bezier(.2,.9,.3,1.1) both}
+.splash-mk{width:104px;height:104px;color:var(--xur)}
 .splash-mk .mk{width:104px;height:104px}
-.splash-mk .mk .wave{stroke-dasharray:420;stroke-dashoffset:420;animation:draw 1.05s cubic-bezier(.4,0,.2,1) .12s forwards}
-.splash-mk .mk circle{transform-origin:200px 128px;transform:scale(0);animation:ring .5s cubic-bezier(.2,.9,.3,1.4) .72s forwards}
+.splash-mk .mk .wave{stroke-dasharray:420;stroke-dashoffset:420;
+  animation:draw .95s cubic-bezier(.4,0,.2,1) 0s forwards}
+.splash-mk .mk circle{transform-origin:200px 128px;transform:scale(0);
+  animation:ring .45s cubic-bezier(.2,.9,.3,1.4) .6s forwards}
 .splash-name{margin-top:18px;font-family:var(--serif);font-size:1.72rem;font-weight:600;letter-spacing:.2px;
-  color:var(--ink);opacity:0;animation:rise .55s ease .62s both}
+  color:var(--ink);opacity:0;animation:rise .5s ease .5s both}
 .splash-motto{margin:7px 0 0;text-align:center;color:var(--muted);font-size:.9rem;line-height:1.5;
-  opacity:0;animation:rise .55s ease .82s both}
+  opacity:0;animation:rise .5s ease .68s both}
 @keyframes draw{to{stroke-dashoffset:0}}
 @keyframes ring{to{transform:scale(1)}}
 @keyframes mkpop{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:none}}
@@ -596,3 +602,12 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .key svg{width:22px;height:22px}
 .keygap{height:62px}
 .lockscreen .btn{max-width:340px;width:100%}
+
+/* what was used here before, so a phone keyboard is not retyped */
+.recents{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
+.recentlab{font-size:.74rem;color:var(--faint);margin-inline-end:2px}
+.recent{border:1px solid var(--line);background:var(--surface-2);color:var(--muted);
+  border-radius:99px;padding:5px 11px;font-size:.8rem;max-width:100%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:border-color .15s,color .15s}
+.recent:hover{border-color:var(--xur);color:var(--ink)}
+.idhint.quiet{color:var(--faint);font-family:var(--sans);font-size:.79rem;white-space:normal}

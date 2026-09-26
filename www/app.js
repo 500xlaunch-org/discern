@@ -103,7 +103,9 @@ function loadPrefs(){
   const base = { env:"live", plat:"apple", form:"phone", theme:"system", lang:null,
     fullscreen: !matchMedia("(min-width:900px)").matches, token:null, user:null,
     // the lock is per device, so how it is set lives with the prefs
-    lockMode:"off", lockCred:null, pinSalt:null, pinHash:null };
+    lockMode:"off", lockCred:null, pinSalt:null, pinHash:null,
+    // addresses used on this device, so nobody retypes one on a phone keyboard
+    recent:[] };
   const s = Object.assign(base, p||{});
   return Object.assign(s, { view:"inbox", mode:"connecting", ready:false,
     intents:[], timeline:[], solutions:[], catalog:[],
@@ -124,7 +126,7 @@ function loadPrefs(){
 function savePrefs(){ try{ localStorage.setItem("discern.prefs", JSON.stringify({
   env:S.env,plat:S.plat,form:S.form,theme:S.theme,lang:S.lang,fullscreen:S.fullscreen,
   token:S.token,user:S.user,lockMode:S.lockMode,lockCred:S.lockCred,
-  pinSalt:S.pinSalt,pinHash:S.pinHash})); }catch{} }
+  pinSalt:S.pinSalt,pinHash:S.pinHash,recent:S.recent})); }catch{} }
 function applyTheme(){ const q=new URLSearchParams(location.search).get("theme"); const th=q||S.theme;
   if (th==="light"||th==="dark") document.documentElement.dataset.theme=th; else delete document.documentElement.dataset.theme; }
 
@@ -789,8 +791,13 @@ function settingsHTML(){
    The mark draws itself, the motto arrives under it, then the app. It is the
    one moment the product gets to say what it is before asking for anything. */
 function splashHTML(){
+  // the stroke starts fully retracted and the ring at zero, inline, so the very
+  // first painted frame is the beginning of the animation and never the logo
+  const mk = MK
+    .replace('class="wave"', 'class="wave" style="stroke-dasharray:420;stroke-dashoffset:420"')
+    .replace('<circle', '<circle style="transform:scale(0);transform-origin:200px 128px"');
   return `<div class="splash">
-    <div class="splash-mk">${MK}</div>
+    <div class="splash-mk">${mk}</div>
     <div class="splash-name">${esc(t("app.name"))}</div>
     <p class="splash-motto">${esc(t("app.motto")).replace(/\n/g,"<br/>")}</p>
   </div>`;
@@ -894,6 +901,10 @@ function signinHTML(){
                enterkeyhint="go" spellcheck="false" autocapitalize="none"
                placeholder="${esc(t("signin.idPh"))}" value="${esc(st.id)}"/>
       </div>
+      ${(S.recent || []).length ? `<div class="recents" ${st.id ? "hidden" : ""}>
+        <span class="recentlab">${esc(t("signin.recent"))}</span>
+        ${S.recent.map((r)=>`<button type="button" class="recent" data-recent="${esc(r)}">${esc(r)}</button>`).join("")}
+      </div>` : `<div class="idhint quiet">${esc(t("signin.idBoth"))}</div>`}
       ${isPhone
         ? `<div class="idhint">${esc(P.name(c.iso, window.I18N.lang))} ${esc(P.e164(c.iso, st.id))}</div>`
         : (P.emailKind(st.id) !== "unknown"
@@ -1031,6 +1042,14 @@ function wire(){
     if(cc){ S.signin.iso = cc.dataset.cc; S.signin.picker = false; S.signin.error = ""; render();
       const f=document.getElementById("id"); if(f) f.focus(); return; }
     if(el.closest("[data-picker-close]") && !el.closest(".ccsheet")){ S.signin.picker = false; render(); return; }
+    const rc = el.closest("[data-recent]");
+    if(rc){ const v = rc.dataset.recent, P = window.Phone;
+      const dialed = P.splitPasted(v);
+      if (dialed) { S.signin.iso = dialed.iso; S.signin.kind = "phone"; S.signin.id = P.group(dialed.national, dialed.iso); }
+      else { S.signin.kind = P.kindOf(v); S.signin.id = v; }
+      S.signin.error = ""; render();
+      const f = document.getElementById("id"); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
+      return; }
     if(el.closest("[data-signin]")){ signin(); return; }
     if(el.closest("[data-pw]")){ signinPassword(); return; }
     if(el.closest("[data-create]")){ signinRegister(); return; }
@@ -1051,34 +1070,74 @@ function wire(){
   // fight the caret, so it only happens when the head of the field actually
   // changes: a different kind, a different country, a different sort of
   // address. Everything else is patched in place.
+  // Typing must never destroy the input. Re-rendering the screen on the first
+  // keystroke replaced the field, put the caret back at zero, and every
+  // following character landed in front of the last one, so the text came out
+  // backwards. Nothing here calls render(): the parts that change are patched
+  // in place around a field that is left alone.
   root.oninput = e=>{
     if (e.target.id === "ccsearch") { S.signin.search = e.target.value; paintCountryList(); return; }
     if (e.target.id !== "id" || S.token) return;
-    const P = window.Phone, st = S.signin, before = idShape();
-    const raw = e.target.value;
+    const P = window.Phone, st = S.signin, el = e.target;
+    const wasPhone = st.kind === "phone";
+    const raw = el.value;
 
-    // a dial code, typed or pasted, moves the country as it is recognised
+    let text = raw;
     const dialed = P.splitPasted(raw);
-    if (dialed) { st.iso = dialed.iso; st.kind = "phone"; st.id = P.group(dialed.national, dialed.iso); }
-    else {
+    if (dialed && dialed.national !== "") {
+      // a recognisable dial code moves into the chip, the rest stays typed
+      st.iso = dialed.iso; st.kind = "phone"; text = P.group(dialed.national, dialed.iso);
+    } else if (/^\+/.test(raw)) {
+      // still being typed: keep the plus visible rather than eating it
+      st.kind = "phone"; text = raw;
+    } else {
       st.kind = P.kindOf(raw);
-      st.id = st.kind === "phone" ? P.group(raw, st.iso) : raw;
+      text = st.kind === "phone" ? P.group(raw, st.iso) : raw;
     }
+    st.id = text;
     st.error = "";
 
-    if (idShape() !== before) {
-      render();
-      const el = document.getElementById("id");
-      if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
-      return;
+    if (el.value !== text) {                       // regrouped: keep the caret at the end
+      const atEnd = el.selectionStart === el.value.length;
+      el.value = text;
+      if (atEnd) el.setSelectionRange(text.length, text.length);
     }
-    if (e.target.value !== st.id) {                  // regrouped, caret at the end
-      e.target.value = st.id;
-      e.target.setSelectionRange(st.id.length, st.id.length);
+
+    // the field's own attributes only change when it flips between the two
+    const nowPhone = st.kind === "phone";
+    if (nowPhone !== wasPhone) {
+      const caret = el.selectionStart;
+      el.type = nowPhone ? "tel" : "email";
+      el.inputMode = nowPhone ? "tel" : "email";
+      el.autocomplete = nowPhone ? "tel-national" : "username";
+      try { el.setSelectionRange(caret, caret); } catch {}
     }
-    const hint = document.querySelector(".idhint");
-    if (hint && st.kind === "phone") hint.textContent = `${P.name(st.iso, window.I18N.lang)} ${P.e164(st.iso, st.id)}`;
+    paintIdField();
   };
+
+  /** Everything around the input, redrawn without touching the input. */
+  function paintIdField(){
+    const P = window.Phone, st = S.signin;
+    const wrap = document.querySelector(".idwrap");
+    if (!wrap) return;
+    wrap.classList.toggle("phone", st.kind === "phone");
+    wrap.classList.toggle("mail", st.kind !== "phone");
+
+    const lead = wrap.querySelector(".cc, .idlead");
+    const tmp = document.createElement("div");
+    tmp.innerHTML = idLeadHTML();
+    if (lead) lead.replaceWith(tmp.firstElementChild);
+    else wrap.insertBefore(tmp.firstElementChild, wrap.firstChild);
+
+    const hint = document.querySelector(".idhint");
+    const text = st.kind === "phone"
+      ? `${P.name(st.iso, window.I18N.lang)} ${P.e164(st.iso, st.id)}`
+      : (P.emailKind(st.id) !== "unknown"
+          ? (P.emailKind(st.id) === "personal" ? t("signin.personal") : t("signin.work")) : "");
+    if (hint) hint.textContent = text;
+    const recents = document.querySelector(".recents");
+    if (recents) recents.hidden = st.id.length > 0;
+  }
 
   root.onchange = e=>{ const c=e.target.closest("[data-ctl]"); if(!c)return;
     if(c.dataset.ctl==="plat")S.plat=e.target.value;
@@ -1164,6 +1223,14 @@ async function setStatus(link,to){
   const s=S.solutions.find(x=>x.link===link); if(s)s.status=to; render();
   try{ await Backend.setStatus(link,to); }catch{}
 }
+/** Keep the last few, newest first, without duplicates. Three is enough to be
+ * useful and few enough to stay out of the way. */
+function rememberIdentifier(v){
+  if (!v) return;
+  S.recent = [v, ...(S.recent || []).filter((x) => x !== v)].slice(0, 3);
+  savePrefs();
+}
+
 /** Step one. An address is all we need to find out whether this person has an
  * account. What comes back decides the next question. */
 async function signin(){
@@ -1190,6 +1257,7 @@ async function signin(){
   st.error = ""; st.busy = true; render();
   try {
     await Backend.login(identifier);
+    rememberIdentifier(S.signin.identifier || S.signin.id);
     S.signin = { ...S.signin, step:"id", id:"", error:"", busy:false, pw:"", showPw:false };
     await Backend.refresh(); S.view = "inbox"; render();
   } catch (e) {
@@ -1209,6 +1277,7 @@ async function signinPassword(){
   S.signin.error = ""; S.signin.busy = true; render();
   try {
     await Backend.login(S.signin.identifier || S.signin.id, pw);
+    rememberIdentifier(S.signin.identifier || S.signin.id);
     S.signin = { ...S.signin, step:"id", id:"", error:"", busy:false, pw:"", showPw:false };
     await Backend.refresh(); S.view = "inbox"; render();
   } catch (e) {
@@ -1225,6 +1294,7 @@ async function signinRegister(){
   S.signin.error = ""; S.signin.busy = true; render();
   try {
     await Backend.register(S.signin.identifier || S.signin.id, name || undefined);
+    rememberIdentifier(S.signin.identifier || S.signin.id);
     S.signin = { ...S.signin, step:"id", id:"", error:"", busy:false, pw:"", showPw:false };
     await Backend.refresh(); S.view = "inbox"; render();
   } catch (e) {
