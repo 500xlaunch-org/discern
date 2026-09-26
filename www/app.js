@@ -230,9 +230,14 @@ const Backend = {
     if (S.mode==="demo") return Local.login(identifier);
     // no server to ask: the device answers for itself if it has been here
     if (S.mode!=="connected" && normId(identifier) !== REVIEW_ID) {
+      // a device that has never let this person in cannot start doing so now:
+      // there is nothing here to check a password against
+      if (!Vault.read(S.env, identifier)) {
+        const e = new Error(t("signin.offNew")); e.status = 401; e.said = true; throw e;
+      }
       if (!password) { const e=new Error("password"); e.status=401; throw e; }
       if (await Vault.verify(identifier, password)) { Vault.restore(identifier); return; }
-      const e = new Error(t("signin.offlineNo")); e.status = 401; throw e;
+      const e = new Error(t("signin.offlineNo")); e.status = 401; e.said = true; throw e;
     }
     const out = await Net.request("POST","/v1/user/login",{identifier,password},{auth:false});
     S.token = out.token; S.user = out.user; savePrefs();
@@ -2138,7 +2143,8 @@ async function signin(){
     await Backend.refresh(); S.view = "inbox"; render();
   } catch (e) {
     S.signin.busy = false;
-    if (e.status === 404)      S.signin.step = "name";       // new here, ask who they are
+    if (e.said)                S.signin.error = e.message;   // nothing to check against here
+    else if (e.status === 404) S.signin.step = "name";       // new here, ask who they are
     else if (e.status === 401) S.signin.step = "password";   // the one account that has one
     else S.signin.error = e.message || t("net.failed");
     render();
@@ -2160,7 +2166,9 @@ async function signinPassword(){
     await Backend.refresh(); S.view = "inbox"; render();
   } catch (e) {
     S.signin.busy = false;
-    S.signin.error = e.status === 401 ? t("signin.needPw") : (e.message || t("net.failed"));
+    // e.said means the message was written for this person to read
+    S.signin.error = e.said ? e.message
+      : e.status === 401 ? t("signin.needPw") : (e.message || t("net.failed"));
     render();
   }
 }
