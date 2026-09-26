@@ -611,3 +611,71 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:border-color .15s,color .15s}
 .recent:hover{border-color:var(--xur);color:var(--ink)}
 .idhint.quiet{color:var(--faint);font-family:var(--sans);font-size:.79rem;white-space:normal}
+
+/* ---- marks: a solution's glyph, an agent's initials ---- */
+.mark{display:inline-grid;place-items:center;flex:none;width:var(--px);height:var(--px);
+  border-radius:calc(var(--px) * .28);color:#fff;
+  background:linear-gradient(150deg,var(--a),var(--b));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.mark svg{width:calc(var(--px) * .52);height:calc(var(--px) * .52)}
+.mark.avatar{border-radius:99px}
+.avtx{font-size:calc(var(--px) * .40);font-weight:650;letter-spacing:.01em;line-height:1}
+
+/* ---- the agent's account ---- */
+.voice{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+.vbtn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);
+  background:var(--sunken);color:var(--ink);border-radius:99px;padding:7px 14px;
+  font-size:.85rem;font-weight:600;transition:border-color .15s,background .15s}
+.vbtn:hover{border-color:var(--xur)}
+.vbtn svg{width:15px;height:15px}
+.voice.on .vbtn{border-color:var(--xur);background:var(--xur-soft);color:var(--xur-ink)}
+.vread{border:0;background:transparent;color:var(--faint);font-size:.8rem;text-decoration:underline;
+  text-underline-offset:3px}
+.wave3{display:inline-flex;align-items:flex-end;gap:2px;height:13px}
+.wave3 i{width:2.5px;border-radius:2px;background:currentColor;animation:eq .9s ease-in-out infinite}
+.wave3 i:nth-child(1){height:6px;animation-delay:0s}
+.wave3 i:nth-child(2){height:12px;animation-delay:.15s}
+.wave3 i:nth-child(3){height:8px;animation-delay:.3s}
+@keyframes eq{0%,100%{transform:scaleY(.5)}50%{transform:scaleY(1)}}
+.dsay{margin:2px 0 0;color:var(--muted);font-size:.89rem;line-height:1.55}
+
+/* ---- filters ---- */
+.filters{display:flex;flex-direction:column;gap:7px;margin:-2px 0 4px}
+.frow{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.frow::-webkit-scrollbar{display:none}
+.fchip{display:inline-flex;align-items:center;gap:6px;flex:none;border:1px solid var(--line);
+  background:var(--surface);color:var(--muted);border-radius:99px;padding:6px 12px;
+  font-size:.8rem;font-weight:600;transition:border-color .15s,color .15s,background .15s}
+.fchip:hover{color:var(--ink)}
+.fchip.on{border-color:var(--xur);background:var(--xur-soft);color:var(--xur-ink)}
+.fchip.sev.on{border-color:var(--c);background:var(--b);color:var(--c)}
+.fchip .mark{border-radius:5px}
+
+/* ---- activity rows open ---- */
+.tlrow{width:100%;border:0;background:transparent;text-align:start;cursor:pointer}
+.tlrow:hover{background:var(--surface-2)}
+.tls{display:flex;align-items:center;gap:6px}
+.detailsheet{max-height:86vh;overflow-y:auto}
+.dhead{display:flex;align-items:center;gap:11px}
+.dwho{flex:1;min-width:0;display:flex;flex-direction:column}
+.dwho b{font-size:1.02rem;font-weight:650;overflow:hidden;text-overflow:ellipsis}
+.dwho span{color:var(--muted);font-size:.83rem}
+.dagent{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:.88rem}
+.dagent .sevtag{margin-inline-start:auto}
+
+/* ---- the agent graph ---- */
+.soldesc{margin:-2px 2px 4px;color:var(--muted);font-size:.9rem;line-height:1.55}
+.graph{display:flex;flex-direction:column;gap:0}
+.gnode{position:relative;padding-inline-start:4px}
+.gedge{display:block;width:2px;height:14px;margin-inline-start:18px;
+  background:linear-gradient(var(--line),var(--c,var(--line)))}
+.gbody{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:13px;
+  border:1px solid var(--line);background:var(--surface-2);border-inline-start:3px solid var(--c)}
+.gmeta{flex:1;min-width:0;display:flex;flex-direction:column}
+.gmeta b{font-size:.92rem;font-weight:650;overflow:hidden;text-overflow:ellipsis}
+.gmeta small{color:var(--faint);font-size:.75rem}
+.gasks,.gruns{display:inline-flex;align-items:center;gap:4px;flex:none;font-size:.78rem;
+  font-weight:650;padding:4px 9px;border-radius:99px}
+.gasks{color:var(--hi);background:var(--hi-bg)}
+.gruns{color:var(--lo);background:var(--lo-bg)}
+.gasks svg,.gruns svg{width:13px;height:13px}

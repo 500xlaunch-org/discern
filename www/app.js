@@ -36,6 +36,7 @@ const I = {
   eye:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 12S6 5.6 12 5.6 21.4 12 21.4 12 18 18.4 12 18.4 2.6 12 2.6 12z"/><circle cx="12" cy="12" r="3"/></svg>`,
   eyeOff:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 6A9.9 9.9 0 0 1 12 5.9c6 0 9.4 6.1 9.4 6.1a17 17 0 0 1-3.3 4"/><path d="M6.2 7.9A16.6 16.6 0 0 0 2.6 12S6 18.1 12 18.1a9.6 9.6 0 0 0 4-.86"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>`,
   back:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12H7.5"/><path d="M12.5 6.5 7 12l5.5 5.5"/></svg>`,
+  stop:`<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="6.5" width="11" height="11" rx="2.2"/></svg>`,
   at:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.6"/><path d="M15.6 12v1.7a2.6 2.6 0 0 0 5.2 0V12a8.8 8.8 0 1 0-3.5 7"/></svg>`,
   person:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.8 20a7.2 7.2 0 0 1 14.4 0"/></svg>`,
   work:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.2" y="8.4" width="17.6" height="11.4" rx="2"/><path d="M8.6 8.4V6.2a2 2 0 0 1 2-2h2.8a2 2 0 0 1 2 2v2.2"/><path d="M3.2 13.2h17.6"/></svg>`,
@@ -89,6 +90,12 @@ const DEVICES = {
  * bundle (https://localhost), so it has to be told the real host. ?api= beats
  * both, which is how a build gets pointed at a different Horizon. */
 const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const filterQuery = () => {
+  const f = S.filter, q = [];
+  if (f.solution) q.push(`solution=${encodeURIComponent(f.solution)}`);
+  if (f.severity) q.push(`severity=${encodeURIComponent(f.severity)}`);
+  return q.length ? `&${q.join("&")}` : "";
+};
 const BASE = new URLSearchParams(location.search).get("api")
   || (NATIVE ? (window.XURFACE_API || "https://xurface.500xlaunch.com") : location.origin);
 // The environment key is an API contract and stays "test" on the wire. What a
@@ -116,6 +123,7 @@ function loadPrefs(){
     // splash runs once per launch; the lock is cleared once per launch too, so
     // reopening the app asks again while moving between screens does not
     splash:true, locked:false, lockBusy:false, pinEntry:"", pinSetup:null,
+    filter:{ solution:"", severity:"" }, speaking:null, detail:null, moreBusy:false,
     // sign in walks: identifier, then a password or a name, never both at once
     signin:{ step:"id", id:"", busy:false, error:"",
              // the field decides for itself which of the two it is holding
@@ -157,7 +165,7 @@ const Backend = {
     if (S.mode==="demo") return Local.refresh();
     try {
       const [inbox, timeline, sols, cat] = await Promise.all([
-        Net.request("GET",`/v1/user/inbox?limit=${PAGE}`),
+        Net.request("GET",`/v1/user/inbox?limit=${PAGE}${filterQuery()}`),
         Net.request("GET",`/v1/user/timeline?limit=${PAGE}`),
         Net.request("GET","/v1/user/solutions"),
         Net.request("GET","/v1/user/solutions/search?q="),
@@ -183,7 +191,8 @@ const Backend = {
     const cur = which==="inbox" ? S.inboxNext : S.tlNext;
     if (!cur) return;
     const path = which==="inbox" ? "/v1/user/inbox" : "/v1/user/timeline";
-    const out = await Net.request("GET",`${path}?limit=${PAGE}&cursor=${encodeURIComponent(cur)}`);
+    const q = which==="inbox" ? filterQuery() : "";
+    const out = await Net.request("GET",`${path}?limit=${PAGE}&cursor=${encodeURIComponent(cur)}${q}`);
     if (which==="inbox"){ S.intents = S.intents.concat(out.intents); S.inboxNext = out.next||null; S.inboxTotal = out.total ?? S.inboxTotal; }
     else { S.timeline = S.timeline.concat(out.intents); S.tlNext = out.next||null; S.tlTotal = out.total ?? S.tlTotal; }
   },
@@ -328,6 +337,42 @@ async function silentRefresh(){
     // instead of saying so is how a signed out app looks broken.
     if (e && e.status === 401) { S.token=null; S.user=null; S.locked=false; savePrefs(); render(); }
   }
+}
+
+/* ---------------- the agent's account ----------------
+   An agent can attach why it is asking, in its own words or as a recording it
+   made. Words are read aloud by the device, which costs nothing, works offline,
+   and speaks the language the app is in. A recording plays as it is.
+
+   This is the difference between judging a capability key and hearing a case. */
+let audioEl = null;
+function stopSpeaking(){
+  try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch {}
+  if (audioEl) { try { audioEl.pause(); } catch {} audioEl = null; }
+  if (S.speaking) { S.speaking = null; render(); }
+}
+
+function speak(it){
+  const v = it && it.voice;
+  if (!v) return;
+  if (S.speaking === it.id) { stopSpeaking(); return; }
+  stopSpeaking();
+  S.speaking = it.id; render();
+
+  if (v.audio_url) {
+    audioEl = new Audio(v.audio_url);
+    audioEl.onended = audioEl.onerror = () => { audioEl = null; S.speaking = null; render(); };
+    audioEl.play().catch(() => { audioEl = null; S.speaking = null; render(); });
+    return;
+  }
+  if (!window.speechSynthesis || !v.context) { S.speaking = null; render(); return; }
+  const u = new SpeechSynthesisUtterance(v.context);
+  u.lang = ({ en:"en-GB", zh:"zh-CN", hi:"hi-IN", es:"es-ES", fr:"fr-FR", ar:"ar-SA",
+              pt:"pt-BR", ru:"ru-RU", ja:"ja-JP", de:"de-DE" })[window.I18N.lang] || "en-GB";
+  u.rate = 1.02; u.pitch = 1;
+  u.onend = u.onerror = () => { S.speaking = null; render(); };
+  try { window.speechSynthesis.speak(u); }
+  catch { S.speaking = null; render(); }
 }
 
 /* ---------------- screen lock ----------------
@@ -525,7 +570,7 @@ function render(){
                          : S.pinSetup ? pinSetupHTML()
                          : S.locked ? lockHTML()
                          : !S.token ? signinHTML() : appHTML();
-  applyDevice(); wire(); paintNet();
+  applyDevice(); wire(); paintNet(); watchForMore();
 }
 
 function shellHTML(){
@@ -563,7 +608,7 @@ function appHTML(){
     <main class="screen-wrap"><div class="wrap">${!S.ready?skeletonHTML():screenHTML()}</div></main>
   </div>
   ${wide?'':`<nav class="tabbar">${nav.map(([v,l,ic])=>`<button data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${esc(l)}</span>${v==="inbox"&&pending?'<span class="tabdot"></span>':''}</button>`).join("")}</nav>`}
-  <div id="overlay"></div>`;
+  <div id="overlay">${S.detail ? detailHTML() : ""}</div>`;
 }
 function screenHTML(){ return ({inbox:inboxHTML,activity:activityHTML,solutions:solutionsHTML,settings:settingsHTML}[S.view]||inboxHTML)(); }
 
@@ -600,14 +645,42 @@ function skeletonHTML(){
 }
 
 /* ---- inbox ---- */
+/** Narrowing by solution and by how serious it is. Both are sent to the server,
+ * so a long inbox is narrowed before it crosses the network rather than after. */
+function filterBarHTML(){
+  const sols = S.solutions || [];
+  if (!sols.length) return "";
+  const f = S.filter;
+  const chip = (on, attr, val, label, extra) =>
+    `<button class="fchip ${on?"on":""}" data-${attr}="${esc(val)}">${extra||""}${esc(label)}</button>`;
+  return `<div class="filters">
+    <div class="frow">
+      ${chip(!f.solution, "fsol", "", t("flt.all"))}
+      ${sols.map((s2)=>chip(f.solution===s2.uid, "fsol", s2.uid, s2.name, window.Marks.solution(s2, 16))).join("")}
+    </div>
+    <div class="frow">
+      ${chip(!f.severity, "fsev", "", t("flt.all"))}
+      ${["SEVERE","HIGH","MEDIUM","LOW"].map((lv)=>
+        `<button class="fchip sev ${f.severity===lv?"on":""}" data-fsev="${lv}"
+           style="--c:${sevColor(lv)};--b:${sevBg(lv)}">${esc(tSev(lv))}</button>`).join("")}
+    </div>
+  </div>`;
+}
+
 function inboxHTML(){
   const n = S.inboxTotal || S.intents.length;
   const head = `<div class="scrhead"><span class="eyebrow">${esc(t("inbox.eyebrow"))}</span><h1>${esc(t("inbox.title"))}</h1>
     <p class="sub">${esc(n?tn("inbox.sub",n):t("inbox.caughtUp"))}</p></div>`;
-  if (!S.intents.length) return head + `<div class="empty"><div class="empty-mk">${MK}</div>
-    <div class="empty-t">${esc(t("inbox.empty.title"))}</div><p>${esc(t("inbox.empty.body"))}</p>
-    <button class="btn btn-primary" data-nav="solutions">${esc(t("inbox.browse"))}</button></div>`;
-  return head + `<div class="cards">${S.intents.map(cardHTML).join("")}</div>` + moreHTML("inbox");
+  const filtering = !!(S.filter.solution || S.filter.severity);
+  if (!S.intents.length) {
+    if (filtering) return head + filterBarHTML() + `<div class="empty"><div class="empty-mk">${I.solutions}</div>
+      <div class="empty-t">${esc(t("flt.none"))}</div>
+      <button class="btn btn-ghost" data-fclear>${esc(t("flt.clear"))}</button></div>`;
+    return head + `<div class="empty"><div class="empty-mk">${MK}</div>
+      <div class="empty-t">${esc(t("inbox.empty.title"))}</div><p>${esc(t("inbox.empty.body"))}</p>
+      <button class="btn btn-primary" data-nav="solutions">${esc(t("inbox.browse"))}</button></div>`;
+  }
+  return head + filterBarHTML() + `<div class="cards">${S.intents.map(cardHTML).join("")}</div>` + moreHTML("inbox");
 }
 function moreHTML(which){
   const next = which==="inbox" ? S.inboxNext : S.tlNext;
@@ -621,22 +694,38 @@ function moreHTML(which){
 function cardHTML(it){
   const sev = it.severity, settling = S.settled[it.id];
   const queued = Net.queuedFor(it.id);
+  const M = window.Marks;
+  const sol = it.solution || { name: iName(it) };
   const rows = Object.entries(it.details||{}).slice(0,4).map(([k,v])=>{
     const editable = (typeof v==="number"||typeof v==="string");
     return `<div class="drow"><span class="dk">${esc(k)}</span>${editable?`<input class="dv-in" data-edit="${it.id}" data-key="${esc(k)}" value="${esc(v)}"/>`:`<span class="dv">${esc(Array.isArray(v)?v.join(", "):v)}</span>`}</div>`;
   }).join("");
   const risks = Object.entries(it.risk||{}).sort((a,b)=>ORD[b[1]]-ORD[a[1]])
-    .map(([c,s])=>`<span class="rchip" style="--c:${sevColor(s)};--b:${sevBg(s)}">${esc(t("risk.chip",{cat:tCat(c),sev:tSev(s)}))}</span>`).join("");
+    .map(([c,s2])=>`<span class="rchip" style="--c:${sevColor(s2)};--b:${sevBg(s2)}">${esc(t("risk.chip",{cat:tCat(c),sev:tSev(s2)}))}</span>`).join("");
   const why = tWhy(it, it.appetite, it.reasons)[0];
+  const speaking = S.speaking === it.id;
+  const voice = it.voice && (it.voice.context || it.voice.audio_url) ? `
+    <div class="voice ${speaking?"on":""}">
+      <button class="vbtn" data-listen="${it.id}">
+        ${speaking ? I.stop : I.play}<span>${esc(t(speaking ? "card.stop" : "card.listen"))}</span>
+        ${speaking ? `<span class="wave3"><i></i><i></i><i></i></span>` : ""}
+      </button>
+      ${it.voice.context ? `<button class="vread" data-say="${it.id}">${esc(t("card.transcript"))}</button>` : ""}
+    </div>` : "";
+
   return `<article class="icard ${settling?("settling "+settling):""}" data-card="${it.id}" style="--sev:${sevColor(sev)};--sevb:${sevBg(sev)}">
     <div class="icard-top">
-      <span class="slogo">${I.logo}</span>
-      <div class="iwho"><div class="isol">${esc(iName(it))}</div><div class="iagent">${esc(iAgent(it))}</div></div>
+      ${M.solution(sol, 40)}
+      <div class="iwho">
+        <div class="isol">${esc(sol.name || iName(it))}</div>
+        <div class="iagent">${M.agent(iAgent(it), 20)}<span>${esc(iAgent(it))}</span></div>
+      </div>
       <span class="sevtag">${esc(tSev(sev))}</span>
     </div>
     <div class="iact">${esc(pretty(it.capability))}</div>
     <div class="rchips">${risks}</div>
     ${why?`<div class="ireason">${esc(why)}</div>`:''}
+    ${voice}
     ${rows?`<div class="idetails">${rows}</div>`:''}
     ${queued?`<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`:`<div class="iacts">
       <button class="btn btn-deny" data-decide="deny" data-id="${it.id}" ${settling?"disabled":""}>${esc(settling==="deny"?t("card.denying"):t("card.deny"))}</button>
@@ -647,15 +736,47 @@ function cardHTML(it){
 
 /* ---- activity ---- */
 function activityHTML(){
+  const M = window.Marks;
   const head = `<div class="scrhead"><span class="eyebrow">${esc(t("activity.eyebrow"))}</span><h1>${esc(t("activity.title"))}</h1>
     <p class="sub">${esc(t("activity.sub"))}</p></div>`;
   if (!S.timeline.length) return head + `<div class="empty"><div class="empty-mk">${I.activity}</div><div class="empty-t">${esc(t("activity.empty"))}</div></div>`;
-  return head + `<div class="tl">${S.timeline.map(it=>`<div class="tlrow">
+  return head + `<div class="tl">${S.timeline.map(it=>`<button class="tlrow" data-open="${it.id}">
     <span class="tlic" style="--c:${sevColor(it.severity)};--b:${sevBg(it.severity)}">${it.state==="denied"?I.pause:I.play}</span>
     <div class="tlm"><div class="tlt">${esc(pretty(it.capability))}</div>
-      <div class="tls">${esc(iAgent(it))} at ${esc(iName(it))}, ${esc(tAgo(iAt(it)))}</div></div>
-    <div class="tlend"><span class="stpill st-${it.state}">${esc(stateLabel(it.state))}</span><span class="ref">${iRef(it)}</span></div>
-  </div>`).join("")}</div>` + moreHTML("activity");
+      <div class="tls">${M.agent(iAgent(it), 16)}<span>${esc(iAgent(it))} at ${esc(iName(it))}, ${esc(tAgo(iAt(it)))}</span></div></div>
+    <div class="tlend"><span class="stpill st-${it.state}">${esc(stateLabel(it.state))}</span>${I.chevron}</div>
+  </button>`).join("")}</div>` + moreHTML("activity");
+}
+
+/** The whole record of one action, which is the thing the audit ledger exists
+ * to make readable. Opened from anywhere an action is listed. */
+function detailHTML(){
+  const it = S.detail; if (!it) return "";
+  const M = window.Marks, sol = it.solution || { name: iName(it) };
+  const risks = Object.entries(it.risk||{}).sort((a,b)=>ORD[b[1]]-ORD[a[1]])
+    .map(([c,s2])=>`<span class="rchip" style="--c:${sevColor(s2)};--b:${sevBg(s2)}">${esc(t("risk.chip",{cat:tCat(c),sev:tSev(s2)}))}</span>`).join("");
+  const rows = Object.entries(it.details||{}).map(([k,v])=>
+    `<div class="drow"><span class="dk">${esc(k)}</span><span class="dv">${esc(Array.isArray(v)?v.join(", "):v)}</span></div>`).join("");
+  const speaking = S.speaking === it.id;
+  return `<div class="scrim" data-detail-close>
+    <div class="sheet detailsheet" role="dialog">
+      <div class="dhead">${M.solution(sol, 38)}
+        <div class="dwho"><b>${esc(pretty(it.capability))}</b>
+          <span>${esc(sol.name || iName(it))}</span></div>
+        <span class="stpill st-${it.state}">${esc(stateLabel(it.state))}</span></div>
+      <div class="dagent">${M.agent(iAgent(it), 26)}<span>${esc(iAgent(it))}</span>
+        <span class="sevtag" style="--sev:${sevColor(it.severity)};--sevb:${sevBg(it.severity)}">${esc(tSev(it.severity))}</span></div>
+      <div class="rchips">${risks}</div>
+      ${it.voice && (it.voice.context||it.voice.audio_url) ? `
+        <div class="voice ${speaking?"on":""}">
+          <button class="vbtn" data-listen="${it.id}">${speaking?I.stop:I.play}<span>${esc(t(speaking?"card.stop":"card.listen"))}</span></button>
+        </div>
+        ${it.voice.context ? `<p class="dsay">${esc(it.voice.context)}</p>` : ""}` : ""}
+      ${rows ? `<div class="idetails">${rows}</div>` : ""}
+      <div class="kv"><span>${esc(t("act.when"))}</span><b>${esc(tAgo(iAt(it)))}</b></div>
+      <div class="kv"><span>${esc(t("act.ref"))}</span><b class="ref">${iRef(it)}</b></div>
+      <button class="btn btn-ghost block" data-detail-close>${esc(t("act.close"))}</button>
+    </div></div>`;
 }
 
 /* ---- solutions ---- */
@@ -676,7 +797,7 @@ function solutionsHTML(){
 function solrowHTML(s){
   const surf = surfaces(s), nab = (s.agents||[]).reduce((n,a)=>n+(a.abilities||[]).length,0);
   return `<button class="solrow" data-sol="${s.uid}">
-    <span class="slogo big">${I.logo}</span>
+    ${window.Marks.solution(s, 42)}
     <div class="solm"><div class="soln">${esc(s.name)}</div>
       <div class="solmeta">${esc(tn("sol.agents",(s.agents||[]).length))}, ${esc(tn("sol.abilities",nab))}</div>
       ${surf.length?`<div class="solasks">${esc(t("sol.asksAbout",{list:tList(surf.slice(0,3).map(tCat))}))}</div>`:`<div class="solasks quiet">${esc(t("sol.runsRoutine"))}</div>`}
@@ -686,17 +807,52 @@ function solrowHTML(s){
 }
 function catcardHTML(c){
   return `<div class="catcard">
-    <div class="cattop"><span class="slogo big grad">${I.logo}</span><div class="catm"><div class="catn">${esc(c.name)}</div>${c.agents?`<div class="catmeta">${esc(tn("sol.agents",c.agents.length))}</div>`:''}</div></div>
+    <div class="cattop">${window.Marks.solution(c, 42)}<div class="catm"><div class="catn">${esc(c.name)}</div>${c.agents?`<div class="catmeta">${esc(tn("sol.agents",c.agents.length))}</div>`:''}</div></div>
     <p class="catd">${esc(c.description||"")}</p>
     <button class="btn btn-primary block" data-review="${c.uid}">${I.shield}<span>${esc(t("sol.seeWhat"))}</span></button>
   </div>`;
 }
+/** How the agents in a solution relate, drawn from what the developer declared.
+ * Horizon records agents in the order they were declared and the abilities each
+ * one holds, so the chain shown here is the developer's own submission rather
+ * than anything invented: who hands to whom, and which of them stop to ask.
+ *
+ * It is a claim about structure, not about runtime. An agent that never runs
+ * still appears, because what a solution may do is the thing being disclosed. */
+function agentGraphHTML(sol, appetite){
+  const M = window.Marks, agents = sol.agents || [];
+  if (!agents.length) return "";
+  const ap = appetite || sol.appetite || DEFAULT_APPETITE;
+  const nodes = agents.map((a, i) => {
+    const abs = a.abilities || [];
+    const asks = abs.filter((ab) => {
+      const v = reconcile(ab.risk || {}, ab.severity || "LOW", ap, ab.discernment || "auto");
+      return !v.allow;
+    }).length;
+    const worst = abs.reduce((m, ab) => maxSev(m, ab.severity || "LOW"), "LOW");
+    return `<div class="gnode ${asks?"asks":""}" style="--c:${sevColor(worst)}">
+      ${i ? `<span class="gedge" aria-hidden="true"></span>` : ""}
+      <div class="gbody">
+        ${M.agent(a.name, 30)}
+        <div class="gmeta"><b>${esc(a.name)}</b>
+          <small>${esc(tn("sol.abilities", abs.length))}</small></div>
+        ${asks ? `<span class="gasks" title="${esc(t("rev.asks"))}">${I.bell}${asks}</span>`
+               : `<span class="gruns" title="${esc(t("rev.runs"))}">${I.check}</span>`}
+      </div></div>`;
+  }).join("");
+  return `<section class="panel"><div class="panelhd"><h3>${esc(t("sol.flow"))}</h3>
+      <p>${esc(t("sol.flowSub"))}</p></div>
+    <div class="graph">${nodes}</div></section>`;
+}
+
 function soldetailHTML(s){
   const nab = (s.agents||[]).reduce((n,a)=>n+(a.abilities||[]).length,0);
   return `<button class="back" data-back>${I.chevron}<span>${esc(t("sol.back"))}</span></button>
-  <div class="soldhead"><span class="slogo xl grad">${I.logo}</span><div><div class="soldn">${esc(s.name)}</div>
+  <div class="soldhead">${window.Marks.solution(s, 52)}<div><div class="soldn">${esc(s.name)}</div>
     <div class="soldsub">${esc(tn("sol.agents",(s.agents||[]).length))}, ${esc(tn("sol.abilities",nab))}</div></div>
     <span class="stpill st-${s.status}">${esc(linkLabel(s.status))}</span></div>
+  ${s.description?`<p class="soldesc">${esc(s.description)}</p>`:''}
+  ${agentGraphHTML(s, s.appetite)}
   <section class="panel"><div class="panelhd"><h3>${esc(t("sol.appetite"))}</h3><p>${esc(t("sol.appetiteSub"))}</p></div>
     <div class="apwrap">${CAT_KEYS.map(c=>appetiteRow(s,c)).join("")}</div></section>
   <section class="panel"><div class="panelhd"><h3>${esc(t("sol.kill"))}</h3><p>${esc(t("sol.killSub"))}</p></div>
@@ -720,6 +876,17 @@ function abilityRow(a, kind, appetite){
       <div class="abwhy">${esc(why)}</div></div>
     <span class="sevtag" style="--sev:${c};--sevb:${b}">${esc(tSev(a.severity))}</span></div>`;
 }
+/** The permission label lists abilities flat; the graph wants them per agent.
+ * Rebuild that shape from what the profile returned. */
+function groupAsksByAgent(p){
+  const by = new Map();
+  for (const a of [...(p.asks||[]), ...(p.runs||[])]) {
+    if (!by.has(a.agent)) by.set(a.agent, { name: a.agent, abilities: [] });
+    by.get(a.agent).abilities.push(a);
+  }
+  return [...by.values()];
+}
+
 function reviewHTML(){
   const p = S.reviewData;
   if (!p) return `<button class="back" data-back-review>${I.chevron}<span>${esc(t("sol.back"))}</span></button>
@@ -728,9 +895,10 @@ function reviewHTML(){
     <div class="sk-note">${esc(t("rev.reading"))}</div></div>`;
   const s = p.solution;
   return `<button class="back" data-back-review>${I.chevron}<span>${esc(t("sol.back"))}</span></button>
-  <div class="soldhead"><span class="slogo xl grad">${I.logo}</span>
+  <div class="soldhead">${window.Marks.solution(s, 52)}
     <div><div class="soldn">${esc(s.name)}</div><div class="soldsub">${esc(tn("sol.agents",p.counts.agents))}, ${esc(tn("sol.abilities",p.counts.abilities))}</div></div></div>
-  ${s.description?`<p class="sub" style="margin:-2px 0 4px">${esc(s.description)}</p>`:''}
+  ${s.description?`<p class="soldesc">${esc(s.description)}</p>`:''}
+  ${agentGraphHTML({ agents: groupAsksByAgent(p) }, p.appetite)}
   <section class="panel"><div class="panelhd"><h3>${esc(t("rev.asks"))} <span class="cnt ask">${p.counts.asks}</span></h3>
     <p>${esc(t("rev.asksSub"))}</p></div>
     ${p.asks.length?p.asks.map(a=>abilityRow(a,"ask",p.appetite)).join(""):`<div class="thin-empty">${esc(t("rev.noAsks"))}</div>`}</section>
@@ -1042,6 +1210,20 @@ function wire(){
     if(cc){ S.signin.iso = cc.dataset.cc; S.signin.picker = false; S.signin.error = ""; render();
       const f=document.getElementById("id"); if(f) f.focus(); return; }
     if(el.closest("[data-picker-close]") && !el.closest(".ccsheet")){ S.signin.picker = false; render(); return; }
+    const fs = el.closest("[data-fsol]");
+    if(fs){ S.filter.solution = fs.dataset.fsol; applyFilter(); return; }
+    const fv = el.closest("[data-fsev]");
+    if(fv){ S.filter.severity = fv.dataset.fsev; applyFilter(); return; }
+    if(el.closest("[data-fclear]")){ S.filter={solution:"",severity:""}; applyFilter(); return; }
+    const lsn = el.closest("[data-listen]");
+    if(lsn){ const id=lsn.dataset.listen;
+      const it = S.intents.find(x=>x.id===id) || S.timeline.find(x=>x.id===id) || S.detail;
+      if(it) speak(it); return; }
+    const op = el.closest("[data-open]");
+    if(op){ const id=op.dataset.open;
+      S.detail = S.timeline.find(x=>x.id===id) || S.intents.find(x=>x.id===id) || null; render(); return; }
+    if(el.closest("[data-detail-close]") && !el.closest(".detailsheet")){ stopSpeaking(); S.detail=null; render(); return; }
+    if(el.closest("[data-detail-close]")){ stopSpeaking(); S.detail=null; render(); return; }
     const rc = el.closest("[data-recent]");
     if(rc){ const v = rc.dataset.recent, P = window.Phone;
       const dialed = P.splitPasted(v);
@@ -1162,6 +1344,28 @@ async function retryNow(){
   if (ok){ Net.goOnline(); S.mode="connected"; await silentRefresh(); }
   else toast(`<div class="tm">${esc(t("net.failed"))}</div>`,"warn");
 }
+async function applyFilter(){
+  S.intents = []; S.inboxNext = null; S.inboxTotal = 0; render();
+  try { await Backend.refresh(); } catch {}
+  render();
+}
+
+/** Infinite scroll, with the button kept underneath. A sentinel is cheaper than
+ * a scroll listener and does not fire a hundred times a second; the button
+ * stays because a reader who never scrolls to the very bottom still needs it,
+ * and because it is the only affordance a keyboard can reach. */
+function watchForMore(){
+  const el = document.querySelector("[data-more]");
+  if (!el || !("IntersectionObserver" in window)) return;
+  const io = new IntersectionObserver((entries) => {
+    if (entries.some((e) => e.isIntersecting) && !S.loadingMore) {
+      io.disconnect();
+      loadMore(el.dataset.more);
+    }
+  }, { root: document.querySelector(".screen-wrap"), rootMargin: "300px" });
+  io.observe(el);
+}
+
 async function loadMore(which){
   if (S.loadingMore) return;
   S.loadingMore = true; render();
