@@ -690,6 +690,9 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .fbtn .fchev svg{width:15px;height:15px}
 .fbtn.open .fchev{transform:rotate(-90deg)}
 .fdot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--c,var(--me))}
+/* the second menu hangs from its own end, or a wide one would run off the
+   side of a screen that clips horizontally */
+.fbar .fdrop + .fdrop .fmenu{inset-inline-start:auto;inset-inline-end:0}
 .fmenu{position:absolute;inset-inline-start:0;top:calc(100% + 6px);min-width:100%;
   max-width:min(300px,86vw);max-height:min(58vh,340px);overflow:auto;z-index:20;
   background:var(--surface);border:1px solid var(--line);border-radius:14px;
