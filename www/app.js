@@ -956,9 +956,11 @@ function askBodyHTML(it){
       ? `<input class="dv-in" data-edit="${it.id}" data-key="${esc(k)}" value="${esc(v)}"/>`
       : `<span class="dv">${esc(Array.isArray(v)?v.join(", "):v)}</span>`}</div>`;
   }).join("");
-  const why = tWhy(it, it.appetite, it.reasons)[0];
+  // every reason, not just the first. There is room for them now, and one of
+  // three reasons is a worse answer than three of three.
+  const why = tWhy(it, it.appetite, it.reasons);
   const v = it.voice || {};
-  return `${why ? `<div class="ireason">${esc(why)}</div>` : ""}
+  return `${why.length ? why.map((w) => `<div class="ireason">${esc(w)}</div>`).join("") : ""}
     ${v.summary ? `<p class="whysum">${esc(v.summary)}</p>` : ""}
     ${v.if_blocked ? `<p class="whyblock"><b>${esc(t("card.ifBlocked"))}</b> ${esc(v.if_blocked)}</p>` : ""}
     <div class="rchips">${risks}</div>
@@ -981,8 +983,9 @@ function askHTML(){
   if (!it) return "";
   const M = window.Marks, sol = it.solution || { name: iName(it) };
   return `<div class="scrim" data-ask-close>
-    <div class="sheet asksheet" role="dialog" aria-modal="true">
-      <div class="askhead" style="--sev:${sevColor(it.severity)};--sevb:${sevBg(it.severity)}">
+    <div class="sheet asksheet" role="dialog" aria-modal="true"
+         style="--sev:${sevColor(it.severity)};--sevb:${sevBg(it.severity)}">
+      <div class="askhead">
         <span class="askav">${M.agent(iAgent(it), 38)}</span>
         <div class="askwho"><b>${esc(iAgent(it))}</b>
           <button class="asksol" data-gosol="${esc(sol.uid || "")}" data-goag="${esc(iAgent(it))}">

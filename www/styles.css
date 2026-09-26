@@ -185,7 +185,8 @@ input{font-family:inherit}
 .iact{font-size:1.12rem;font-weight:650;letter-spacing:-.01em;margin:11px 0 8px;text-wrap:balance}
 .rchips{display:flex;flex-wrap:wrap;gap:6px}
 .rchip{font-size:.7rem;font-weight:600;color:var(--c);background:var(--b);border-radius:99px;padding:3px 9px}
-.ireason{color:var(--muted);font-size:.84rem;margin-top:9px;display:flex;gap:7px}
+.ireason{color:var(--muted);font-size:.84rem;display:flex;gap:7px;line-height:1.45}
+.ireason + .ireason{margin-top:-4px}
 .ireason::before{content:"";width:5px;height:5px;border-radius:99px;background:var(--sev);margin-top:7px;flex:none}
 .idetails{margin-top:11px;background:var(--sunken);border:1px solid var(--line-2);border-radius:12px;overflow:hidden}
 .drow{display:flex;align-items:center;gap:10px;padding:9px 11px;border-bottom:1px solid var(--line-2)}
@@ -810,7 +811,8 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .asksol span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .asksol:hover{border-color:var(--xur);color:var(--xur-ink)}
 .askhead .sevtag{flex:none}
-.askact{margin:0;font-size:1.12rem;font-weight:650;line-height:1.3;text-wrap:balance;text-align:start}
+.asksheet .askact{margin:0;font-size:1.12rem;font-weight:650;line-height:1.3;
+  text-wrap:balance;text-align:start}
 .askscroll{flex:1;min-height:0;overflow:auto;text-align:start;display:flex;flex-direction:column;gap:9px;
   -webkit-overflow-scrolling:touch}
 
