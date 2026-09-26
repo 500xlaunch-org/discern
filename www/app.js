@@ -1085,7 +1085,7 @@ function decidedGroups(list){
     const sol = it.solution || { name: iName(it) };
     const name = iAgent(it) || t("grp.unnamed");
     const key = `${sol.uid || "?"}::${name}`;
-    if (!by.has(key)) by.set(key, { key, agent: name, solution: sol, items: [], latest: 0 });
+    if (!by.has(key)) by.set(key, { key: "tl:" + key, agent: name, solution: sol, items: [], latest: 0 });
     const g = by.get(key);
     g.items.push(it);
     g.latest = Math.max(g.latest, iAnswered(it) || iAt(it) || 0);
@@ -1923,8 +1923,15 @@ async function applyFilter(){
 
 /* ---- moving between the inbox and a solution ---- */
 const groupByKey = (key) => agentGroups(S.intents || []).find((g) => g.key === key);
+
+/** Whichever list is on screen, since both group by agent and the first one is
+ * open by default in each. Asking the wrong list would report every Activity
+ * group as closed, so toggling one could only ever open it. */
+const shownGroups = () => S.view === "activity"
+  ? decidedGroups((S.timeline || []).filter((it) => ANSWERED.has(it.state)))
+  : agentGroups(S.intents || []);
 const groupOpenNow = (key) => {
-  const gs = agentGroups(S.intents || []);
+  const gs = shownGroups();
   const i = gs.findIndex((g) => g.key === key);
   return i < 0 ? false : groupOpen(gs[i], i);
 };
