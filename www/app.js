@@ -36,6 +36,7 @@ const I = {
   eye:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 12S6 5.6 12 5.6 21.4 12 21.4 12 18 18.4 12 18.4 2.6 12 2.6 12z"/><circle cx="12" cy="12" r="3"/></svg>`,
   eyeOff:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 6A9.9 9.9 0 0 1 12 5.9c6 0 9.4 6.1 9.4 6.1a17 17 0 0 1-3.3 4"/><path d="M6.2 7.9A16.6 16.6 0 0 0 2.6 12S6 18.1 12 18.1a9.6 9.6 0 0 0 4-.86"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>`,
   back:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12H7.5"/><path d="M12.5 6.5 7 12l5.5 5.5"/></svg>`,
+  reflect:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 0 1 14.5-6"/><path d="M18.5 3.4V6.6h-3.2"/><path d="M20.5 12a8.5 8.5 0 0 1-14.5 6"/><path d="M5.5 20.6v-3.2h3.2"/></svg>`,
   stop:`<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="6.5" width="11" height="11" rx="2.2"/></svg>`,
   at:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.6"/><path d="M15.6 12v1.7a2.6 2.6 0 0 0 5.2 0V12a8.8 8.8 0 1 0-3.5 7"/></svg>`,
   person:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.8 20a7.2 7.2 0 0 1 14.4 0"/></svg>`,
@@ -124,6 +125,7 @@ function loadPrefs(){
     // reopening the app asks again while moving between screens does not
     splash:true, locked:false, lockBusy:false, pinEntry:"", pinSetup:null,
     filter:{ solution:"", severity:"" }, speaking:null, detail:null, moreBusy:false,
+    summary:null, expanded:{}, focus:null, confirm:null, showWhy:{},
     // sign in walks: identifier, then a password or a name, never both at once
     signin:{ step:"id", id:"", busy:false, error:"",
              // the field decides for itself which of the two it is holding
@@ -173,6 +175,7 @@ const Backend = {
       S.intents = inbox.intents; S.inboxNext = inbox.next||null; S.inboxTotal = inbox.total ?? inbox.intents.length;
       S.timeline = timeline.intents; S.tlNext = timeline.next||null; S.tlTotal = timeline.total ?? timeline.intents.length;
       S.solutions = sols.solutions;
+      Backend.summary().then((sm)=>{ S.summary = sm; const el=document.querySelector(".sevbar"); if (el||sm) render(); });
       const linked = new Set(S.solutions.map(s=>s.uid));
       S.catalog = cat.solutions.filter(s=>!linked.has(s.uid));
       S.mode = "connected";
@@ -185,6 +188,14 @@ const Backend = {
         catalog:c.catalog||[], inboxTotal:c.inboxTotal||0, tlTotal:c.tlTotal||0, inboxNext:null, tlNext:null, mode:"degraded" }); }
       else { S.mode="demo"; Local.seed(); await Local.refresh(); }
     }
+  },
+  async decideMany(decision, ids){
+    if (S.mode === "demo") { for (const id of ids) await Local.decide(id, decision === "approve" ? "approve" : decision); return { decided: ids.length, skipped: [] }; }
+    return Net.request("POST", "/v1/user/inbox/decide", { decision, ids });
+  },
+  async summary(){
+    if (S.mode === "demo") return null;
+    try { return await Net.request("GET", "/v1/user/inbox/summary"); } catch { return null; }
   },
   async more(which){
     if (S.mode!=="connected") return;
@@ -608,9 +619,10 @@ function appHTML(){
     <main class="screen-wrap"><div class="wrap">${!S.ready?skeletonHTML():screenHTML()}</div></main>
   </div>
   ${wide?'':`<nav class="tabbar">${nav.map(([v,l,ic])=>`<button data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${esc(l)}</span>${v==="inbox"&&pending?'<span class="tabdot"></span>':''}</button>`).join("")}</nav>`}
-  <div id="overlay">${S.detail ? detailHTML() : ""}</div>`;
+  <div id="overlay">${S.confirm ? confirmHTML() : S.detail ? detailHTML() : ""}</div>`;
 }
-function screenHTML(){ return ({inbox:inboxHTML,activity:activityHTML,solutions:solutionsHTML,settings:settingsHTML}[S.view]||inboxHTML)(); }
+function screenHTML(){ if (S.focus && S.view === "inbox") return focusHTML();
+  return ({inbox:inboxHTML,activity:activityHTML,solutions:solutionsHTML,settings:settingsHTML}[S.view]||inboxHTML)(); }
 
 /* ---- the connection strip: always honest about where the data came from ---- */
 function paintNet(){
@@ -667,9 +679,62 @@ function filterBarHTML(){
   </div>`;
 }
 
+/** What is waiting, at a glance, before deciding how to face it. Counting by
+ * severity is what lets someone act on thirty asks without reading thirty
+ * cards: two severe and twenty eight routine is a different morning from
+ * thirty severe. */
+function summaryHTML(){
+  const sum = S.summary;
+  if (!sum || sum.total < 2) return "";
+  const parts = ["SEVERE","HIGH","MEDIUM","LOW"]
+    .filter((lv) => sum.bySeverity[lv])
+    .map((lv)=>`<button class="sevcount ${S.filter.severity===lv?"on":""}" data-fsev="${lv}"
+        style="--c:${sevColor(lv)};--b:${sevBg(lv)}"><b>${sum.bySeverity[lv]}</b>${esc(tSev(lv))}</button>`);
+  if (!parts.length) return "";
+  return `<div class="sevbar">${parts.join("")}</div>`;
+}
+
+/** Cards grouped by the solution that raised them, newest group first, newest
+ * card first inside it. A solution is the unit people think in: "BattleMate is
+ * being noisy" is a thought, "intent 4f2a is being noisy" is not. */
+function clustersOf(list){
+  const by = new Map();
+  for (const it of list) {
+    const uid = (it.solution && it.solution.uid) || it.solutionUid || "other";
+    if (!by.has(uid)) by.set(uid, { uid, solution: it.solution || { name: iName(it) }, items: [] });
+    by.get(uid).items.push(it);
+  }
+  return [...by.values()];
+}
+
+function clusterHTML(c){
+  const M = window.Marks, open = !!S.expanded[c.uid];
+  const shown = open ? c.items : c.items.slice(0, 1);
+  const rest = c.items.length - shown.length;
+  const worst = c.items.reduce((m, i) => maxSev(m, i.severity), "LOW");
+  const bulk = c.items.length > 1 ? `
+    <div class="cbulk">
+      <button class="cb deny" data-bulk="deny" data-cuid="${c.uid}">${esc(t("card.deny"))}</button>
+      <button class="cb reflect" data-bulk="reflect" data-cuid="${c.uid}">${esc(t("card.reflect"))}</button>
+      <button class="cb approve" data-bulk="approve" data-cuid="${c.uid}">${esc(t("card.approve"))}</button>
+      <button class="cb one" data-focus="${c.uid}">${I.chevron}<span>${esc(t("cl.oneByOne"))}</span></button>
+    </div>` : "";
+  return `<section class="cluster" style="--c:${sevColor(worst)}">
+    <header class="chead">
+      ${M.solution(c.solution, 34)}
+      <div class="cmeta"><b>${esc(c.solution.name || "")}</b>
+        <small>${esc(t("cl.waiting",{n:c.items.length}))}</small></div>
+      <span class="sevtag" style="--sev:${sevColor(worst)};--sevb:${sevBg(worst)}">${esc(tSev(worst))}</span>
+    </header>
+    ${bulk}
+    <div class="cards">${shown.map(cardHTML).join("")}</div>
+    ${rest > 0 ? `<button class="cmore" data-expand="${c.uid}">${esc(t("cl.others",{n:rest}))}</button>`
+      : (open && c.items.length > 1 ? `<button class="cmore" data-expand="${c.uid}">${esc(t("cl.fewer"))}</button>` : "")}
+  </section>`;
+}
+
 function inboxHTML(){
-  const n = S.inboxTotal || S.intents.length;
-  const head = `<div class="scrhead"><span class="eyebrow">${esc(t("inbox.eyebrow"))}</span><h1>${esc(t("inbox.title"))}</h1>
+  const n = S.inboxTotal || S.intents.length;  const head = `<div class="scrhead"><span class="eyebrow">${esc(t("inbox.eyebrow"))}</span><h1>${esc(t("inbox.title"))}</h1>
     <p class="sub">${esc(n?tn("inbox.sub",n):t("inbox.caughtUp"))}</p></div>`;
   const filtering = !!(S.filter.solution || S.filter.severity);
   if (!S.intents.length) {
@@ -680,7 +745,9 @@ function inboxHTML(){
       <div class="empty-t">${esc(t("inbox.empty.title"))}</div><p>${esc(t("inbox.empty.body"))}</p>
       <button class="btn btn-primary" data-nav="solutions">${esc(t("inbox.browse"))}</button></div>`;
   }
-  return head + filterBarHTML() + `<div class="cards">${S.intents.map(cardHTML).join("")}</div>` + moreHTML("inbox");
+  const clusters = clustersOf(S.intents);
+  return head + summaryHTML() + filterBarHTML()
+    + clusters.map(clusterHTML).join("") + moreHTML("inbox");
 }
 function moreHTML(which){
   const next = which==="inbox" ? S.inboxNext : S.tlNext;
@@ -710,8 +777,13 @@ function cardHTML(it){
         ${speaking ? I.stop : I.play}<span>${esc(t(speaking ? "card.stop" : "card.listen"))}</span>
         ${speaking ? `<span class="wave3"><i></i><i></i><i></i></span>` : ""}
       </button>
-      ${it.voice.context ? `<button class="vread" data-say="${it.id}">${esc(t("card.transcript"))}</button>` : ""}
-    </div>` : "";
+      ${(it.voice.summary || it.voice.context) ? `<button class="vread" data-why="${it.id}">${esc(t(S.showWhy[it.id] ? "card.stop" : "card.why"))}</button>` : ""}
+    </div>
+    ${S.showWhy[it.id] ? `<div class="whybox">
+      ${it.voice.summary ? `<p class="whysum">${esc(it.voice.summary)}</p>` : ""}
+      ${it.voice.if_blocked ? `<p class="whyblock"><b>${esc(t("card.ifBlocked"))}</b> ${esc(it.voice.if_blocked)}</p>` : ""}
+      ${it.voice.context ? `<p class="whyfull">${esc(it.voice.context)}</p>` : ""}
+    </div>` : ""}` : "";
 
   return `<article class="icard ${settling?("settling "+settling):""}" data-card="${it.id}" style="--sev:${sevColor(sev)};--sevb:${sevBg(sev)}">
     <div class="icard-top">
@@ -727,11 +799,31 @@ function cardHTML(it){
     ${why?`<div class="ireason">${esc(why)}</div>`:''}
     ${voice}
     ${rows?`<div class="idetails">${rows}</div>`:''}
-    ${queued?`<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`:`<div class="iacts">
-      <button class="btn btn-deny" data-decide="deny" data-id="${it.id}" ${settling?"disabled":""}>${esc(settling==="deny"?t("card.denying"):t("card.deny"))}</button>
-      <button class="btn btn-primary" data-decide="approve" data-id="${it.id}" ${settling?"disabled":""}>${esc(settling==="approve"?t("card.approving"):t("card.approve"))}</button>
+    ${queued?`<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`:`<div class="iacts three">
+      <button class="btn btn-deny" data-decide="deny" data-id="${it.id}" ${settling?"disabled":""}>${esc(t("card.deny"))}</button>
+      <button class="btn btn-reflect" data-decide="reflect" data-id="${it.id}" ${settling?"disabled":""}>${I.reflect}<span>${esc(t("card.reflect"))}</span></button>
+      <button class="btn btn-primary" data-decide="approve" data-id="${it.id}" ${settling?"disabled":""}>${esc(t("card.approve"))}</button>
     </div>`}
   </article>`;
+}
+
+/** One at a time, for a queue too long to skim. Position is shown because
+ * "3 of 17" is the difference between working through something and being
+ * buried by it. */
+function focusHTML(){
+  const list = (S.intents || []).filter((i) => !S.focus.uid || (i.solution && i.solution.uid) === S.focus.uid);
+  const it = list[S.focus.at];
+  if (!it) {
+    return `<div class="scrhead"><span class="eyebrow">${esc(t("inbox.eyebrow"))}</span><h1>${esc(t("inbox.title"))}</h1></div>
+      <div class="empty"><div class="empty-mk">${MK}</div>
+      <div class="empty-t">${esc(t("cl.done"))}</div>
+      <button class="btn btn-primary" data-focus-exit>${esc(t("cl.back"))}</button></div>`;
+  }
+  return `<div class="focusbar">
+      <button class="fx" data-focus-exit>${I.chevron}<span>${esc(t("cl.back"))}</span></button>
+      <span class="fxpos">${esc(t("cl.of",{ i: S.focus.at + 1, n: list.length }))}</span>
+    </div>
+    <div class="cards focusone">${cardHTML(it)}</div>`;
 }
 
 /* ---- activity ---- */
@@ -934,7 +1026,8 @@ function settingsHTML(){
                <button class="btn btn-ghost block" data-testpush>${esc(t("set.notifyTest"))}</button>`
       : `<button class="btn btn-primary block" data-enablepush ${p.busy?"disabled":""}>${p.busy?`<span class="tic spin">${I.sync}</span>`:I.bell}<span>${esc(t("set.notifyOn"))}</span></button>`}
   </section>
-  ${lockOffered() ? `<section class="panel"><div class="panelhd"><h3>${esc(t("set.lock"))}</h3><p>${esc(t("set.lockSub"))}</p></div>
+  <section class="panel"><div class="panelhd"><h3>${esc(t("set.lock"))}</h3><p>${esc(t("set.lockSub"))}</p></div>
+    ${!lockOffered() ? `<div class="thin-empty">${esc(t("set.lockReview"))}</div>` : `
     <div class="lockopts">
       <button class="lockopt ${S.lockMode==="off"?"on":""}" data-lockmode="off">
         <b>${esc(t("set.lockOff2"))}</b><small>${esc(t("set.lockOffSub"))}</small></button>
@@ -942,8 +1035,8 @@ function settingsHTML(){
         <b>${esc(t("set.lockDevice"))}</b><small>${esc(t("set.lockDeviceSub"))}</small></button>` : ""}
       <button class="lockopt ${S.lockMode==="pin"?"on":""}" data-lockmode="pin" ${S.lockBusy?"disabled":""}>
         <b>${esc(t("set.lockPin"))}</b><small>${esc(t("set.lockPinSub"))}</small></button>
-    </div>
-  </section>` : ""}
+    </div>`}
+  </section>
   <section class="panel"><div class="panelhd"><h3>${esc(t("set.language"))}</h3></div>
     <div class="langgrid">${LANGS.map(l=>`<button class="langb ${window.I18N.lang===l.code?'on':''}" data-lang="${l.code}">
       <b>${l.native}</b><small>${l.name}</small></button>`).join("")}</div></section>
@@ -1136,6 +1229,38 @@ function countryPickerHTML(){
     </div></div>`;
 }
 
+/* ---- answering ----
+   Every answer is confirmed. Approve, deny and reflect all change what an agent
+   does next, and two of them cannot be taken back, so none of them happen on a
+   single tap. The sheet says what the answer means in the agent's terms rather
+   than asking "are you sure", which tells nobody anything. */
+function confirmHTML(){
+  const c = S.confirm; if (!c) return "";
+  const many = c.count && c.count > 1;
+  const body = c.decision === "approve" ? t("ok.approveBody")
+             : c.decision === "deny" ? t("ok.denyBody") : t("ok.reflectBody");
+  const kind = c.decision === "approve" ? "primary" : c.decision === "deny" ? "deny" : "reflect";
+  return `<div class="scrim" data-confirm-close>
+    <div class="sheet confirmsheet" role="dialog">
+      <h3>${esc(t("ok." + c.decision))}</h3>
+      <p>${esc(body)}</p>
+      ${many ? `<p class="cmany">${esc(t("ok.bulk",{n:c.count}))}${
+        c.decision === "approve" ? " " + esc(t("ok.severeKept")) : ""}</p>` : ""}
+      ${c.label ? `<div class="kv"><span>${esc(t("act.detail"))}</span><b>${esc(c.label)}</b></div>` : ""}
+      <button class="btn btn-${kind} block big" data-confirm-go>${esc(t("card." + c.decision))}</button>
+      <button class="btn btn-ghost block" data-confirm-close>${esc(t("bio.cancel"))}</button>
+    </div></div>`;
+}
+
+function askConfirm(decision, opts){ S.confirm = { decision, ...opts }; render(); }
+
+async function runConfirmed(){
+  const c = S.confirm; if (!c) return;
+  S.confirm = null; render();
+  if (c.ids) { await decideGroup(c.decision, c.ids, c.count); return; }
+  await decide(c.id, c.decision);
+}
+
 /* ---- overlays ---- */
 function toast(html, kind){
   const ov=document.getElementById("overlay"); if(!ov)return;
@@ -1176,7 +1301,10 @@ function wire(){
     const envb=el.closest("[data-env]"); if(envb){ S.env=envb.dataset.env; savePrefs(); reloadEnv(); return; }
     const lg=el.closest("[data-lang]"); if(lg){ S.lang=window.I18N.setLang(lg.dataset.lang); savePrefs(); tellWorkerLang(); render(); return; }
     const th=el.closest("[data-theme-set]"); if(th){ S.theme=th.dataset.themeSet; savePrefs(); applyTheme(); render(); return; }
-    const dec=el.closest("[data-decide]"); if(dec){ decide(dec.dataset.id,dec.dataset.decide); return; }
+    const dec=el.closest("[data-decide]");
+    if(dec){ const id=dec.dataset.id;
+      const it=(S.intents||[]).find(x=>x.id===id);
+      askConfirm(dec.dataset.decide, { id, label: it ? pretty(it.capability) : "" }); return; }
     const mr=el.closest("[data-more]"); if(mr){ loadMore(mr.dataset.more); return; }
     if(el.closest("[data-retry]")){ retryNow(); return; }
     if(el.closest("[data-enablepush]")){ enablePush(); return; }
@@ -1210,6 +1338,19 @@ function wire(){
     if(cc){ S.signin.iso = cc.dataset.cc; S.signin.picker = false; S.signin.error = ""; render();
       const f=document.getElementById("id"); if(f) f.focus(); return; }
     if(el.closest("[data-picker-close]") && !el.closest(".ccsheet")){ S.signin.picker = false; render(); return; }
+    const ex = el.closest("[data-expand]");
+    if(ex){ const u=ex.dataset.expand; S.expanded[u] = !S.expanded[u]; render(); return; }
+    const fo = el.closest("[data-focus]");
+    if(fo){ S.focus = { uid: fo.dataset.focus, at: 0 }; render(); return; }
+    if(el.closest("[data-focus-exit]")){ S.focus = null; render(); return; }
+    const wy = el.closest("[data-why]");
+    if(wy){ const id=wy.dataset.why; S.showWhy[id] = !S.showWhy[id]; render(); return; }
+    const bk = el.closest("[data-bulk]");
+    if(bk){ const uid=bk.dataset.cuid, dec=bk.dataset.bulk;
+      const ids = S.intents.filter(i => ((i.solution&&i.solution.uid)||i.solutionUid) === uid).map(i=>i.id);
+      askConfirm(dec, { ids, count: ids.length }); return; }
+    if(el.closest("[data-confirm-go]")){ runConfirmed(); return; }
+    if(el.closest("[data-confirm-close]")){ S.confirm=null; render(); return; }
     const fs = el.closest("[data-fsol]");
     if(fs){ S.filter.solution = fs.dataset.fsol; applyFilter(); return; }
     const fv = el.closest("[data-fsev]");
@@ -1391,13 +1532,20 @@ async function decide(id, decision){
     const snapshot = S.intents.slice();
     S.intents = S.intents.filter(x=>x.id!==id);
     S.inboxTotal = Math.max(0, S.inboxTotal-1);
-    const done = Object.assign({}, it, { state: decision==="deny"?"denied":(Object.keys(edits).length?"edited":"approved"), decidedAt: Date.now() });
+    const done = Object.assign({}, it, { state:
+      decision==="deny" ? "denied" : decision==="reflect" ? "reflected"
+      : (Object.keys(edits).length ? "edited" : "approved"), decidedAt: Date.now() });
     S.timeline = [done].concat(S.timeline); S.tlTotal++;
-    delete S.settled[id]; render();
+    delete S.settled[id];
+    if (S.focus) {
+      const left = S.intents.filter((i) => !S.focus.uid || (i.solution && i.solution.uid) === S.focus.uid);
+      if (S.focus.at >= left.length) S.focus.at = Math.max(0, left.length - 1);
+    }
+    render();
     try {
       const sent = await Backend.decide(id, decision, Object.keys(edits).length?{edited_details:edits}:{});
       if (sent){ silentRefresh();
-        toast(`<div class="tm"><b>${esc(decision==="deny"?t("card.deny"):t("card.approve"))}</b> ${esc(pretty(it.capability))}</div>`,decision==="deny"?"warn":"ok"); }
+        toast(`<div class="tm"><b>${esc(t("card."+decision))}</b> ${esc(pretty(it.capability))}</div>`,decision==="deny"?"warn":"ok"); }
       else { toast(`<span class="tic">${I.cloudoff}</span><div class="tm">${esc(t("t.queued"))}</div>`,"queued"); paintNet(); }
     } catch(e){
       S.intents = snapshot; S.inboxTotal++; S.timeline = S.timeline.filter(x=>x!==done); S.tlTotal--;
@@ -1407,6 +1555,32 @@ async function decide(id, decision){
   };
   if(decision==="approve" && it.severity==="SEVERE"){ biometric(go); return; }
   go();
+}
+
+/** A group answered at once. The cards leave together, and anything the server
+ * refused to sweep, which is only ever something severe, is put back so it can
+ * be looked at on its own. */
+async function decideGroup(decision, ids, count){
+  const keep = new Set(ids);
+  const before = S.intents;
+  S.intents = S.intents.filter((i) => !keep.has(i.id));
+  S.inboxTotal = Math.max(0, S.inboxTotal - ids.length);
+  render();
+  try {
+    const out = await Backend.decideMany(decision, ids);
+    const skipped = (out && out.skipped) || [];
+    if (skipped.length) {
+      const back = new Set(skipped.map((x) => x.id));
+      S.intents = before.filter((i) => back.has(i.id)).concat(S.intents);
+      S.inboxTotal += skipped.length;
+    }
+    await silentRefresh();
+    toast(`<div class="tm"><b>${esc(t("t.decidedMany",{n:(out&&out.decided)||count}))}</b>${
+      skipped.length ? " " + esc(t("ok.severeKept")) : ""}</div>`, decision === "deny" ? "warn" : "ok");
+  } catch (e) {
+    S.intents = before; S.inboxTotal += ids.length; render();
+    toast(`<div class="tm">${esc(t("t.recordFail",{msg:e.message}))}</div>`,"warn");
+  }
 }
 
 async function connect(uid){

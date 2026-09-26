@@ -679,3 +679,64 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .gasks{color:var(--hi);background:var(--hi-bg)}
 .gruns{color:var(--lo);background:var(--lo-bg)}
 .gasks svg,.gruns svg{width:13px;height:13px}
+
+/* ---- what is waiting, at a glance ---- */
+.sevbar{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;margin:-2px 0 2px}
+.sevbar::-webkit-scrollbar{display:none}
+.sevcount{display:inline-flex;align-items:baseline;gap:6px;flex:none;border:1px solid var(--line);
+  background:var(--surface);border-radius:12px;padding:7px 12px;font-size:.76rem;font-weight:600;
+  color:var(--muted);transition:border-color .15s,background .15s}
+.sevcount b{font-size:1.02rem;font-weight:700;color:var(--c);font-variant-numeric:tabular-nums}
+.sevcount.on{border-color:var(--c);background:var(--b);color:var(--c)}
+
+/* ---- a solution's asks, gathered ---- */
+.cluster{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface-2);
+  padding:12px;display:flex;flex-direction:column;gap:10px;border-inline-start:3px solid var(--c)}
+.chead{display:flex;align-items:center;gap:10px}
+.cmeta{flex:1;min-width:0;display:flex;flex-direction:column}
+.cmeta b{font-size:.96rem;font-weight:650;overflow:hidden;text-overflow:ellipsis}
+.cmeta small{color:var(--faint);font-size:.76rem}
+.cbulk{display:flex;gap:6px;flex-wrap:wrap}
+.cb{flex:1;min-width:84px;border:1px solid var(--line);background:var(--surface);color:var(--muted);
+  border-radius:10px;padding:8px 6px;font-size:.79rem;font-weight:650;transition:all .15s}
+.cb.deny:hover{border-color:var(--sv);color:var(--sv);background:var(--sv-bg)}
+.cb.reflect:hover{border-color:var(--me);color:var(--me);background:var(--me-bg)}
+.cb.approve:hover{border-color:var(--xur);color:var(--xur-ink);background:var(--xur-soft)}
+.cb.one{flex:none;display:inline-flex;align-items:center;gap:4px;min-width:0;padding-inline:10px}
+.cb.one svg{width:13px;height:13px}
+.cmore{width:100%;border:1px dashed var(--line);background:transparent;color:var(--muted);
+  border-radius:11px;padding:9px;font-size:.81rem;font-weight:600}
+.cmore:hover{border-color:var(--xur);color:var(--ink)}
+.cluster .icard{background:var(--surface)}
+
+/* ---- three answers ---- */
+.iacts.three{gap:7px}
+.iacts.three .btn{padding-inline:10px;font-size:.88rem}
+.btn-reflect{flex:1 1 0;background:var(--me-bg);color:var(--me);border:1px solid transparent;
+  display:inline-flex;align-items:center;justify-content:center;gap:5px}
+.btn-reflect:hover{border-color:var(--me)}
+.btn-reflect svg{width:15px;height:15px}
+
+/* ---- the written case ---- */
+.whybox{margin-top:10px;padding:11px 13px;border-radius:12px;background:var(--sunken);
+  border:1px solid var(--line-2);display:flex;flex-direction:column;gap:8px;
+  animation:cardin .25s ease both}
+.whysum{margin:0;font-size:.9rem;line-height:1.5;color:var(--ink);font-weight:550}
+.whyblock{margin:0;font-size:.86rem;line-height:1.5;color:var(--muted)}
+.whyblock b{color:var(--hi);font-weight:650}
+.whyfull{margin:0;font-size:.85rem;line-height:1.55;color:var(--faint)}
+
+/* ---- one at a time ---- */
+.focusbar{display:flex;align-items:center;gap:10px;margin-bottom:2px}
+.fx{display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--muted);
+  font-size:.86rem;font-weight:600;padding:4px 0}
+.fx svg{width:16px;height:16px;transform:scaleX(-1)}
+[dir="rtl"] .fx svg{transform:none}
+.fxpos{margin-inline-start:auto;font-family:var(--mono);font-size:.78rem;color:var(--faint)}
+.focusone .icard{animation:cardin .3s ease both}
+
+/* ---- confirming ---- */
+.confirmsheet h3{margin:0;font-size:1.16rem}
+.confirmsheet p{margin:0;color:var(--muted);font-size:.92rem;line-height:1.55}
+.cmany{color:var(--ink)!important;font-weight:550}
+.confirmsheet .btn{width:100%}
