@@ -2124,6 +2124,7 @@ async function signin(){
     await Backend.login(identifier);
     rememberIdentifier(S.signin.identifier || S.signin.id);
     S.signin = { ...S.signin, step:"id", id:"", error:"", busy:false, pw:"", showPw:false };
+    maybeAskEnv();            // a builder is told which world they just entered
     await Backend.refresh(); S.view = "inbox"; render();
   } catch (e) {
     S.signin.busy = false;
@@ -2145,6 +2146,7 @@ async function signinPassword(){
     rememberIdentifier(S.signin.identifier || S.signin.id);
     if (S.mode !== "connected") await Backend.refresh();
     S.signin = { ...S.signin, step:"id", id:"", error:"", busy:false, pw:"", showPw:false };
+    maybeAskEnv();            // a builder is told which world they just entered
     await Backend.refresh(); S.view = "inbox"; render();
   } catch (e) {
     S.signin.busy = false;
@@ -2177,6 +2179,7 @@ async function signinPasskey(){
     Vault.restore(id);
     rememberIdentifier(id);
     S.signin = { ...S.signin, step:"id", id:"", error:"", busy:false, pw:"", showPw:false };
+    maybeAskEnv();            // a builder is told which world they just entered
     S.view = "inbox";
     try { await Backend.refresh(); } catch {}
     render();
@@ -2194,6 +2197,7 @@ async function signinRegister(){
     await Backend.register(S.signin.identifier || S.signin.id, name || undefined);
     rememberIdentifier(S.signin.identifier || S.signin.id);
     S.signin = { ...S.signin, step:"id", id:"", error:"", busy:false, pw:"", showPw:false };
+    maybeAskEnv();            // a builder is told which world they just entered
     await Backend.refresh(); S.view = "inbox"; render();
   } catch (e) {
     S.signin.busy = false;
