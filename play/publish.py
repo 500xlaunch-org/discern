@@ -149,6 +149,28 @@ def build_service(creds_path: str | None):
     return build("androidpublisher", "v3", credentials=creds, cache_discovery=False)
 
 
+# ------------------------------------------------------------------- retries
+def retrying(call, what: str, tries: int = 5):
+    """Google answers 5xx and 429 from time to time for no reason of ours, and a
+    release should not fail because of it. Anything with a status code below 500
+    that is not a rate limit is a real answer and is raised immediately: retrying
+    a 403 only wastes the reviewer's afternoon."""
+    import random, time
+    from googleapiclient.errors import HttpError
+    for attempt in range(1, tries + 1):
+        try:
+            return call.execute()
+        except HttpError as e:
+            code = getattr(getattr(e, "resp", None), "status", 0)
+            transient = code in (429, 500, 502, 503, 504)
+            if not transient or attempt == tries:
+                raise
+            wait = min(2 ** attempt, 30) * (0.7 + random.random() * 0.6)
+            print(f"  {what}: {code} from Google, retrying in {wait:.0f}s "
+                  f"(attempt {attempt} of {tries - 1})")
+            time.sleep(wait)
+
+
 # -------------------------------------------------------------------- status
 def status(args):
     """Read the app's current state without changing anything. The edit is
@@ -156,7 +178,7 @@ def status(args):
     abandoned rather than committed."""
     svc = build_service(args.creds)
     edits = svc.edits()
-    edit_id = edits.insert(body={}, packageName=args.package).execute()["id"]
+    edit_id = retrying(edits.insert(body={}, packageName=args.package), "opening the edit")["id"]
     try:
         d = edits.details().get(packageName=args.package, editId=edit_id).execute()
         print(f"  package          {args.package}")
@@ -205,7 +227,7 @@ def set_testers(args):
     groups = [g.strip() for g in args.testers.split(",") if g.strip()]
     svc = build_service(args.creds)
     edits = svc.edits()
-    edit_id = edits.insert(body={}, packageName=args.package).execute()["id"]
+    edit_id = retrying(edits.insert(body={}, packageName=args.package), "opening the edit")["id"]
     try:
         edits.testers().update(packageName=args.package, editId=edit_id, track=args.track,
                                body={"googleGroups": groups}).execute()
@@ -225,17 +247,17 @@ def publish(args, v: dict):
 
     svc = build_service(args.creds)
     edits = svc.edits()
-    edit_id = edits.insert(body={}, packageName=args.package).execute()["id"]
+    edit_id = retrying(edits.insert(body={}, packageName=args.package), "opening the edit")["id"]
     print(f"edit {edit_id} opened on {args.package}")
 
     try:
         version_code = None
         if args.aab:
             print(f"uploading {args.aab} ...")
-            up = edits.bundles().upload(
+            up = retrying(edits.bundles().upload(
                 packageName=args.package, editId=edit_id,
                 media_body=MediaFileUpload(args.aab, mimetype="application/octet-stream", resumable=True),
-            ).execute()
+            ), "uploading the bundle")
             version_code = up["versionCode"]
             print(f"  bundle accepted, versionCode {version_code}")
 
@@ -277,7 +299,7 @@ def publish(args, v: dict):
             }).execute()
             print(f"  track {args.track} <- versionCode {version_code}")
 
-        edits.commit(packageName=args.package, editId=edit_id).execute()
+        retrying(edits.commit(packageName=args.package, editId=edit_id), "committing")
         print("committed")
     except Exception:
         # never leave a half applied listing behind
