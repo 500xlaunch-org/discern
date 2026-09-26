@@ -196,15 +196,6 @@ input{font-family:inherit}
 .iacts{display:flex;gap:10px;margin-top:15px}
 
 /* ---------------- timeline ---------------- */
-.tl{display:flex;flex-direction:column}
-.tlrow{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line-2)}
-.tlrow:last-child{border-bottom:0}
-.tlic{width:32px;height:32px;border-radius:10px;flex:none;display:grid;place-items:center;color:var(--c);background:var(--b)}
-.tlic svg{width:15px;height:15px}
-.tlm{flex:1;min-width:0}
-.tlt{font-weight:600;font-size:.92rem;line-height:1.25}
-.tls{color:var(--muted);font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tlend{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
 .stpill{font-family:var(--mono);font-size:.62rem;font-weight:600;padding:3px 8px;border-radius:7px;letter-spacing:.02em;text-transform:capitalize}
 .st-allowed{color:var(--lo);background:var(--lo-bg)}.st-approved{color:var(--me);background:var(--me-bg)}
 .st-edited{color:var(--hi);background:var(--hi-bg)}.st-denied{color:var(--sv);background:var(--sv-bg)}
@@ -414,7 +405,7 @@ input{font-family:inherit}
 /* ================== right to left ==================
    Arabic reads the other way. Logical properties do most of the work; these
    are the places where a physical direction was baked in. */
-[dir="rtl"] .tls,[dir="rtl"] .solmeta,[dir="rtl"] .abs{direction:rtl}
+[dir="rtl"] .solmeta,[dir="rtl"] .abs,[dir="rtl"] .awhen{direction:rtl}
 [dir="rtl"] .back svg,[dir="rtl"] .solend svg{transform:scaleX(-1)}
 [dir="rtl"] .iconbtn .count{right:auto;left:-5px}
 [dir="rtl"] .app.wide .rail{border-right:0;border-left:1px solid var(--line-2)}
@@ -431,7 +422,7 @@ html[lang="ar"] .studio-brand b,html[lang="ar"] h1,html[lang="ar"] .soldn{font-f
 .app-fill,.app,.screen-wrap,.body{max-width:100%;overflow-x:hidden}
 .wrap{max-width:min(760px,100%);min-width:0;width:100%;box-sizing:border-box}
 .cards,.icard,.tl,.sollist,.catgrid,.panel{min-width:0;max-width:100%}
-.drow,.iwho,.solm,.tlm,.abm,.catm{min-width:0}
+.drow,.iwho,.solm,.abm,.catm{min-width:0}
 .dv-in,.dv,.dk{min-width:0}
 .dv-in{width:100%;box-sizing:border-box}
 .dk{flex:none;max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -457,7 +448,7 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
    page has its trailing full stop reordered to the wrong end. plaintext makes
    the browser judge each string on its own characters, which is what dir="auto"
    does, without having to thread an attribute through every template. */
-.catd,.abt,.abs,.soldn,.catn,.soln,.solmeta,.iact,.isol,.iagent,.tlt,.tls,.dv,.dv-in,.sub{
+.catd,.abt,.abs,.soldn,.catn,.soln,.solmeta,.iact,.isol,.iagent,.dv,.dv-in,.sub{
   unicode-bidi:plaintext;text-align:start}
 
 /* ================== launch and lock ================== */
@@ -633,40 +624,14 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .mark.avatar{border-radius:99px}
 .avtx{font-size:calc(var(--px) * .40);font-weight:650;letter-spacing:.01em;line-height:1}
 
-/* ---- the agent's account ---- */
-.voice{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
-.vbtn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);
-  background:var(--sunken);color:var(--ink);border-radius:99px;padding:7px 14px;
-  font-size:.85rem;font-weight:600;transition:border-color .15s,background .15s}
-.vbtn:hover{border-color:var(--xur)}
-.vbtn svg{width:15px;height:15px}
-.voice.on .vbtn{border-color:var(--xur);background:var(--xur-soft);color:var(--xur-ink)}
-.vread{border:0;background:transparent;color:var(--faint);font-size:.8rem;text-decoration:underline;
-  text-underline-offset:3px}
-.wave3{display:inline-flex;align-items:flex-end;gap:2px;height:13px}
-.wave3 i{width:2.5px;border-radius:2px;background:currentColor;animation:eq .9s ease-in-out infinite}
-.wave3 i:nth-child(1){height:6px;animation-delay:0s}
-.wave3 i:nth-child(2){height:12px;animation-delay:.15s}
-.wave3 i:nth-child(3){height:8px;animation-delay:.3s}
-@keyframes eq{0%,100%{transform:scaleY(.5)}50%{transform:scaleY(1)}}
+/* ---- the agent's account, in writing ----
+   The player that used to sit here is gone on purpose: this gets read while
+   someone is being talked to, which is when audio is the wrong medium. */
 .dsay{margin:2px 0 0;color:var(--muted);font-size:.89rem;line-height:1.55}
 
 /* ---- filters ---- */
-.filters{display:flex;flex-direction:column;gap:7px;margin:-2px 0 4px}
-.frow{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
-.frow::-webkit-scrollbar{display:none}
-.fchip{display:inline-flex;align-items:center;gap:6px;flex:none;border:1px solid var(--line);
-  background:var(--surface);color:var(--muted);border-radius:99px;padding:6px 12px;
-  font-size:.8rem;font-weight:600;transition:border-color .15s,color .15s,background .15s}
-.fchip:hover{color:var(--ink)}
-.fchip.on{border-color:var(--xur);background:var(--xur-soft);color:var(--xur-ink)}
-.fchip.sev.on{border-color:var(--c);background:var(--b);color:var(--c)}
-.fchip .mark{border-radius:5px}
+/* (the filter chips that used to live here became the menus below) */
 
-/* ---- activity rows open ---- */
-.tlrow{width:100%;border:0;background:transparent;text-align:start;cursor:pointer}
-.tlrow:hover{background:var(--surface-2)}
-.tls{display:flex;align-items:center;gap:6px}
 .detailsheet{max-height:86vh;overflow-y:auto}
 .dhead{display:flex;align-items:center;gap:11px}
 .dwho{flex:1;min-width:0;display:flex;flex-direction:column}
@@ -701,25 +666,145 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .sevcount b{font-size:1.02rem;font-weight:700;color:var(--c);font-variant-numeric:tabular-nums}
 .sevcount.on{border-color:var(--c);background:var(--b);color:var(--c)}
 
-/* ---- a solution's asks, gathered ---- */
-.cluster{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface-2);
-  padding:12px;display:flex;flex-direction:column;gap:10px;border-inline-start:3px solid var(--c)}
-.chead{display:flex;align-items:center;gap:10px}
-.cmeta{flex:1;min-width:0;display:flex;flex-direction:column}
-.cmeta b{font-size:.96rem;font-weight:650;overflow:hidden;text-overflow:ellipsis}
-.cmeta small{color:var(--faint);font-size:.76rem}
-.cbulk{display:flex;gap:6px;flex-wrap:wrap}
-.cb{flex:1;min-width:84px;border:1px solid var(--line);background:var(--surface);color:var(--muted);
-  border-radius:10px;padding:8px 6px;font-size:.79rem;font-weight:650;transition:all .15s}
-.cb.deny:hover{border-color:var(--sv);color:var(--sv);background:var(--sv-bg)}
-.cb.reflect:hover{border-color:var(--me);color:var(--me);background:var(--me-bg)}
-.cb.approve:hover{border-color:var(--xur);color:var(--xur-ink);background:var(--xur-soft)}
-.cb.one{flex:none;display:inline-flex;align-items:center;gap:4px;min-width:0;padding-inline:10px}
-.cb.one svg{width:13px;height:13px}
-.cmore{width:100%;border:1px dashed var(--line);background:transparent;color:var(--muted);
-  border-radius:11px;padding:9px;font-size:.81rem;font-weight:600}
-.cmore:hover{border-color:var(--xur);color:var(--ink)}
-.cluster .icard{background:var(--surface)}
+/* ---- narrowing: two menus, not a sideways scroll ----
+   A row of chips that scrolls sideways is a bad answer on a phone, because the
+   chip you want is always the one just off the edge. Two buttons that open a
+   list of checkboxes fit any number of solutions without moving anything. */
+.fbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:relative;z-index:5}
+.fdrop{position:relative;flex:1 1 0;min-width:0}
+.fbtn{width:100%;display:flex;align-items:center;gap:7px;min-width:0;
+  border:1px solid var(--line);background:var(--surface);color:var(--muted);
+  border-radius:12px;padding:9px 11px;font-size:.84rem;font-weight:600;
+  transition:border-color .15s,background .15s,color .15s}
+.fbtn .flab{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start}
+.fbtn.on{border-color:var(--xur);background:var(--xur-soft);color:var(--xur-ink)}
+.fbtn .fcount{flex:none;background:var(--xur);color:#fff;border-radius:999px;
+  min-width:19px;height:19px;display:grid;place-items:center;font-size:.72rem;font-weight:700}
+.fbtn .fchev{flex:none;width:15px;height:15px;display:grid;place-items:center;
+  transform:rotate(90deg);transition:transform .18s ease;color:var(--faint)}
+.fbtn .fchev svg{width:15px;height:15px}
+.fbtn.open .fchev{transform:rotate(-90deg)}
+.fdot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--c,var(--me))}
+.fmenu{position:absolute;inset-inline-start:0;top:calc(100% + 6px);min-width:100%;
+  max-width:min(300px,86vw);max-height:min(58vh,340px);overflow:auto;z-index:20;
+  background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  box-shadow:0 18px 44px rgba(0,0,0,.26),0 2px 6px rgba(0,0,0,.14);
+  padding:6px;display:flex;flex-direction:column;gap:2px;
+  animation:fmenuin .16s ease both}
+@keyframes fmenuin{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.fopt{display:flex;align-items:center;gap:9px;width:100%;min-width:0;text-align:start;
+  padding:9px 9px;border-radius:10px;background:transparent;border:0;color:var(--muted);
+  font-size:.86rem;font-weight:550}
+.fopt:hover{background:var(--sunken);color:var(--ink)}
+.fopt.on{color:var(--ink)}
+.fopt .foptn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fbox{flex:none;width:18px;height:18px;border-radius:6px;border:1.5px solid var(--line-2);
+  display:grid;place-items:center;color:#fff}
+.fbox svg{width:12px;height:12px}
+.fbox.on{background:var(--xur);border-color:var(--xur)}
+.fopt.sev.on .fdot{box-shadow:0 0 0 3px var(--b)}
+.fclear{flex:none;border:0;background:transparent;color:var(--faint);
+  font-size:.8rem;font-weight:600;padding:8px 4px;text-decoration:underline}
+.fclear:hover{color:var(--ink)}
+
+/* ---- an agent's asks, gathered ----
+   The agent is named once, at the top. Everything underneath is that agent, so
+   repeating the name on every row is noise that pushes the actual question off
+   the screen. */
+.agrps{display:flex;flex-direction:column;gap:11px}
+.agrp{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface-2);
+  border-inline-start:3px solid var(--sev);overflow:hidden}
+.ghead{display:flex;align-items:center;gap:10px;padding:11px 10px 0 12px}
+.gav{flex:none}
+.gm{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+.gtog{max-width:100%;min-width:0;display:flex;flex-direction:column;gap:0;align-items:flex-start;
+  background:transparent;border:0;padding:0;text-align:start;color:inherit}
+.gname{font-size:1rem;font-weight:650;color:var(--ink);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.gcount{font-size:.77rem;color:var(--faint);font-weight:550}
+.gchev{flex:none;width:32px;height:32px;border-radius:10px;border:1px solid transparent;
+  background:transparent;display:grid;place-items:center;color:var(--faint);
+  transform:rotate(90deg);transition:transform .2s ease,background .15s}
+.gchev:hover{background:var(--sunken)}
+.gchev svg{width:18px;height:18px}
+.agrp.open .gchev{transform:rotate(-90deg)}
+/* the solution, said properly: its mark, its name, and a way into it */
+.gsol{flex:none;max-width:100%;display:inline-flex;align-items:center;gap:6px;min-width:0;
+  border:1px solid var(--line);background:var(--surface);border-radius:999px;
+  padding:4px 9px 4px 5px;color:var(--muted);font-size:.78rem;font-weight:600;
+  transition:border-color .15s,color .15s,background .15s}
+.gsol:hover{border-color:var(--xur);color:var(--xur-ink);background:var(--xur-soft)}
+.gsoln{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.gsolgo{flex:none;width:13px;height:13px;display:grid;place-items:center;opacity:.6}
+.gsolgo svg{width:13px;height:13px}
+
+.gbreak{padding:8px 12px 11px;display:flex;flex-direction:column;gap:7px}
+.gbar{display:flex;height:5px;border-radius:99px;overflow:hidden;background:var(--sunken)}
+.gbar i{background:var(--c);min-width:5px}
+.gtags{display:flex;gap:5px;flex-wrap:wrap}
+.gtag{display:inline-flex;align-items:baseline;gap:4px;border-radius:999px;
+  padding:3px 9px;font-size:.72rem;font-weight:600;color:var(--c);background:var(--b);
+  border:1px solid color-mix(in oklab,var(--c) 30%,transparent)}
+.gtag b{font-size:.82rem;font-weight:750;font-variant-numeric:tabular-nums}
+
+.gopen{padding:0 12px 12px;display:flex;flex-direction:column;gap:9px;
+  animation:cardin .22s ease both}
+.gbulk{display:flex;gap:6px;flex-wrap:wrap}
+.gb{flex:1 1 0;min-width:80px;border:1px solid var(--line);background:var(--surface);
+  color:var(--muted);border-radius:10px;padding:9px 6px;font-size:.79rem;font-weight:650;
+  transition:all .15s}
+.gb.deny:hover{border-color:var(--sv);color:var(--sv);background:var(--sv-bg)}
+.gb.reflect:hover{border-color:var(--me);color:var(--me);background:var(--me-bg)}
+.gb.approve:hover{border-color:var(--xur);color:var(--xur-ink);background:var(--xur-soft)}
+/* walking them one at a time is a different kind of act from answering the
+   group, so it sits apart from the three that decide */
+.gone{align-self:flex-start;display:inline-flex;align-items:center;gap:3px;border:0;
+  background:transparent;color:var(--faint);font-size:.79rem;font-weight:600;
+  padding:2px 0;text-decoration:underline;text-underline-offset:3px}
+.gone svg{width:13px;height:13px}
+.gone:hover{color:var(--xur-ink)}
+.glist{display:flex;flex-direction:column;gap:7px}
+
+/* ---- one action ---- */
+.arow{border:1px solid var(--line);border-radius:13px;background:var(--surface);
+  transition:border-color .16s,box-shadow .16s}
+.arow.open{border-color:color-mix(in oklab,var(--sev) 45%,var(--line));
+  box-shadow:0 6px 20px rgba(0,0,0,.10)}
+.atop{display:flex;align-items:center;gap:8px;padding:10px 10px 10px 0}
+.aopen{flex:1;min-width:0;display:flex;align-items:center;gap:9px;background:transparent;
+  border:0;text-align:start;color:inherit;padding:0}
+.adot{flex:none;width:4px;align-self:stretch;min-height:30px;border-radius:0 4px 4px 0;
+  background:var(--sev)}
+.am{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;padding-inline-start:2px}
+.aname{font-size:.92rem;font-weight:600;color:var(--ink);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.awhen{font-size:.74rem;color:var(--faint)}
+.arow .sevtag{flex:none}
+.achev{flex:none;width:30px;height:30px;border-radius:9px;border:1px solid transparent;
+  background:transparent;color:var(--faint);display:grid;place-items:center;
+  transform:rotate(90deg);transition:transform .2s ease,background .15s}
+.achev svg{width:16px;height:16px}
+.achev.sm svg{width:14px;height:14px}
+.achev:hover{background:var(--sunken)}
+.arow.open .achev{transform:rotate(-90deg)}
+.abody{padding:0 12px 12px;display:flex;flex-direction:column;gap:9px;
+  animation:cardin .2s ease both}
+.tlitem .stpill{flex:none}
+
+/* ---- one action, over everything else ---- */
+.asksheet{max-height:86vh;display:flex;flex-direction:column;gap:11px}
+.askhead{display:flex;align-items:center;gap:10px}
+.askwho{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;align-items:flex-start}
+.askwho b{font-size:.97rem;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.asksol{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);
+  background:var(--surface);border-radius:999px;padding:3px 9px 3px 4px;
+  color:var(--muted);font-size:.74rem;font-weight:600;max-width:100%;min-width:0}
+.asksol span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.asksol:hover{border-color:var(--xur);color:var(--xur-ink)}
+.askhead .sevtag{flex:none}
+.askact{margin:0;font-size:1.12rem;font-weight:650;line-height:1.3;text-wrap:balance;text-align:start}
+.askscroll{flex:1;min-height:0;overflow:auto;text-align:start;display:flex;flex-direction:column;gap:9px;
+  -webkit-overflow-scrolling:touch}
 
 /* ---- three answers ---- */
 .iacts.three{gap:7px}
@@ -784,3 +869,13 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .hnote div{display:flex;flex-direction:column;gap:2px;min-width:0}
 .hnote b{font-size:13.5px;font-weight:600}
 .hnote span{font-size:12.5px;line-height:1.4;color:var(--dim)}
+
+/* a live count on an agent in the solution graph is a way in, not a label */
+.gasks.live{border:0;cursor:pointer;display:inline-flex;align-items:center;gap:4px;
+  background:var(--xur);color:#fff;border-radius:999px;padding:3px 9px 3px 6px;
+  font-size:.76rem;font-weight:700;transition:transform .12s,box-shadow .15s}
+.gasks.live svg{width:13px;height:13px}
+.gasks.live b{font-variant-numeric:tabular-nums}
+.gasks.live:hover{box-shadow:0 4px 14px color-mix(in oklab,var(--xur) 45%,transparent)}
+.gasks.live:active{transform:scale(.96)}
+.gnode.live .gbody{border-color:color-mix(in oklab,var(--xur) 40%,var(--line))}

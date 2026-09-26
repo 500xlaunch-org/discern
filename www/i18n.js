@@ -36,7 +36,7 @@ en: {
   "inbox.caughtUp":"All clear. Nothing waiting.","inbox.empty.title":"All quiet.",
   "inbox.empty.body":"Your agents are getting on with it. The moment one reaches for something risky, it turns up here.",
   "inbox.browse":"Find a solution",
-  "card.listen":"Hear why","card.stop":"Stop","card.transcript":"Read it instead","act.detail":"What happened","act.close":"Close","act.ref":"Ledger reference","act.when":"When","flt.all":"All","flt.none":"Nothing matches that filter.","flt.clear":"Clear filters","card.reflect":"Reflect","card.why":"Why","card.ifBlocked":"If you refuse","ok.approve":"Let it go ahead?","ok.deny":"Stop this?","ok.reflect":"Ask for another way?","ok.approveBody":"The agent carries on as it planned.","ok.denyBody":"The agent stops here and carries this no further.","ok.reflectBody":"The goal stands. The agent looks for a less risky way and comes back.","ok.bulk":"This answers {n} at once.","ok.severeKept":"Anything severe is left for you to look at on its own.","cl.waiting":"{n} waiting","cl.others":"See the other {n}","cl.fewer":"Show fewer","cl.oneByOne":"One by one","cl.allFrom":"All from this solution","cl.of":"{i} of {n}","cl.done":"That is all of them.","cl.back":"Back to the list","t.decidedMany":"Answered {n}","card.approve":"Approve","card.deny":"Deny","card.approving":"Approving","card.denying":"Denying",
+  "act.detail":"What happened","act.close":"Close","act.ref":"Ledger reference","act.when":"When","flt.all":"All","flt.none":"Nothing matches that filter.","flt.clear":"Clear filters","card.reflect":"Reflect","card.ifBlocked":"If you refuse","ok.approve":"Let it go ahead?","ok.deny":"Stop this?","ok.reflect":"Ask for another way?","ok.approveBody":"The agent carries on as it planned.","ok.denyBody":"The agent stops here and carries this no further.","ok.reflectBody":"The goal stands. The agent looks for a less risky way and comes back.","ok.bulk":"This answers {n} at once.","ok.severeKept":"Anything severe is left for you to look at on its own.","cl.waiting":"{n} waiting","cl.oneByOne":"One by one","cl.of":"{i} of {n}","cl.done":"That is all of them.","cl.back":"Back to the list","t.decidedMany":"Answered {n}","card.approve":"Approve","card.deny":"Deny","card.approving":"Approving","card.denying":"Denying",
   "card.queued":"Waiting for a signal",
   "activity.eyebrow":"Every action, logged","activity.title":"Activity",
   "activity.sub":"A signed, traceable record of what agents did for you.","activity.empty":"Nothing here yet. Your agents have been well behaved.",
@@ -85,7 +85,7 @@ en: {
   "t.profileFail":"Could not read the profile: {msg}","t.pushOn":"Notifications are on. We will only ping you when it matters.",
   "t.pushSent":"Sent. Go and check.","t.pushFail":"Could not turn on notifications: {msg}",
   "more.load":"Load more","more.loading":"Fetching more","more.end":"That is the lot.",
-  "time.now":"just now","time.m":"{n}m ago","time.h":"{n}h ago","time.d":"{n}d ago",
+  "time.now":"just now","time.m":"{n}m ago","time.h":"{n}h ago","time.d":"{n}d ago","time.sec":"{n}s","time.min":"{n}m","time.hr":"{n}h","time.day":"{n}d","flt.allSol":"All solutions","flt.allRisk":"Any risk","flt.chosen":"{n} chosen","grp.unnamed":"An agent","grp.denyAll":"Stop all","grp.reflectAll":"Reflect all","grp.approveAll":"Approve all","act.more":"Show details","act.less":"Hide details","act.asked":"Asked","act.answered":"Answered","act.answeredIn":"answered in {span}","act.answers.one":"{n} answer","act.answers.other":"{n} answers","sol.asksNow.one":"{n} waiting","sol.asksNow.other":"{n} waiting",
   "st.active":"Active","st.paused":"Paused","st.pending":"Pending","st.revoked":"Revoked",
   "ist.pending":"Waiting","ist.allowed":"Allowed","ist.approved":"Approved","ist.reflected":"Sent back","ist.denied":"Denied","ist.edited":"Edited","ist.expired":"Expired",
   "lock.title":"Locked","lock.body":"Unlock to see what your agents are up to.","lock.unlock":"Unlock","lock.signout":"Sign in as someone else",
@@ -103,7 +103,7 @@ zh: {
   "inbox.empty.title":"一切安静。",
   "inbox.empty.body":"智能体正忙着自己的活儿。一旦有谁要碰有风险的事，就会出现在这里。",
   "inbox.browse":"找一个方案",
-  "card.listen":"听听原因","card.stop":"停止","card.transcript":"改为阅读","act.detail":"发生了什么","act.close":"关闭","act.ref":"账本编号","act.when":"时间","flt.all":"全部","flt.none":"没有符合该筛选的内容。","flt.clear":"清除筛选","card.reflect":"重新考虑","card.why":"为什么","card.ifBlocked":"如果你拒绝","ok.approve":"允许继续吗？","ok.deny":"要阻止吗？","ok.reflect":"要求换个方式？","ok.approveBody":"智能体将按计划继续。","ok.denyBody":"智能体就此停止，不再继续。","ok.reflectBody":"目标不变。智能体会寻找风险更低的方式再来找你。","ok.bulk":"这将一次处理 {n} 项。","ok.severeKept":"严重项会单独留给你查看。","cl.waiting":"{n} 项待处理","cl.others":"查看其余 {n} 项","cl.fewer":"收起","cl.oneByOne":"逐条处理","cl.allFrom":"该方案的全部","cl.of":"第 {i} / {n} 项","cl.done":"全部处理完毕。","cl.back":"返回列表","t.decidedMany":"已处理 {n} 项","card.approve":"批准","card.deny":"拒绝","card.approving":"正在批准","card.denying":"正在拒绝",
+  "act.detail":"发生了什么","act.close":"关闭","act.ref":"账本编号","act.when":"时间","flt.all":"全部","flt.none":"没有符合该筛选的内容。","flt.clear":"清除筛选","card.reflect":"重新考虑","card.ifBlocked":"如果你拒绝","ok.approve":"允许继续吗？","ok.deny":"要阻止吗？","ok.reflect":"要求换个方式？","ok.approveBody":"智能体将按计划继续。","ok.denyBody":"智能体就此停止，不再继续。","ok.reflectBody":"目标不变。智能体会寻找风险更低的方式再来找你。","ok.bulk":"这将一次处理 {n} 项。","ok.severeKept":"严重项会单独留给你查看。","cl.waiting":"{n} 项待处理","cl.oneByOne":"逐条处理","cl.of":"第 {i} / {n} 项","cl.done":"全部处理完毕。","cl.back":"返回列表","t.decidedMany":"已处理 {n} 项","card.approve":"批准","card.deny":"拒绝","card.approving":"正在批准","card.denying":"正在拒绝",
   "card.queued":"等待信号",
   "activity.eyebrow":"每项操作都有记录","activity.title":"活动记录",
   "activity.sub":"智能体为你所做之事的签名可溯记录。","activity.empty":"这里还是空的，智能体一直很规矩。",
@@ -150,7 +150,7 @@ zh: {
   "t.profileFail":"无法读取资料：{msg}","t.pushOn":"通知已开启。只有要紧的事才会打扰你。",
   "t.pushSent":"已发送，去看看吧。","t.pushFail":"无法开启通知：{msg}",
   "more.load":"加载更多","more.loading":"正在取更多","more.end":"就这些了。",
-  "time.now":"刚刚","time.m":"{n}分钟前","time.h":"{n}小时前","time.d":"{n}天前",
+  "time.now":"刚刚","time.m":"{n}分钟前","time.h":"{n}小时前","time.d":"{n}天前","time.sec":"{n}秒","time.min":"{n}分","time.hr":"{n}小时","time.day":"{n}天","flt.allSol":"全部方案","flt.allRisk":"全部风险","flt.chosen":"已选 {n} 项","grp.unnamed":"某个智能体","grp.denyAll":"全部停止","grp.reflectAll":"全部另寻他法","grp.approveAll":"全部同意","act.more":"查看详情","act.less":"收起详情","act.asked":"请求","act.answered":"回复","act.answeredIn":"{span}后回复","act.answers.other":"{n} 条回复","sol.asksNow.other":"{n} 条待处理",
   "st.active":"启用中","st.paused":"已暂停","st.pending":"待确认","st.revoked":"已撤销",
   "ist.pending":"等待中","ist.allowed":"已放行","ist.approved":"已批准","ist.reflected":"已退回","ist.denied":"已拒绝","ist.edited":"已修改","ist.expired":"已过期",
   "lock.title":"已锁定","lock.body":"解锁看看智能体在忙什么。","lock.unlock":"解锁","lock.signout":"用其他账户登录",
@@ -168,7 +168,7 @@ hi: {
   "inbox.caughtUp":"सब साफ़। कुछ भी बाकी नहीं।","inbox.empty.title":"सब शांत है।",
   "inbox.empty.body":"आपके एजेंट अपना काम कर रहे हैं। जैसे ही कोई जोखिम भरी चीज़ की ओर हाथ बढ़ाएगा, वह यहाँ आ जाएगा।",
   "inbox.browse":"कोई समाधान ढूँढें",
-  "card.listen":"कारण सुनें","card.stop":"रोकें","card.transcript":"पढ़कर देखें","act.detail":"क्या हुआ","act.close":"बंद करें","act.ref":"लेजर संदर्भ","act.when":"कब","flt.all":"सभी","flt.none":"इस फ़िल्टर से कुछ नहीं मिला।","flt.clear":"फ़िल्टर हटाएँ","card.reflect":"पुनर्विचार","card.why":"क्यों","card.ifBlocked":"अगर आप मना करें","ok.approve":"आगे बढ़ने दें?","ok.deny":"इसे रोकें?","ok.reflect":"दूसरा रास्ता माँगें?","ok.approveBody":"एजेंट अपनी योजना के अनुसार आगे बढ़ेगा।","ok.denyBody":"एजेंट यहीं रुक जाएगा और आगे कुछ नहीं करेगा।","ok.reflectBody":"लक्ष्य वही रहेगा। एजेंट कम जोखिम वाला रास्ता खोजकर लौटेगा।","ok.bulk":"इससे एक साथ {n} का जवाब जाएगा।","ok.severeKept":"गंभीर चीज़ें आपके अलग से देखने के लिए छोड़ दी जाएँगी।","cl.waiting":"{n} प्रतीक्षा में","cl.others":"बाकी {n} देखें","cl.fewer":"कम दिखाएँ","cl.oneByOne":"एक-एक करके","cl.allFrom":"इस समाधान से सभी","cl.of":"{n} में से {i}","cl.done":"बस इतने ही थे।","cl.back":"सूची पर लौटें","t.decidedMany":"{n} का जवाब दिया","card.approve":"स्वीकृत करें","card.deny":"अस्वीकार करें","card.approving":"स्वीकृत किया जा रहा है","card.denying":"अस्वीकार किया जा रहा है",
+  "act.detail":"क्या हुआ","act.close":"बंद करें","act.ref":"लेजर संदर्भ","act.when":"कब","flt.all":"सभी","flt.none":"इस फ़िल्टर से कुछ नहीं मिला।","flt.clear":"फ़िल्टर हटाएँ","card.reflect":"पुनर्विचार","card.ifBlocked":"अगर आप मना करें","ok.approve":"आगे बढ़ने दें?","ok.deny":"इसे रोकें?","ok.reflect":"दूसरा रास्ता माँगें?","ok.approveBody":"एजेंट अपनी योजना के अनुसार आगे बढ़ेगा।","ok.denyBody":"एजेंट यहीं रुक जाएगा और आगे कुछ नहीं करेगा।","ok.reflectBody":"लक्ष्य वही रहेगा। एजेंट कम जोखिम वाला रास्ता खोजकर लौटेगा।","ok.bulk":"इससे एक साथ {n} का जवाब जाएगा।","ok.severeKept":"गंभीर चीज़ें आपके अलग से देखने के लिए छोड़ दी जाएँगी।","cl.waiting":"{n} प्रतीक्षा में","cl.oneByOne":"एक-एक करके","cl.of":"{n} में से {i}","cl.done":"बस इतने ही थे।","cl.back":"सूची पर लौटें","t.decidedMany":"{n} का जवाब दिया","card.approve":"स्वीकृत करें","card.deny":"अस्वीकार करें","card.approving":"स्वीकृत किया जा रहा है","card.denying":"अस्वीकार किया जा रहा है",
   "card.queued":"सिग्नल का इंतज़ार",
   "activity.eyebrow":"हर कार्य दर्ज","activity.title":"गतिविधि",
   "activity.sub":"एजेंटों ने आपके लिए जो किया, उसका हस्ताक्षरित और पता-योग्य रिकॉर्ड।","activity.empty":"यहाँ अभी कुछ नहीं है। आपके एजेंट अब तक बड़े समझदार रहे हैं।",
@@ -217,7 +217,7 @@ hi: {
   "t.profileFail":"प्रोफ़ाइल नहीं पढ़ सके: {msg}","t.pushOn":"सूचनाएँ चालू हैं। ज़रूरी होने पर ही आपको टोकेंगे।",
   "t.pushSent":"भेज दिया। जाकर देखें।","t.pushFail":"सूचनाएँ चालू नहीं कर सके: {msg}",
   "more.load":"और लाएँ","more.loading":"और ला रहे हैं","more.end":"बस, इतना ही।",
-  "time.now":"अभी","time.m":"{n} मिनट पहले","time.h":"{n} घंटे पहले","time.d":"{n} दिन पहले",
+  "time.now":"अभी","time.m":"{n} मिनट पहले","time.h":"{n} घंटे पहले","time.d":"{n} दिन पहले","time.sec":"{n} से","time.min":"{n} मि","time.hr":"{n} घं","time.day":"{n} दि","flt.allSol":"सभी समाधान","flt.allRisk":"कोई भी जोखिम","flt.chosen":"{n} चुने गए","grp.unnamed":"एक एजेंट","grp.denyAll":"सब रोकें","grp.reflectAll":"सबके लिए दूसरा रास्ता","grp.approveAll":"सबको मंज़ूरी","act.more":"ब्योरा देखें","act.less":"ब्योरा छिपाएँ","act.asked":"पूछा","act.answered":"जवाब","act.answeredIn":"{span} में जवाब","act.answers.one":"{n} जवाब","act.answers.other":"{n} जवाब","sol.asksNow.one":"{n} बाकी","sol.asksNow.other":"{n} बाकी",
   "st.active":"सक्रिय","st.paused":"रुका हुआ","st.pending":"लंबित","st.revoked":"निरस्त",
   "ist.pending":"प्रतीक्षारत","ist.allowed":"अनुमत","ist.approved":"स्वीकृत","ist.reflected":"वापस भेजा","ist.denied":"अस्वीकृत","ist.edited":"संपादित","ist.expired":"समाप्त",
   "lock.title":"लॉक है","lock.body":"आपके एजेंट क्या कर रहे हैं, देखने के लिए अनलॉक करें।","lock.unlock":"अनलॉक करें","lock.signout":"किसी और के रूप में साइन इन करें",
@@ -235,7 +235,7 @@ es: {
   "inbox.caughtUp":"Todo listo. No queda nada.","inbox.empty.title":"Todo tranquilo.",
   "inbox.empty.body":"Tus agentes están a lo suyo. En cuanto uno intente algo arriesgado, aparece aquí.",
   "inbox.browse":"Busca una solución",
-  "card.listen":"Escuchar por qué","card.stop":"Detener","card.transcript":"Leerlo","act.detail":"Qué pasó","act.close":"Cerrar","act.ref":"Referencia del registro","act.when":"Cuándo","flt.all":"Todo","flt.none":"Nada coincide con ese filtro.","flt.clear":"Quitar filtros","card.reflect":"Replantear","card.why":"Por qué","card.ifBlocked":"Si te niegas","ok.approve":"¿Dejar que continúe?","ok.deny":"¿Detener esto?","ok.reflect":"¿Pedir otra forma?","ok.approveBody":"El agente continúa como tenía previsto.","ok.denyBody":"El agente se detiene aquí y no lleva esto más lejos.","ok.reflectBody":"El objetivo sigue. El agente busca una forma menos arriesgada y vuelve.","ok.bulk":"Esto responde a {n} de una vez.","ok.severeKept":"Lo grave se deja aparte para que lo mires tú.","cl.waiting":"{n} en espera","cl.others":"Ver los otros {n}","cl.fewer":"Mostrar menos","cl.oneByOne":"Uno por uno","cl.allFrom":"Todo de esta solución","cl.of":"{i} de {n}","cl.done":"Eso es todo.","cl.back":"Volver a la lista","t.decidedMany":"Respondidas {n}","card.approve":"Aprobar","card.deny":"Denegar","card.approving":"Aprobando","card.denying":"Denegando",
+  "act.detail":"Qué pasó","act.close":"Cerrar","act.ref":"Referencia del registro","act.when":"Cuándo","flt.all":"Todo","flt.none":"Nada coincide con ese filtro.","flt.clear":"Quitar filtros","card.reflect":"Replantear","card.ifBlocked":"Si te niegas","ok.approve":"¿Dejar que continúe?","ok.deny":"¿Detener esto?","ok.reflect":"¿Pedir otra forma?","ok.approveBody":"El agente continúa como tenía previsto.","ok.denyBody":"El agente se detiene aquí y no lleva esto más lejos.","ok.reflectBody":"El objetivo sigue. El agente busca una forma menos arriesgada y vuelve.","ok.bulk":"Esto responde a {n} de una vez.","ok.severeKept":"Lo grave se deja aparte para que lo mires tú.","cl.waiting":"{n} en espera","cl.oneByOne":"Uno por uno","cl.of":"{i} de {n}","cl.done":"Eso es todo.","cl.back":"Volver a la lista","t.decidedMany":"Respondidas {n}","card.approve":"Aprobar","card.deny":"Denegar","card.approving":"Aprobando","card.denying":"Denegando",
   "card.queued":"Esperando señal",
   "activity.eyebrow":"Cada acción, registrada","activity.title":"Actividad",
   "activity.sub":"Un registro firmado y rastreable de lo que los agentes hicieron por ti.","activity.empty":"Aquí todavía no hay nada. Tus agentes se han portado bien.",
@@ -284,7 +284,7 @@ es: {
   "t.profileFail":"No se pudo leer el perfil: {msg}","t.pushOn":"Notificaciones activadas. Solo te avisaremos cuando importe.",
   "t.pushSent":"Enviada. Ve a mirar.","t.pushFail":"No se pudieron activar: {msg}",
   "more.load":"Cargar más","more.loading":"Buscando más","more.end":"Esto es todo.",
-  "time.now":"ahora mismo","time.m":"hace {n} min","time.h":"hace {n} h","time.d":"hace {n} d",
+  "time.now":"ahora mismo","time.m":"hace {n} min","time.h":"hace {n} h","time.d":"hace {n} d","time.sec":"{n} s","time.min":"{n} min","time.hr":"{n} h","time.day":"{n} d","flt.allSol":"Todas las soluciones","flt.allRisk":"Cualquier riesgo","flt.chosen":"{n} elegidas","grp.unnamed":"Un agente","grp.denyAll":"Parar todo","grp.reflectAll":"Otra vía para todo","grp.approveAll":"Aprobar todo","act.more":"Ver detalles","act.less":"Ocultar detalles","act.asked":"Pedido","act.answered":"Respondido","act.answeredIn":"respondido en {span}","act.answers.one":"{n} respuesta","act.answers.other":"{n} respuestas","sol.asksNow.one":"{n} en espera","sol.asksNow.other":"{n} en espera",
   "st.active":"Activa","st.paused":"En pausa","st.pending":"Pendiente","st.revoked":"Revocada",
   "ist.pending":"Esperando","ist.allowed":"Permitida","ist.approved":"Aprobada","ist.reflected":"Devuelta","ist.denied":"Denegada","ist.edited":"Editada","ist.expired":"Expirada",
   "lock.title":"Bloqueado","lock.body":"Desbloquea para ver en qué andan tus agentes.","lock.unlock":"Desbloquear","lock.signout":"Entrar con otra cuenta",
@@ -302,7 +302,7 @@ fr: {
   "inbox.caughtUp":"Tout est réglé. Rien en attente.","inbox.empty.title":"Tout est calme.",
   "inbox.empty.body":"Vos agents s'occupent du reste. Dès que l'un d'eux touche à quelque chose de risqué, cela arrive ici.",
   "inbox.browse":"Trouver une solution",
-  "card.listen":"Écouter pourquoi","card.stop":"Arrêter","card.transcript":"Le lire","act.detail":"Ce qui s’est passé","act.close":"Fermer","act.ref":"Référence du registre","act.when":"Quand","flt.all":"Tout","flt.none":"Rien ne correspond à ce filtre.","flt.clear":"Effacer les filtres","card.reflect":"Repenser","card.why":"Pourquoi","card.ifBlocked":"Si vous refusez","ok.approve":"Laisser faire ?","ok.deny":"Arrêter ceci ?","ok.reflect":"Demander une autre voie ?","ok.approveBody":"L’agent poursuit comme prévu.","ok.denyBody":"L’agent s’arrête ici et ne va pas plus loin.","ok.reflectBody":"L’objectif demeure. L’agent cherche une voie moins risquée et revient.","ok.bulk":"Cela répond à {n} d’un coup.","ok.severeKept":"Ce qui est grave reste à examiner séparément.","cl.waiting":"{n} en attente","cl.others":"Voir les {n} autres","cl.fewer":"Afficher moins","cl.oneByOne":"Un par un","cl.allFrom":"Tout de cette solution","cl.of":"{i} sur {n}","cl.done":"C’est tout.","cl.back":"Retour à la liste","t.decidedMany":"{n} traitées","card.approve":"Approuver","card.deny":"Refuser","card.approving":"Approbation","card.denying":"Refus",
+  "act.detail":"Ce qui s’est passé","act.close":"Fermer","act.ref":"Référence du registre","act.when":"Quand","flt.all":"Tout","flt.none":"Rien ne correspond à ce filtre.","flt.clear":"Effacer les filtres","card.reflect":"Repenser","card.ifBlocked":"Si vous refusez","ok.approve":"Laisser faire ?","ok.deny":"Arrêter ceci ?","ok.reflect":"Demander une autre voie ?","ok.approveBody":"L’agent poursuit comme prévu.","ok.denyBody":"L’agent s’arrête ici et ne va pas plus loin.","ok.reflectBody":"L’objectif demeure. L’agent cherche une voie moins risquée et revient.","ok.bulk":"Cela répond à {n} d’un coup.","ok.severeKept":"Ce qui est grave reste à examiner séparément.","cl.waiting":"{n} en attente","cl.oneByOne":"Un par un","cl.of":"{i} sur {n}","cl.done":"C’est tout.","cl.back":"Retour à la liste","t.decidedMany":"{n} traitées","card.approve":"Approuver","card.deny":"Refuser","card.approving":"Approbation","card.denying":"Refus",
   "card.queued":"En attente de signal",
   "activity.eyebrow":"Chaque action, consignée","activity.title":"Activité",
   "activity.sub":"Un registre signé et traçable de ce que les agents ont fait pour vous.","activity.empty":"Rien ici pour l'instant. Vos agents se sont bien tenus.",
@@ -351,7 +351,7 @@ fr: {
   "t.profileFail":"Lecture du profil impossible : {msg}","t.pushOn":"Notifications activées. Nous ne vous préviendrons que quand ça compte.",
   "t.pushSent":"Envoyé. Allez voir.","t.pushFail":"Activation impossible : {msg}",
   "more.load":"Charger plus","more.loading":"On en cherche d'autres","more.end":"C'est tout.",
-  "time.now":"à l'instant","time.m":"il y a {n} min","time.h":"il y a {n} h","time.d":"il y a {n} j",
+  "time.now":"à l'instant","time.m":"il y a {n} min","time.h":"il y a {n} h","time.d":"il y a {n} j","time.sec":"{n} s","time.min":"{n} min","time.hr":"{n} h","time.day":"{n} j","flt.allSol":"Toutes les solutions","flt.allRisk":"Tous les risques","flt.chosen":"{n} sélectionnées","grp.unnamed":"Un agent","grp.denyAll":"Tout arrêter","grp.reflectAll":"Autre voie pour tout","grp.approveAll":"Tout approuver","act.more":"Voir le détail","act.less":"Masquer le détail","act.asked":"Demandé","act.answered":"Répondu","act.answeredIn":"répondu en {span}","act.answers.one":"{n} réponse","act.answers.other":"{n} réponses","sol.asksNow.one":"{n} en attente","sol.asksNow.other":"{n} en attente",
   "st.active":"Active","st.paused":"En pause","st.pending":"En attente","st.revoked":"Révoquée",
   "ist.pending":"En attente","ist.allowed":"Autorisée","ist.approved":"Approuvée","ist.reflected":"Renvoyée","ist.denied":"Refusée","ist.edited":"Modifiée","ist.expired":"Expirée",
   "lock.title":"Verrouillé","lock.body":"Déverrouillez pour voir ce que fabriquent vos agents.","lock.unlock":"Déverrouiller","lock.signout":"Se connecter avec un autre compte",
@@ -370,7 +370,7 @@ ar: {
   "inbox.caughtUp":"كل شيء على ما يرام. لا شيء بالانتظار.","inbox.empty.title":"كل شيء هادئ.",
   "inbox.empty.body":"وكلاؤك منهمكون في عملهم. وحين يمد أحدهم يده إلى أمر فيه مخاطرة، يظهر هنا.",
   "inbox.browse":"ابحث عن حل",
-  "card.listen":"استمع للسبب","card.stop":"إيقاف","card.transcript":"اقرأه بدلًا من ذلك","act.detail":"ماذا حدث","act.close":"إغلاق","act.ref":"مرجع السجل","act.when":"متى","flt.all":"الكل","flt.none":"لا شيء يطابق هذا المرشّح.","flt.clear":"مسح المرشّحات","card.reflect":"أعد النظر","card.why":"لماذا","card.ifBlocked":"إذا رفضت","ok.approve":"هل تسمح بالمتابعة؟","ok.deny":"هل توقف هذا؟","ok.reflect":"هل تطلب طريقة أخرى؟","ok.approveBody":"سيتابع الوكيل كما خطط.","ok.denyBody":"سيتوقف الوكيل هنا ولن يمضي أبعد.","ok.reflectBody":"الهدف باقٍ. سيبحث الوكيل عن طريقة أقل خطورة ويعود.","ok.bulk":"هذا يجيب على {n} دفعة واحدة.","ok.severeKept":"كل ما هو خطير يُترك لك لتنظر فيه وحده.","cl.waiting":"{n} بالانتظار","cl.others":"عرض الـ {n} الأخرى","cl.fewer":"عرض أقل","cl.oneByOne":"واحدًا تلو الآخر","cl.allFrom":"كل ما من هذا الحل","cl.of":"{i} من {n}","cl.done":"هذا كل شيء.","cl.back":"العودة إلى القائمة","t.decidedMany":"تمت الإجابة على {n}","card.approve":"الموافقة","card.deny":"الرفض","card.approving":"جارٍ الموافقة","card.denying":"جارٍ الرفض",
+  "act.detail":"ماذا حدث","act.close":"إغلاق","act.ref":"مرجع السجل","act.when":"متى","flt.all":"الكل","flt.none":"لا شيء يطابق هذا المرشّح.","flt.clear":"مسح المرشّحات","card.reflect":"أعد النظر","card.ifBlocked":"إذا رفضت","ok.approve":"هل تسمح بالمتابعة؟","ok.deny":"هل توقف هذا؟","ok.reflect":"هل تطلب طريقة أخرى؟","ok.approveBody":"سيتابع الوكيل كما خطط.","ok.denyBody":"سيتوقف الوكيل هنا ولن يمضي أبعد.","ok.reflectBody":"الهدف باقٍ. سيبحث الوكيل عن طريقة أقل خطورة ويعود.","ok.bulk":"هذا يجيب على {n} دفعة واحدة.","ok.severeKept":"كل ما هو خطير يُترك لك لتنظر فيه وحده.","cl.waiting":"{n} بالانتظار","cl.oneByOne":"واحدًا تلو الآخر","cl.of":"{i} من {n}","cl.done":"هذا كل شيء.","cl.back":"العودة إلى القائمة","t.decidedMany":"تمت الإجابة على {n}","card.approve":"الموافقة","card.deny":"الرفض","card.approving":"جارٍ الموافقة","card.denying":"جارٍ الرفض",
   "card.queued":"بانتظار الإشارة",
   "activity.eyebrow":"كل إجراء مُسجَّل","activity.title":"السجل",
   "activity.sub":"سجل موقَّع وقابل للتتبع لما فعله الوكلاء من أجلك.","activity.empty":"لا شيء هنا بعد. وكلاؤك أحسنوا التصرف حتى الآن.",
@@ -420,7 +420,7 @@ ar: {
   "t.profileFail":"تعذّرت قراءة الملف: {msg}","t.pushOn":"الإشعارات مفعّلة. لن ننبهك إلا حين يستحق الأمر.",
   "t.pushSent":"أُرسل. اذهب وتحقق.","t.pushFail":"تعذّر التفعيل: {msg}",
   "more.load":"عرض المزيد","more.loading":"نجلب المزيد","more.end":"هذا كل ما لدينا.",
-  "time.now":"الآن","time.m":"قبل {n} د","time.h":"قبل {n} س","time.d":"قبل {n} ي",
+  "time.now":"الآن","time.m":"قبل {n} د","time.h":"قبل {n} س","time.d":"قبل {n} ي","time.sec":"{n} ث","time.min":"{n} د","time.hr":"{n} س","time.day":"{n} ي","flt.allSol":"كل الحلول","flt.allRisk":"أي مستوى خطورة","flt.chosen":"{n} مختارة","grp.unnamed":"وكيل","grp.denyAll":"أوقف الكل","grp.reflectAll":"طريقة أخرى للكل","grp.approveAll":"وافق على الكل","act.more":"عرض التفاصيل","act.less":"إخفاء التفاصيل","act.asked":"طُلب","act.answered":"أُجيب","act.answeredIn":"أُجيب خلال {span}","act.answers.one":"إجابة واحدة","act.answers.other":"{n} إجابات","sol.asksNow.one":"طلب واحد ينتظر","sol.asksNow.other":"{n} طلبات تنتظر",
   "st.active":"نشط","st.paused":"متوقف","st.pending":"معلّق","st.revoked":"ملغى",
   "ist.pending":"بالانتظار","ist.allowed":"مسموح","ist.approved":"تمت الموافقة","ist.reflected":"أُعيد","ist.denied":"مرفوض","ist.edited":"معدّل","ist.expired":"منتهٍ",
   "lock.title":"مقفل","lock.body":"افتح القفل لترى ما الذي يفعله وكلاؤك.","lock.unlock":"فتح القفل","lock.signout":"الدخول بحساب آخر",
@@ -438,7 +438,7 @@ pt: {
   "inbox.caughtUp":"Tudo em dia. Nada esperando.","inbox.empty.title":"Tudo tranquilo.",
   "inbox.empty.body":"Seus agentes estão tocando o trabalho. No instante em que um deles partir para algo arriscado, aparece aqui.",
   "inbox.browse":"Encontrar uma solução",
-  "card.listen":"Ouvir o porquê","card.stop":"Parar","card.transcript":"Ler em vez disso","act.detail":"O que aconteceu","act.close":"Fechar","act.ref":"Referência do registro","act.when":"Quando","flt.all":"Tudo","flt.none":"Nada corresponde a esse filtro.","flt.clear":"Limpar filtros","card.reflect":"Repensar","card.why":"Por quê","card.ifBlocked":"Se você recusar","ok.approve":"Deixar seguir?","ok.deny":"Parar isso?","ok.reflect":"Pedir outro caminho?","ok.approveBody":"O agente segue como planejou.","ok.denyBody":"O agente para aqui e não leva isso adiante.","ok.reflectBody":"O objetivo continua. O agente procura um caminho menos arriscado e volta.","ok.bulk":"Isso responde a {n} de uma vez.","ok.severeKept":"O que for grave fica separado para você olhar.","cl.waiting":"{n} aguardando","cl.others":"Ver os outros {n}","cl.fewer":"Mostrar menos","cl.oneByOne":"Um por um","cl.allFrom":"Tudo desta solução","cl.of":"{i} de {n}","cl.done":"Isso é tudo.","cl.back":"Voltar à lista","t.decidedMany":"Respondidas {n}","card.approve":"Aprovar","card.deny":"Negar","card.approving":"Aprovando","card.denying":"Negando",
+  "act.detail":"O que aconteceu","act.close":"Fechar","act.ref":"Referência do registro","act.when":"Quando","flt.all":"Tudo","flt.none":"Nada corresponde a esse filtro.","flt.clear":"Limpar filtros","card.reflect":"Repensar","card.ifBlocked":"Se você recusar","ok.approve":"Deixar seguir?","ok.deny":"Parar isso?","ok.reflect":"Pedir outro caminho?","ok.approveBody":"O agente segue como planejou.","ok.denyBody":"O agente para aqui e não leva isso adiante.","ok.reflectBody":"O objetivo continua. O agente procura um caminho menos arriscado e volta.","ok.bulk":"Isso responde a {n} de uma vez.","ok.severeKept":"O que for grave fica separado para você olhar.","cl.waiting":"{n} aguardando","cl.oneByOne":"Um por um","cl.of":"{i} de {n}","cl.done":"Isso é tudo.","cl.back":"Voltar à lista","t.decidedMany":"Respondidas {n}","card.approve":"Aprovar","card.deny":"Negar","card.approving":"Aprovando","card.denying":"Negando",
   "card.queued":"Esperando sinal",
   "activity.eyebrow":"Cada ação, registrada","activity.title":"Atividade",
   "activity.sub":"Um registro assinado e rastreável do que os agentes fizeram por você.","activity.empty":"Ainda não há nada aqui. Seus agentes têm se comportado bem.",
@@ -487,7 +487,7 @@ pt: {
   "t.profileFail":"Não foi possível ler o perfil: {msg}","t.pushOn":"Notificações ativadas. Só vamos avisar quando importar.",
   "t.pushSent":"Enviado. Vá conferir.","t.pushFail":"Não foi possível ativar: {msg}",
   "more.load":"Carregar mais","more.loading":"Buscando mais","more.end":"Isso é tudo.",
-  "time.now":"agora mesmo","time.m":"há {n} min","time.h":"há {n} h","time.d":"há {n} d",
+  "time.now":"agora mesmo","time.m":"há {n} min","time.h":"há {n} h","time.d":"há {n} d","time.sec":"{n} s","time.min":"{n} min","time.hr":"{n} h","time.day":"{n} d","flt.allSol":"Todas as soluções","flt.allRisk":"Qualquer risco","flt.chosen":"{n} escolhidas","grp.unnamed":"Um agente","grp.denyAll":"Parar tudo","grp.reflectAll":"Outro caminho para tudo","grp.approveAll":"Aprovar tudo","act.more":"Ver detalhes","act.less":"Ocultar detalhes","act.asked":"Pedido","act.answered":"Respondido","act.answeredIn":"respondido em {span}","act.answers.one":"{n} resposta","act.answers.other":"{n} respostas","sol.asksNow.one":"{n} esperando","sol.asksNow.other":"{n} esperando",
   "st.active":"Ativa","st.paused":"Pausada","st.pending":"Pendente","st.revoked":"Revogada",
   "ist.pending":"Aguardando","ist.allowed":"Permitida","ist.approved":"Aprovada","ist.reflected":"Devolvida","ist.denied":"Negada","ist.edited":"Editada","ist.expired":"Expirada",
   "lock.title":"Bloqueado","lock.body":"Desbloqueie para ver o que seus agentes estão aprontando.","lock.unlock":"Desbloquear","lock.signout":"Entrar com outra conta",
@@ -506,7 +506,7 @@ ru: {
   "inbox.caughtUp":"Всё чисто. Ничего не ждёт.","inbox.empty.title":"Всё тихо.",
   "inbox.empty.body":"Агенты занимаются делом. Как только кто-то потянется к рискованному, это появится здесь.",
   "inbox.browse":"Найти решение",
-  "card.listen":"Послушать почему","card.stop":"Стоп","card.transcript":"Прочитать","act.detail":"Что произошло","act.close":"Закрыть","act.ref":"Ссылка в журнале","act.when":"Когда","flt.all":"Все","flt.none":"Ничего не найдено по этому фильтру.","flt.clear":"Сбросить фильтры","card.reflect":"Переосмыслить","card.why":"Почему","card.ifBlocked":"Если откажете","ok.approve":"Разрешить?","ok.deny":"Остановить?","ok.reflect":"Попросить другой путь?","ok.approveBody":"Агент продолжит, как планировал.","ok.denyBody":"Агент остановится и дальше это не поведёт.","ok.reflectBody":"Цель остаётся. Агент поищет менее рискованный путь и вернётся.","ok.bulk":"Это ответит сразу на {n}.","ok.severeKept":"Всё критическое останется, чтобы вы посмотрели отдельно.","cl.waiting":"{n} ждут","cl.others":"Показать ещё {n}","cl.fewer":"Свернуть","cl.oneByOne":"По одному","cl.allFrom":"Всё от этого решения","cl.of":"{i} из {n}","cl.done":"Это все.","cl.back":"Назад к списку","t.decidedMany":"Обработано {n}","card.approve":"Разрешить","card.deny":"Отклонить","card.approving":"Разрешаем","card.denying":"Отклоняем",
+  "act.detail":"Что произошло","act.close":"Закрыть","act.ref":"Ссылка в журнале","act.when":"Когда","flt.all":"Все","flt.none":"Ничего не найдено по этому фильтру.","flt.clear":"Сбросить фильтры","card.reflect":"Переосмыслить","card.ifBlocked":"Если откажете","ok.approve":"Разрешить?","ok.deny":"Остановить?","ok.reflect":"Попросить другой путь?","ok.approveBody":"Агент продолжит, как планировал.","ok.denyBody":"Агент остановится и дальше это не поведёт.","ok.reflectBody":"Цель остаётся. Агент поищет менее рискованный путь и вернётся.","ok.bulk":"Это ответит сразу на {n}.","ok.severeKept":"Всё критическое останется, чтобы вы посмотрели отдельно.","cl.waiting":"{n} ждут","cl.oneByOne":"По одному","cl.of":"{i} из {n}","cl.done":"Это все.","cl.back":"Назад к списку","t.decidedMany":"Обработано {n}","card.approve":"Разрешить","card.deny":"Отклонить","card.approving":"Разрешаем","card.denying":"Отклоняем",
   "card.queued":"Ждём сигнала",
   "activity.eyebrow":"Каждое действие в журнале","activity.title":"Журнал",
   "activity.sub":"Подписанная и прослеживаемая запись того, что агенты сделали для вас.","activity.empty":"Здесь пока пусто. Агенты вели себя примерно.",
@@ -556,7 +556,7 @@ ru: {
   "t.profileFail":"Не удалось прочитать профиль: {msg}","t.pushOn":"Уведомления включены. Побеспокоим, только когда это важно.",
   "t.pushSent":"Отправлено. Загляните в уведомления.","t.pushFail":"Не удалось включить: {msg}",
   "more.load":"Показать ещё","more.loading":"Достаём ещё","more.end":"Это всё, что есть.",
-  "time.now":"только что","time.m":"{n} мин назад","time.h":"{n} ч назад","time.d":"{n} дн назад",
+  "time.now":"только что","time.m":"{n} мин назад","time.h":"{n} ч назад","time.d":"{n} дн назад","time.sec":"{n} с","time.min":"{n} мин","time.hr":"{n} ч","time.day":"{n} дн","flt.allSol":"Все решения","flt.allRisk":"Любой риск","flt.chosen":"Выбрано: {n}","grp.unnamed":"Агент","grp.denyAll":"Остановить все","grp.reflectAll":"Другой путь для всех","grp.approveAll":"Одобрить все","act.more":"Показать детали","act.less":"Скрыть детали","act.asked":"Запрос","act.answered":"Ответ","act.answeredIn":"ответ за {span}","act.answers.one":"{n} ответ","act.answers.few":"{n} ответа","act.answers.many":"{n} ответов","act.answers.other":"{n} ответов","sol.asksNow.one":"{n} ждёт","sol.asksNow.few":"{n} ждут","sol.asksNow.many":"{n} ждут","sol.asksNow.other":"{n} ждут",
   "st.active":"Активно","st.paused":"На паузе","st.pending":"Ожидает","st.revoked":"Отозвано",
   "ist.pending":"Ожидает","ist.allowed":"Разрешено","ist.approved":"Одобрено","ist.reflected":"Возвращено","ist.denied":"Отклонено","ist.edited":"Изменено","ist.expired":"Истекло",
   "lock.title":"Заблокировано","lock.body":"Разблокируйте, чтобы увидеть, чем заняты ваши агенты.","lock.unlock":"Разблокировать","lock.signout":"Войти под другим аккаунтом",
@@ -574,7 +574,7 @@ ja: {
   "inbox.empty.title":"静かなものです。",
   "inbox.empty.body":"エージェントたちは自分の仕事を進めています。誰かがリスクのあることに手を伸ばした瞬間、ここに現れます。",
   "inbox.browse":"ソリューションを探す",
-  "card.listen":"理由を聞く","card.stop":"停止","card.transcript":"読んで確認","act.detail":"何が起きたか","act.close":"閉じる","act.ref":"台帳の参照","act.when":"いつ","flt.all":"すべて","flt.none":"この絞り込みに合うものはありません。","flt.clear":"絞り込みを解除","card.reflect":"考え直す","card.why":"理由","card.ifBlocked":"断った場合","ok.approve":"実行させますか？","ok.deny":"止めますか？","ok.reflect":"別の方法を求めますか？","ok.approveBody":"エージェントは予定どおり進めます。","ok.denyBody":"エージェントはここで止まり、これ以上進めません。","ok.reflectBody":"目的はそのままです。エージェントはより安全な方法を探して戻ります。","ok.bulk":"これで{n}件をまとめて答えます。","ok.severeKept":"重大なものは個別に確認できるよう残します。","cl.waiting":"{n}件待ち","cl.others":"残り{n}件を見る","cl.fewer":"表示を減らす","cl.oneByOne":"1件ずつ","cl.allFrom":"このソリューションのすべて","cl.of":"{n}件中{i}件目","cl.done":"以上です。","cl.back":"一覧に戻る","t.decidedMany":"{n}件に回答しました","card.approve":"許可","card.deny":"拒否","card.approving":"許可しています","card.denying":"拒否しています",
+  "act.detail":"何が起きたか","act.close":"閉じる","act.ref":"台帳の参照","act.when":"いつ","flt.all":"すべて","flt.none":"この絞り込みに合うものはありません。","flt.clear":"絞り込みを解除","card.reflect":"考え直す","card.ifBlocked":"断った場合","ok.approve":"実行させますか？","ok.deny":"止めますか？","ok.reflect":"別の方法を求めますか？","ok.approveBody":"エージェントは予定どおり進めます。","ok.denyBody":"エージェントはここで止まり、これ以上進めません。","ok.reflectBody":"目的はそのままです。エージェントはより安全な方法を探して戻ります。","ok.bulk":"これで{n}件をまとめて答えます。","ok.severeKept":"重大なものは個別に確認できるよう残します。","cl.waiting":"{n}件待ち","cl.oneByOne":"1件ずつ","cl.of":"{n}件中{i}件目","cl.done":"以上です。","cl.back":"一覧に戻る","t.decidedMany":"{n}件に回答しました","card.approve":"許可","card.deny":"拒否","card.approving":"許可しています","card.denying":"拒否しています",
   "card.queued":"電波待ち",
   "activity.eyebrow":"すべての操作を記録","activity.title":"履歴",
   "activity.sub":"エージェントがあなたのために行ったことの、署名付きで追跡可能な記録。","activity.empty":"ここにはまだ何もありません。エージェントたちはお行儀よくやっています。",
@@ -620,7 +620,7 @@ ja: {
   "t.profileFail":"プロフィールを読めませんでした: {msg}","t.pushOn":"通知をオンにしました。大事なときだけお知らせします。",
   "t.pushSent":"送信しました。通知を見てみてください。","t.pushFail":"通知をオンにできませんでした: {msg}",
   "more.load":"もっと読み込む","more.loading":"もっと取ってきます","more.end":"これで全部です。",
-  "time.now":"たった今","time.m":"{n}分前","time.h":"{n}時間前","time.d":"{n}日前",
+  "time.now":"たった今","time.m":"{n}分前","time.h":"{n}時間前","time.d":"{n}日前","time.sec":"{n}秒","time.min":"{n}分","time.hr":"{n}時間","time.day":"{n}日","flt.allSol":"すべてのソリューション","flt.allRisk":"すべてのリスク","flt.chosen":"{n} 件選択","grp.unnamed":"エージェント","grp.denyAll":"すべて止める","grp.reflectAll":"すべて別の方法で","grp.approveAll":"すべて承認","act.more":"詳細を見る","act.less":"詳細を隠す","act.asked":"依頼","act.answered":"回答","act.answeredIn":"{span}で回答","act.answers.other":"{n} 件の回答","sol.asksNow.other":"{n} 件待ち",
   "st.active":"有効","st.paused":"一時停止","st.pending":"保留","st.revoked":"取り消し",
   "ist.pending":"待機中","ist.allowed":"許可済み","ist.approved":"承認済み","ist.reflected":"差し戻し","ist.denied":"拒否済み","ist.edited":"編集済み","ist.expired":"期限切れ",
   "lock.title":"ロック中","lock.body":"エージェントたちの様子を見るにはロックを解除してください。","lock.unlock":"ロック解除","lock.signout":"別のアカウントでサインイン",
@@ -638,7 +638,7 @@ de: {
   "inbox.caughtUp":"Alles erledigt. Nichts wartet.","inbox.empty.title":"Alles ruhig.",
   "inbox.empty.body":"Ihre Agenten machen ihre Arbeit. Sobald einer nach etwas Riskantem greift, taucht es hier auf.",
   "inbox.browse":"Eine Lösung finden",
-  "card.listen":"Warum anhören","card.stop":"Stopp","card.transcript":"Stattdessen lesen","act.detail":"Was geschah","act.close":"Schließen","act.ref":"Referenz im Protokoll","act.when":"Wann","flt.all":"Alle","flt.none":"Nichts passt zu diesem Filter.","flt.clear":"Filter entfernen","card.reflect":"Überdenken","card.why":"Warum","card.ifBlocked":"Wenn Sie ablehnen","ok.approve":"Fortfahren lassen?","ok.deny":"Das stoppen?","ok.reflect":"Einen anderen Weg verlangen?","ok.approveBody":"Der Agent macht wie geplant weiter.","ok.denyBody":"Der Agent hält hier an und verfolgt das nicht weiter.","ok.reflectBody":"Das Ziel bleibt. Der Agent sucht einen weniger riskanten Weg und kommt zurück.","ok.bulk":"Das beantwortet {n} auf einmal.","ok.severeKept":"Schwerwiegendes bleibt für Sie einzeln stehen.","cl.waiting":"{n} warten","cl.others":"Die anderen {n} ansehen","cl.fewer":"Weniger zeigen","cl.oneByOne":"Nacheinander","cl.allFrom":"Alles von dieser Lösung","cl.of":"{i} von {n}","cl.done":"Das waren alle.","cl.back":"Zurück zur Liste","t.decidedMany":"{n} beantwortet","card.approve":"Zulassen","card.deny":"Ablehnen","card.approving":"Wird zugelassen","card.denying":"Wird abgelehnt",
+  "act.detail":"Was geschah","act.close":"Schließen","act.ref":"Referenz im Protokoll","act.when":"Wann","flt.all":"Alle","flt.none":"Nichts passt zu diesem Filter.","flt.clear":"Filter entfernen","card.reflect":"Überdenken","card.ifBlocked":"Wenn Sie ablehnen","ok.approve":"Fortfahren lassen?","ok.deny":"Das stoppen?","ok.reflect":"Einen anderen Weg verlangen?","ok.approveBody":"Der Agent macht wie geplant weiter.","ok.denyBody":"Der Agent hält hier an und verfolgt das nicht weiter.","ok.reflectBody":"Das Ziel bleibt. Der Agent sucht einen weniger riskanten Weg und kommt zurück.","ok.bulk":"Das beantwortet {n} auf einmal.","ok.severeKept":"Schwerwiegendes bleibt für Sie einzeln stehen.","cl.waiting":"{n} warten","cl.oneByOne":"Nacheinander","cl.of":"{i} von {n}","cl.done":"Das waren alle.","cl.back":"Zurück zur Liste","t.decidedMany":"{n} beantwortet","card.approve":"Zulassen","card.deny":"Ablehnen","card.approving":"Wird zugelassen","card.denying":"Wird abgelehnt",
   "card.queued":"Wartet auf Empfang",
   "activity.eyebrow":"Jede Aktion protokolliert","activity.title":"Verlauf",
   "activity.sub":"Ein signierter, nachvollziehbarer Nachweis dessen, was Agenten für Sie getan haben.","activity.empty":"Hier ist noch nichts. Ihre Agenten haben sich gut benommen.",
@@ -687,7 +687,7 @@ de: {
   "t.profileFail":"Profil konnte nicht gelesen werden: {msg}","t.pushOn":"Benachrichtigungen sind an. Wir melden uns nur, wenn es wichtig ist.",
   "t.pushSent":"Gesendet. Schauen Sie nach.","t.pushFail":"Einschalten fehlgeschlagen: {msg}",
   "more.load":"Mehr laden","more.loading":"Wir holen mehr","more.end":"Mehr ist da nicht.",
-  "time.now":"gerade eben","time.m":"vor {n} Min.","time.h":"vor {n} Std.","time.d":"vor {n} T.",
+  "time.now":"gerade eben","time.m":"vor {n} Min.","time.h":"vor {n} Std.","time.d":"vor {n} T.","time.sec":"{n} s","time.min":"{n} min","time.hr":"{n} h","time.day":"{n} T","flt.allSol":"Alle Lösungen","flt.allRisk":"Jedes Risiko","flt.chosen":"{n} ausgewählt","grp.unnamed":"Ein Agent","grp.denyAll":"Alles stoppen","grp.reflectAll":"Für alles ein anderer Weg","grp.approveAll":"Alles freigeben","act.more":"Details zeigen","act.less":"Details verbergen","act.asked":"Gefragt","act.answered":"Beantwortet","act.answeredIn":"beantwortet in {span}","act.answers.one":"{n} Antwort","act.answers.other":"{n} Antworten","sol.asksNow.one":"{n} wartet","sol.asksNow.other":"{n} warten",
   "st.active":"Aktiv","st.paused":"Pausiert","st.pending":"Ausstehend","st.revoked":"Widerrufen",
   "ist.pending":"Wartet","ist.allowed":"Erlaubt","ist.approved":"Zugelassen","ist.reflected":"Zurückgegeben","ist.denied":"Abgelehnt","ist.edited":"Bearbeitet","ist.expired":"Abgelaufen",
   "lock.title":"Gesperrt","lock.body":"Entsperren Sie, um zu sehen, was Ihre Agenten treiben.","lock.unlock":"Entsperren","lock.signout":"Mit anderem Konto anmelden",
@@ -760,6 +760,26 @@ function tAgo(ts) {
   return t("time.d", { n: fmtNum(Math.round(m / 1440)) });
 }
 
+/** How long something took, as a span rather than a point in time. An answer
+ * in four seconds and an answer in two days are different kinds of answer. */
+function tSpan(ms) {
+  const sec = Math.max(0, Math.round(ms / 1000));
+  if (sec < 60) return t("time.sec", { n: fmtNum(sec) });
+  const m = Math.round(sec / 60);
+  if (m < 60) return t("time.min", { n: fmtNum(m) });
+  const h = Math.round(m / 60);
+  if (h < 24) return t("time.hr", { n: fmtNum(h) });
+  return t("time.day", { n: fmtNum(Math.round(h / 24)) });
+}
+
+/** A date and time, spelled out, for a record rather than a feed. */
+function tWhen(ts) {
+  if (!ts) return "";
+  try {
+    return new Intl.DateTimeFormat(LANG, { dateStyle: "medium", timeStyle: "short" }).format(new Date(ts));
+  } catch { return new Date(ts).toISOString(); }
+}
+
 /** A localised list: "location, data and systems". */
 function tList(items) {
   try { return new Intl.ListFormat(LANG, { style: "long", type: "conjunction" }).format(items); }
@@ -784,7 +804,7 @@ function tWhy(entry, appetite, fallback) {
   return fallback && fallback.length ? [String(fallback[0])] : [t("why.within")];
 }
 
-window.I18N = { LANGS, DICT, setLang, pickLang, t, tn, tAgo, tList, tCat, tSev, tWhy, isRTL, fmtNum,
+window.I18N = { LANGS, DICT, setLang, pickLang, t, tn, tAgo, tSpan, tWhen, tList, tCat, tSev, tWhy, isRTL, fmtNum,
   get lang() { return LANG; } };
 
 })();

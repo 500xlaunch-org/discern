@@ -13,7 +13,7 @@
  */
 "use strict";
 
-const { t, tn, tAgo, tList, tCat, tSev, tWhy, isRTL, LANGS } = window.I18N;
+const { t, tn, tAgo, tSpan, tWhen, tList, tCat, tSev, tWhy, isRTL, LANGS } = window.I18N;
 const Net = window.Net;
 
 /* ---------------- icons ---------------- */
@@ -91,12 +91,18 @@ const DEVICES = {
  * bundle (https://localhost), so it has to be told the real host. ?api= beats
  * both, which is how a build gets pointed at a different Horizon. */
 const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+/** Both axes travel as comma separated lists. An empty list is not sent at
+ * all, because asking for nothing in particular means asking for everything. */
 const filterQuery = () => {
   const f = S.filter, q = [];
-  if (f.solution) q.push(`solution=${encodeURIComponent(f.solution)}`);
-  if (f.severity) q.push(`severity=${encodeURIComponent(f.severity)}`);
+  if (f.solutions.length) q.push(`solution=${f.solutions.map(encodeURIComponent).join(",")}`);
+  if (f.severities.length) q.push(`severity=${f.severities.join(",")}`);
   return q.length ? `&${q.join("&")}` : "";
 };
+// Activity is a record of answers. Anything still waiting is the inbox's job,
+// and showing it in both places made the second one look like a broken copy.
+const DECIDED = "&state=approved,denied,reflected,edited";
+const ANSWERED = new Set(["approved", "denied", "reflected", "edited"]);
 const BASE = new URLSearchParams(location.search).get("api")
   || (NATIVE ? (window.XURFACE_API || "https://xurface.500xlaunch.com") : location.origin);
 // The environment key is an API contract and stays "test" on the wire. What a
@@ -113,8 +119,16 @@ function loadPrefs(){
     // the lock is per device, so how it is set lives with the prefs
     lockMode:"off", lockCred:null, pinSalt:null, pinHash:null,
     // addresses used on this device, so nobody retypes one on a phone keyboard
-    recent:[] };
+    recent:[],
+    // what the person chose to look at, which outlives the screen they chose
+    // it on. Empty lists mean everything, which is what All is.
+    filter:{ solutions:[], severities:[] } };
   const s = Object.assign(base, p||{});
+  // an older build stored one value per axis rather than a list
+  if (!Array.isArray(s.filter && s.filter.solutions)) {
+    const was = s.filter || {};
+    s.filter = { solutions: was.solution ? [was.solution] : [], severities: was.severity ? [was.severity] : [] };
+  }
   return Object.assign(s, { view:"inbox", mode:"connecting", ready:false,
     intents:[], timeline:[], solutions:[], catalog:[],
     inboxNext:null, inboxTotal:0, tlNext:null, tlTotal:0, loadingMore:false,
@@ -125,8 +139,10 @@ function loadPrefs(){
     // while moving between screens does not
     locked:false, lockBusy:false, pinEntry:"", pinSetup:null,
     health:{ reachable:true, ok:true, audit_ok:null, why:"" },
-    filter:{ solution:"", severity:"" }, speaking:null, detail:null, moreBusy:false,
-    summary:null, expanded:{}, focus:null, confirm:null, showWhy:{}, envAsk:false,
+    detail:null, moreBusy:false, drop:null, ask:null, scrollTop:0,
+    // which agent groups and which individual actions are unfolded
+    open:{ g:{}, a:{} },
+    summary:null, focus:null, confirm:null, envAsk:false, solAgent:null,
     // sign in walks: identifier, then a password or a name, never both at once
     signin:{ step:"id", id:"", busy:false, error:"",
              // the field decides for itself which of the two it is holding
@@ -138,7 +154,7 @@ function loadPrefs(){
 function savePrefs(){ try{ localStorage.setItem("discern.prefs", JSON.stringify({
   env:S.env,plat:S.plat,form:S.form,theme:S.theme,lang:S.lang,fullscreen:S.fullscreen,
   token:S.token,user:S.user,envAcked:S.envAcked,lockMode:S.lockMode,lockCred:S.lockCred,
-  pinSalt:S.pinSalt,pinHash:S.pinHash,recent:S.recent})); }catch{} }
+  pinSalt:S.pinSalt,pinHash:S.pinHash,recent:S.recent,filter:S.filter})); }catch{} }
 function applyTheme(){ const q=new URLSearchParams(location.search).get("theme"); const th=q||S.theme;
   if (th==="light"||th==="dark") document.documentElement.dataset.theme=th; else delete document.documentElement.dataset.theme; }
 
@@ -234,7 +250,7 @@ const Backend = {
     try {
       const [inbox, timeline, sols, cat] = await Promise.all([
         Net.request("GET",`/v1/user/inbox?limit=${PAGE}${filterQuery()}`),
-        Net.request("GET",`/v1/user/timeline?limit=${PAGE}`),
+        Net.request("GET",`/v1/user/timeline?limit=${PAGE}${DECIDED}`),
         Net.request("GET","/v1/user/solutions"),
         Net.request("GET","/v1/user/solutions/search?q="),
       ]);
@@ -268,7 +284,7 @@ const Backend = {
     const cur = which==="inbox" ? S.inboxNext : S.tlNext;
     if (!cur) return;
     const path = which==="inbox" ? "/v1/user/inbox" : "/v1/user/timeline";
-    const q = which==="inbox" ? filterQuery() : "";
+    const q = which==="inbox" ? filterQuery() : DECIDED;
     const out = await Net.request("GET",`${path}?limit=${PAGE}&cursor=${encodeURIComponent(cur)}${q}`);
     if (which==="inbox"){ S.intents = S.intents.concat(out.intents); S.inboxNext = out.next||null; S.inboxTotal = out.total ?? S.inboxTotal; }
     else { S.timeline = S.timeline.concat(out.intents); S.tlNext = out.next||null; S.tlTotal = out.total ?? S.tlTotal; }
@@ -316,10 +332,18 @@ const Local = (()=>{
   function catOf(uid){ return CATALOG.find(c=>c.uid===uid); }
   function sol(uid){ const c=catOf(uid); const agents=c.agents.map(([id2,name,abs])=>({id:id2,name,abilities:abs.map(([key,desc,dev,disc])=>({key,kind:"capability",description:desc,discernment:disc||"auto",...score(key,desc,dev)}))})); return {uid,name:c.name,description:c.description,agents}; }
   return {
-    seed(){ if (st.seeded) return; st.seeded=true; },
+    /** Demo mode used to open on an empty app, which reads as broken rather
+     * than as a demo. Two solutions are connected up front so the first screen
+     * is the thing the product is, with real scoring behind it. */
+    seed(){ if (st.seeded) return; st.seeded=true;
+      this.connect("battlemate"); this.connect("freeleap"); },
     async login(email,name){ S.token="local"; S.user={id:"usr_local",email,name:name||"You"}; savePrefs(); },
     async refresh(){
-      S.intents = st.intents.slice(0,PAGE); S.inboxNext=null; S.inboxTotal=st.intents.length;
+      const f = S.filter || { solutions:[], severities:[] };
+      const keep = st.intents.filter((i) =>
+        (!f.solutions.length || f.solutions.includes(i.sol)) &&
+        (!f.severities.length || f.severities.includes(i.severity)));
+      S.intents = keep.slice(0,PAGE); S.inboxNext=null; S.inboxTotal=keep.length;
       S.timeline = st.timeline.slice(0,PAGE); S.tlNext=null; S.tlTotal=st.timeline.length;
       S.solutions = Object.keys(st.links).map(uid=>{ const s=sol(uid); const l=st.links[uid]; return {uid,name:s.name,description:s.description,link:l.link,status:l.status,appetite:l.appetite,matched_by:"connect",
         agents:s.agents.map(a=>({name:a.name,description:"",abilities:a.abilities.map(ab=>({key:ab.key,kind:ab.kind,severity:ab.severity,risk:ab.risk}))}))}; });
@@ -336,9 +360,12 @@ const Local = (()=>{
       return {solution:{uid,name:s.name,description:s.description},connected:!!l,appetite,asks,runs,
         counts:{agents:s.agents.length,abilities:asks.length+runs.length,asks:asks.length,runs:runs.length}}; },
     async connect(uid){ const s=sol(uid); const link=id("lnk"); st.links[uid]={link,status:"active",appetite:{...DEFAULT_APPETITE,...(uid==="battlemate"||uid==="freeleap"?{intellectual:"HIGH",data:"HIGH"}:uid==="devbot"?{system:"HIGH"}:{})}};
-      let pending=0; for (const a of s.agents) for (const ab of a.abilities){ const v=reconcile(ab.risk,ab.severity,st.links[uid].appetite,ab.discernment); const rec={id:id("int"),solName:s.name,agent:a.name,capability:ab.key,details:sample(ab.key),risk:ab.risk,severity:ab.severity,reasons:v.reasons,discernment:ab.discernment,appetite:st.links[uid].appetite,at:Date.now(),hash:hash(),sol:uid,link}; if (v.allow){ rec.state="allowed"; st.timeline.unshift(rec);} else { rec.state="pending"; st.intents.unshift(rec); pending++; } }
+      let pending=0, nth=0; for (const a of s.agents) for (const ab of a.abilities){ const v=reconcile(ab.risk,ab.severity,st.links[uid].appetite,ab.discernment); const rec={id:id("int"),solName:s.name,solution:{uid,name:s.name,slug:catOf(uid).slug},agent:a.name,capability:ab.key,details:sample(ab.key),risk:ab.risk,severity:ab.severity,reasons:v.reasons,discernment:ab.discernment,appetite:st.links[uid].appetite,at:Date.now()-(nth++)*17*60000,hash:hash(),sol:uid,link}; if (v.allow){ rec.state="allowed"; st.timeline.unshift(rec);} else { rec.state="pending"; st.intents.unshift(rec); pending++; } }
       return {ok:true,pending}; },
-    async decide(id2,decision,opts){ const i=st.intents.findIndex(x=>x.id===id2); if(i<0)return; const it=st.intents.splice(i,1)[0]; it.state=decision==="deny"?"denied":(opts&&opts.edited_details)?"edited":"approved"; if(opts&&opts.edited_details)it.details={...it.details,...opts.edited_details}; it.decidedAt=Date.now(); it.hash=hash(); st.timeline.unshift(it); },
+    async decide(id2,decision,opts){ const i=st.intents.findIndex(x=>x.id===id2); if(i<0)return; const it=st.intents.splice(i,1)[0];
+      it.state = decision==="deny" ? "denied" : decision==="reflect" ? "reflected"
+        : (opts&&opts.edited_details) ? "edited" : "approved";
+      it.decision = { decision, at: Date.now() }; if(opts&&opts.edited_details)it.details={...it.details,...opts.edited_details}; it.decidedAt=Date.now(); it.hash=hash(); st.timeline.unshift(it); },
     async setAppetite(link,ap){ for(const u in st.links) if(st.links[u].link===link) Object.assign(st.links[u].appetite,ap); },
     async setStatus(link,stt){ for(const u in st.links) if(st.links[u].link===link) st.links[u].status=stt; },
   };
@@ -426,41 +453,11 @@ async function silentRefresh(){
   }
 }
 
-/* ---------------- the agent's account ----------------
-   An agent can attach why it is asking, in its own words or as a recording it
-   made. Words are read aloud by the device, which costs nothing, works offline,
-   and speaks the language the app is in. A recording plays as it is.
-
-   This is the difference between judging a capability key and hearing a case. */
-let audioEl = null;
-function stopSpeaking(){
-  try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch {}
-  if (audioEl) { try { audioEl.pause(); } catch {} audioEl = null; }
-  if (S.speaking) { S.speaking = null; render(); }
-}
-
-function speak(it){
-  const v = it && it.voice;
-  if (!v) return;
-  if (S.speaking === it.id) { stopSpeaking(); return; }
-  stopSpeaking();
-  S.speaking = it.id; render();
-
-  if (v.audio_url) {
-    audioEl = new Audio(v.audio_url);
-    audioEl.onended = audioEl.onerror = () => { audioEl = null; S.speaking = null; render(); };
-    audioEl.play().catch(() => { audioEl = null; S.speaking = null; render(); });
-    return;
-  }
-  if (!window.speechSynthesis || !v.context) { S.speaking = null; render(); return; }
-  const u = new SpeechSynthesisUtterance(v.context);
-  u.lang = ({ en:"en-GB", zh:"zh-CN", hi:"hi-IN", es:"es-ES", fr:"fr-FR", ar:"ar-SA",
-              pt:"pt-BR", ru:"ru-RU", ja:"ja-JP", de:"de-DE" })[window.I18N.lang] || "en-GB";
-  u.rate = 1.02; u.pitch = 1;
-  u.onend = u.onerror = () => { S.speaking = null; render(); };
-  try { window.speechSynthesis.speak(u); }
-  catch { S.speaking = null; render(); }
-}
+/* The agent's account of itself is written, not spoken.
+   It used to be read aloud, and the feature is gone on purpose: this is read
+   while someone is being talked to, in a meeting, on a street, which is
+   exactly when audio is the wrong medium. What the agent has to say now lands
+   as a summary and a line about what happens if the answer is no. */
 
 /* ---------------- screen lock ----------------
    A device level gate, not a second sign in: the session is already valid, so
@@ -671,7 +668,22 @@ async function testPush(){
 const NAV = ()=>[["inbox",t("nav.inbox"),I.inbox],["activity",t("nav.activity"),I.activity],
   ["solutions",t("nav.solutions"),I.solutions],["settings",t("nav.settings"),I.settings]];
 
+/** Where the reader was, kept across a redraw.
+ *
+ * render() replaces the whole tree, so the scroller it hands back is a new
+ * element starting at zero. Unfolding one action in a long list would put you
+ * back at the top of that list, which is the single most irritating thing a
+ * list can do. The position is kept per screen, so moving between screens
+ * still starts where a new screen should. */
+let lastScreen = null;
+const screenKey = () => `${S.view}:${S.selectedSol || ""}:${S.review || ""}:${S.focus ? "1" : ""}`;
+
 function render(){
+  const here = screenKey();
+  const same = lastScreen === here;
+  const was = document.querySelector(".screen-wrap");
+  if (was && same) S.scrollTop = was.scrollTop;
+
   const root = document.getElementById("root");
   root.innerHTML = shellHTML();
   const app = document.getElementById("app-root");
@@ -679,6 +691,11 @@ function render(){
                          : S.locked ? lockHTML()
                          : !S.token ? signinHTML() : appHTML();
   applyDevice(); wire(); paintNet(); watchForMore();
+
+  const now = document.querySelector(".screen-wrap");
+  if (now) now.scrollTop = same ? (S.scrollTop || 0) : 0;
+  if (!same) S.scrollTop = 0;
+  lastScreen = here;
 }
 
 function shellHTML(){
@@ -716,7 +733,8 @@ function appHTML(){
     <main class="screen-wrap"><div class="wrap">${!S.ready?skeletonHTML():screenHTML()}</div></main>
   </div>
   ${wide?'':`<nav class="tabbar">${nav.map(([v,l,ic])=>`<button data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${esc(l)}</span>${v==="inbox"&&pending?'<span class="tabdot"></span>':''}</button>`).join("")}</nav>`}
-  <div id="overlay">${S.envAsk ? envAskHTML() : S.confirm ? confirmHTML() : S.detail ? detailHTML() : ""}</div>`;
+  <div id="overlay">${S.envAsk ? envAskHTML() : S.confirm ? confirmHTML()
+    : S.detail ? detailHTML() : S.ask ? askHTML() : ""}</div>`;
 }
 function screenHTML(){ if (S.focus && S.view === "inbox") return focusHTML();
   return ({inbox:inboxHTML,activity:activityHTML,solutions:solutionsHTML,settings:settingsHTML}[S.view]||inboxHTML)(); }
@@ -754,25 +772,57 @@ function skeletonHTML(){
 }
 
 /* ---- inbox ---- */
-/** Narrowing by solution and by how serious it is. Both are sent to the server,
- * so a long inbox is narrowed before it crosses the network rather than after. */
+
+/** Narrowing by solution and by risk.
+ *
+ * Both are lists, because both are things a person holds several of at once:
+ * two solutions worth watching this week, anything above medium. Both are sent
+ * to the server, so a long inbox is narrowed before it crosses the network
+ * rather than after, and both survive leaving the screen and coming back.
+ *
+ * This used to be a row of chips that scrolled sideways, which is a bad answer
+ * on a phone: the chip you want is always the one just off the edge. */
 function filterBarHTML(){
   const sols = S.solutions || [];
-  if (!sols.length) return "";
   const f = S.filter;
-  const chip = (on, attr, val, label, extra) =>
-    `<button class="fchip ${on?"on":""}" data-${attr}="${esc(val)}">${extra||""}${esc(label)}</button>`;
-  return `<div class="filters">
-    <div class="frow">
-      ${chip(!f.solution, "fsol", "", t("flt.all"))}
-      ${sols.map((s2)=>chip(f.solution===s2.uid, "fsol", s2.uid, s2.name, window.Marks.solution(s2, 16))).join("")}
-    </div>
-    <div class="frow">
-      ${chip(!f.severity, "fsev", "", t("flt.all"))}
-      ${["SEVERE","HIGH","MEDIUM","LOW"].map((lv)=>
-        `<button class="fchip sev ${f.severity===lv?"on":""}" data-fsev="${lv}"
-           style="--c:${sevColor(lv)};--b:${sevBg(lv)}">${esc(tSev(lv))}</button>`).join("")}
-    </div>
+  const solName = (uid) => (sols.find((s2) => s2.uid === uid) || {}).name || uid;
+  const solLabel = !f.solutions.length ? t("flt.allSol")
+    : f.solutions.length === 1 ? solName(f.solutions[0]) : t("flt.chosen", { n: f.solutions.length });
+  const sevLabel = !f.severities.length ? t("flt.allRisk")
+    : f.severities.length === 1 ? tSev(f.severities[0]) : t("flt.chosen", { n: f.severities.length });
+
+  const box = (on) => `<span class="fbox ${on ? "on" : ""}">${on ? I.check : ""}</span>`;
+  const solMenu = `<div class="fmenu" role="listbox">
+    <button class="fopt ${!f.solutions.length ? "on" : ""}" data-fsol="">${box(!f.solutions.length)}
+      <span class="foptn">${esc(t("flt.allSol"))}</span></button>
+    ${sols.map((s2) => `<button class="fopt ${f.solutions.includes(s2.uid) ? "on" : ""}" data-fsol="${esc(s2.uid)}">
+      ${box(f.solutions.includes(s2.uid))}${window.Marks.solution(s2, 18)}
+      <span class="foptn">${esc(s2.name)}</span></button>`).join("")}
+  </div>`;
+  const sevMenu = `<div class="fmenu" role="listbox">
+    <button class="fopt ${!f.severities.length ? "on" : ""}" data-fsev="">${box(!f.severities.length)}
+      <span class="foptn">${esc(t("flt.allRisk"))}</span></button>
+    ${["SEVERE","HIGH","MEDIUM","LOW"].map((lv) => `<button class="fopt sev ${f.severities.includes(lv) ? "on" : ""}"
+      data-fsev="${lv}" style="--c:${sevColor(lv)};--b:${sevBg(lv)}">
+      ${box(f.severities.includes(lv))}<span class="fdot"></span>
+      <span class="foptn">${esc(tSev(lv))}</span></button>`).join("")}
+  </div>`;
+
+  const drop = (which, label, on, count, menu, extra) => `<div class="fdrop">
+    <button class="fbtn ${on ? "on" : ""} ${S.drop === which ? "open" : ""}" data-drop="${which}"
+            aria-expanded="${S.drop === which}">
+      ${extra || ""}<span class="flab">${esc(label)}</span>
+      ${count ? `<span class="fcount">${count}</span>` : ""}
+      <span class="fchev">${I.chevron}</span>
+    </button>
+    ${S.drop === which ? menu : ""}
+  </div>`;
+
+  return `<div class="fbar">
+    ${drop("sol", solLabel, !!f.solutions.length, f.solutions.length > 1 ? f.solutions.length : 0, solMenu)}
+    ${drop("sev", sevLabel, !!f.severities.length, f.severities.length > 1 ? f.severities.length : 0, sevMenu,
+      f.severities.length === 1 ? `<span class="fdot" style="--c:${sevColor(f.severities[0])}"></span>` : "")}
+    ${(f.solutions.length || f.severities.length) ? `<button class="fclear" data-fclear>${esc(t("flt.clear"))}</button>` : ""}
   </div>`;
 }
 
@@ -785,55 +835,173 @@ function summaryHTML(){
   if (!sum || sum.total < 2) return "";
   const parts = ["SEVERE","HIGH","MEDIUM","LOW"]
     .filter((lv) => sum.bySeverity[lv])
-    .map((lv)=>`<button class="sevcount ${S.filter.severity===lv?"on":""}" data-fsev="${lv}"
+    .map((lv)=>`<button class="sevcount ${S.filter.severities.includes(lv)?"on":""}" data-fsev="${lv}"
         style="--c:${sevColor(lv)};--b:${sevBg(lv)}"><b>${sum.bySeverity[lv]}</b>${esc(tSev(lv))}</button>`);
   if (!parts.length) return "";
   return `<div class="sevbar">${parts.join("")}</div>`;
 }
 
-/** Cards grouped by the solution that raised them, newest group first, newest
- * card first inside it. A solution is the unit people think in: "BattleMate is
- * being noisy" is a thought, "intent 4f2a is being noisy" is not. */
-function clustersOf(list){
+/** One group per agent, because an agent is who is asking.
+ *
+ * The same display name can belong to two different solutions, so the group is
+ * keyed by both. Inside a group the agent is never named again: everything in
+ * there is that agent, and repeating it thirty times is noise that pushes the
+ * actual question off the screen. */
+function agentGroups(list){
   const by = new Map();
   for (const it of list) {
-    const uid = (it.solution && it.solution.uid) || it.solutionUid || "other";
-    if (!by.has(uid)) by.set(uid, { uid, solution: it.solution || { name: iName(it) }, items: [] });
-    by.get(uid).items.push(it);
+    const sol = it.solution || { name: iName(it) };
+    const name = iAgent(it) || t("grp.unnamed");
+    const key = `${sol.uid || "?"}::${name}`;
+    if (!by.has(key)) by.set(key, { key, agent: name, agentId: (it.agent && it.agent.id) || null,
+      solution: sol, items: [], counts: { LOW:0, MEDIUM:0, HIGH:0, SEVERE:0 }, worst: "LOW", latest: 0 });
+    const g = by.get(key);
+    g.items.push(it);
+    g.counts[it.severity] = (g.counts[it.severity] || 0) + 1;
+    g.worst = maxSev(g.worst, it.severity);
+    g.latest = Math.max(g.latest, iAt(it) || 0);
   }
-  return [...by.values()];
+  // newest first, which is the order the list was asked to be in
+  return [...by.values()].sort((a, b) => b.latest - a.latest);
 }
 
-function clusterHTML(c){
-  const M = window.Marks, open = !!S.expanded[c.uid];
-  const shown = open ? c.items : c.items.slice(0, 1);
-  const rest = c.items.length - shown.length;
-  const worst = c.items.reduce((m, i) => maxSev(m, i.severity), "LOW");
-  const bulk = c.items.length > 1 ? `
-    <div class="cbulk">
-      <button class="cb deny" data-bulk="deny" data-cuid="${c.uid}">${esc(t("card.deny"))}</button>
-      <button class="cb reflect" data-bulk="reflect" data-cuid="${c.uid}">${esc(t("card.reflect"))}</button>
-      <button class="cb approve" data-bulk="approve" data-cuid="${c.uid}">${esc(t("card.approve"))}</button>
-      <button class="cb one" data-focus="${c.uid}">${I.chevron}<span>${esc(t("cl.oneByOne"))}</span></button>
-    </div>` : "";
-  return `<section class="cluster" style="--c:${sevColor(worst)}">
-    <header class="chead">
-      ${M.solution(c.solution, 34)}
-      <div class="cmeta"><b>${esc(c.solution.name || "")}</b>
-        <small>${esc(t("cl.waiting",{n:c.items.length}))}</small></div>
-      <span class="sevtag" style="--sev:${sevColor(worst)};--sevb:${sevBg(worst)}">${esc(tSev(worst))}</span>
-    </header>
-    ${bulk}
-    <div class="cards">${shown.map(cardHTML).join("")}</div>
-    ${rest > 0 ? `<button class="cmore" data-expand="${c.uid}">${esc(t("cl.others",{n:rest}))}</button>`
-      : (open && c.items.length > 1 ? `<button class="cmore" data-expand="${c.uid}">${esc(t("cl.fewer"))}</button>` : "")}
+/** The first group is open, the rest are folded. Someone who opens or closes
+ * one has said what they want and that is remembered. */
+const groupOpen = (g, i) => (S.open.g[g.key] === undefined ? i === 0 : !!S.open.g[g.key]);
+
+/** How the waiting work divides by risk.
+ *
+ * The bar is only drawn when there is more than one kind, because a bar with a
+ * single segment says nothing the chip beside it does not already say and
+ * reads like a progress meter, which it is not. */
+function breakdownHTML(counts){
+  const has = ["SEVERE","HIGH","MEDIUM","LOW"].filter((lv) => counts[lv]);
+  if (!has.length) return "";
+  const bar = has.length > 1
+    ? `<div class="gbar" aria-hidden="true">${has.map((lv) =>
+        `<i style="--c:${sevColor(lv)};flex:${counts[lv]}"></i>`).join("")}</div>` : "";
+  return `<div class="gbreak">${bar}
+    <div class="gtags">${has.map((lv) => `<span class="gtag" style="--c:${sevColor(lv)};--b:${sevBg(lv)}">
+      <b>${counts[lv]}</b>${esc(tSev(lv))}</span>`).join("")}</div>
+  </div>`;
+}
+
+function groupHTML(g, i){
+  const M = window.Marks, open = groupOpen(g, i), n = g.items.length;
+  const ids = g.items.map((x) => x.id);
+  return `<section class="agrp ${open ? "open" : ""}" data-gkey="${esc(g.key)}"
+      style="--sev:${sevColor(g.worst)};--sevb:${sevBg(g.worst)}">
+    <div class="ghead">
+      <span class="gav">${M.agent(g.agent, 44)}</span>
+      <div class="gm">
+        <button class="gtog" data-gtog="${esc(g.key)}" aria-expanded="${open}">
+          <b class="gname">${esc(g.agent)}</b>
+          <small class="gcount">${esc(t("cl.waiting", { n }))}</small>
+        </button>
+        <button class="gsol" data-gosol="${esc(g.solution.uid || "")}" data-goag="${esc(g.agent)}">
+          ${M.solution(g.solution, 18)}<span class="gsoln">${esc(g.solution.name || "")}</span>
+          <span class="gsolgo">${I.chevron}</span>
+        </button>
+      </div>
+      <button class="gchev" data-gtog="${esc(g.key)}" aria-expanded="${open}"
+              aria-label="${esc(t(open ? "act.less" : "act.more"))}">${I.chevron}</button>
+    </div>
+    ${breakdownHTML(g.counts)}
+    ${open ? `<div class="gopen">
+      ${n > 1 ? `<div class="gbulk">
+        <button class="gb deny" data-gdec="deny" data-gkey="${esc(g.key)}">${esc(t("grp.denyAll"))}</button>
+        <button class="gb reflect" data-gdec="reflect" data-gkey="${esc(g.key)}">${esc(t("grp.reflectAll"))}</button>
+        <button class="gb approve" data-gdec="approve" data-gkey="${esc(g.key)}">${esc(t("grp.approveAll"))}</button>
+      </div>
+      <button class="gone" data-gone="${esc(g.key)}">${esc(t("cl.oneByOne"))}${I.chevron}</button>` : ""}
+      <div class="glist">${g.items.map(actionRowHTML).join("")}</div>
+    </div>` : ""}
   </section>`;
 }
 
+/** One action. The agent is not named again: the group above is the agent.
+ *
+ * Tapping the action opens it in full, which is a sheet rather than a panel
+ * because an answer deserves the whole screen. The chevron unfolds it in place
+ * for someone who only wants a look without leaving the list. */
+function actionRowHTML(it){
+  const open = !!S.open.a[it.id], settling = S.settled[it.id], queued = Net.queuedFor(it.id);
+  return `<article class="arow ${open ? "open" : ""} ${settling ? "settling " + settling : ""}"
+      data-aid="${it.id}" style="--sev:${sevColor(it.severity)};--sevb:${sevBg(it.severity)}">
+    <div class="atop">
+      <button class="aopen" data-aask="${it.id}">
+        <span class="adot"></span>
+        <span class="am"><b class="aname">${esc(pretty(it.capability))}</b>
+          <small class="awhen">${esc(tAgo(iAt(it)))}</small></span>
+      </button>
+      <span class="sevtag">${esc(tSev(it.severity))}</span>
+      <button class="achev" data-atog="${it.id}" aria-expanded="${open}"
+              aria-label="${esc(t(open ? "act.less" : "act.more"))}">${I.chevron}</button>
+    </div>
+    ${open ? `<div class="abody">${askBodyHTML(it)}
+      ${queued ? `<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`
+        : decideRowHTML(it, settling)}</div>` : ""}
+  </article>`;
+}
+
+/** Everything the agent has to say for itself, in writing.
+ * The spoken version is gone: people read this while someone is talking to
+ * them, which is exactly when audio is the wrong medium. */
+function askBodyHTML(it){
+  const risks = Object.entries(it.risk||{}).sort((a,b)=>ORD[b[1]]-ORD[a[1]])
+    .map(([c,s2])=>`<span class="rchip" style="--c:${sevColor(s2)};--b:${sevBg(s2)}">${esc(t("risk.chip",{cat:tCat(c),sev:tSev(s2)}))}</span>`).join("");
+  const rows = Object.entries(it.details||{}).map(([k,v])=>{
+    const editable = (typeof v==="number"||typeof v==="string");
+    return `<div class="drow"><span class="dk">${esc(k)}</span>${editable
+      ? `<input class="dv-in" data-edit="${it.id}" data-key="${esc(k)}" value="${esc(v)}"/>`
+      : `<span class="dv">${esc(Array.isArray(v)?v.join(", "):v)}</span>`}</div>`;
+  }).join("");
+  const why = tWhy(it, it.appetite, it.reasons)[0];
+  const v = it.voice || {};
+  return `${why ? `<div class="ireason">${esc(why)}</div>` : ""}
+    ${v.summary ? `<p class="whysum">${esc(v.summary)}</p>` : ""}
+    ${v.if_blocked ? `<p class="whyblock"><b>${esc(t("card.ifBlocked"))}</b> ${esc(v.if_blocked)}</p>` : ""}
+    <div class="rchips">${risks}</div>
+    ${rows ? `<div class="idetails">${rows}</div>` : ""}`;
+}
+
+function decideRowHTML(it, settling){
+  return `<div class="iacts three">
+    <button class="btn btn-deny" data-decide="deny" data-id="${it.id}" ${settling?"disabled":""}>${esc(t("card.deny"))}</button>
+    <button class="btn btn-reflect" data-decide="reflect" data-id="${it.id}" ${settling?"disabled":""}>${I.reflect}<span>${esc(t("card.reflect"))}</span></button>
+    <button class="btn btn-primary" data-decide="approve" data-id="${it.id}" ${settling?"disabled":""}>${esc(t("card.approve"))}</button>
+  </div>`;
+}
+
+/** An action opened on its own, over everything else.
+ * The list behind it can be thirty rows long; a decision should not be made
+ * while the thing being decided is half scrolled off the top. */
+function askHTML(){
+  const it = (S.intents || []).find((x) => x.id === S.ask);
+  if (!it) return "";
+  const M = window.Marks, sol = it.solution || { name: iName(it) };
+  return `<div class="scrim" data-ask-close>
+    <div class="sheet asksheet" role="dialog" aria-modal="true">
+      <div class="askhead" style="--sev:${sevColor(it.severity)};--sevb:${sevBg(it.severity)}">
+        <span class="askav">${M.agent(iAgent(it), 38)}</span>
+        <div class="askwho"><b>${esc(iAgent(it))}</b>
+          <button class="asksol" data-gosol="${esc(sol.uid || "")}" data-goag="${esc(iAgent(it))}">
+            ${M.solution(sol, 16)}<span>${esc(sol.name || "")}</span></button></div>
+        <span class="sevtag">${esc(tSev(it.severity))}</span>
+      </div>
+      <h3 class="askact">${esc(pretty(it.capability))}</h3>
+      <div class="askscroll">${askBodyHTML(it)}</div>
+      ${Net.queuedFor(it.id) ? `<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`
+        : decideRowHTML(it, S.settled[it.id])}
+      <button class="btn btn-ghost block" data-ask-close>${esc(t("act.close"))}</button>
+    </div></div>`;
+}
+
 function inboxHTML(){
-  const n = S.inboxTotal || S.intents.length;  const head = `<div class="scrhead"><span class="eyebrow">${esc(t("inbox.eyebrow"))}</span><h1>${esc(t("inbox.title"))}</h1>
+  const n = S.inboxTotal || S.intents.length;
+  const head = `<div class="scrhead"><span class="eyebrow">${esc(t("inbox.eyebrow"))}</span><h1>${esc(t("inbox.title"))}</h1>
     <p class="sub">${esc(n?tn("inbox.sub",n):t("inbox.caughtUp"))}</p></div>`;
-  const filtering = !!(S.filter.solution || S.filter.severity);
+  const filtering = !!(S.filter.solutions.length || S.filter.severities.length);
   if (!S.intents.length) {
     if (filtering) return head + filterBarHTML() + `<div class="empty"><div class="empty-mk">${I.solutions}</div>
       <div class="empty-t">${esc(t("flt.none"))}</div>
@@ -842,10 +1010,11 @@ function inboxHTML(){
       <div class="empty-t">${esc(t("inbox.empty.title"))}</div><p>${esc(t("inbox.empty.body"))}</p>
       <button class="btn btn-primary" data-nav="solutions">${esc(t("inbox.browse"))}</button></div>`;
   }
-  const clusters = clustersOf(S.intents);
   return head + summaryHTML() + filterBarHTML()
-    + clusters.map(clusterHTML).join("") + moreHTML("inbox");
+    + `<div class="agrps">${agentGroups(S.intents).map(groupHTML).join("")}</div>`
+    + moreHTML("inbox");
 }
+
 function moreHTML(which){
   const next = which==="inbox" ? S.inboxNext : S.tlNext;
   const shown = which==="inbox" ? S.intents.length : S.timeline.length;
@@ -855,60 +1024,40 @@ function moreHTML(which){
     ${S.loadingMore?`<span class="tic spin">${I.sync}</span>${esc(t("more.loading"))}`:esc(t("more.load"))}
     <span class="more-n">${shown} / ${total}</span></button>`;
 }
-function cardHTML(it){
-  const sev = it.severity, settling = S.settled[it.id];
-  const queued = Net.queuedFor(it.id);
-  const M = window.Marks;
-  const sol = it.solution || { name: iName(it) };
-  const rows = Object.entries(it.details||{}).slice(0,4).map(([k,v])=>{
-    const editable = (typeof v==="number"||typeof v==="string");
-    return `<div class="drow"><span class="dk">${esc(k)}</span>${editable?`<input class="dv-in" data-edit="${it.id}" data-key="${esc(k)}" value="${esc(v)}"/>`:`<span class="dv">${esc(Array.isArray(v)?v.join(", "):v)}</span>`}</div>`;
-  }).join("");
-  const risks = Object.entries(it.risk||{}).sort((a,b)=>ORD[b[1]]-ORD[a[1]])
-    .map(([c,s2])=>`<span class="rchip" style="--c:${sevColor(s2)};--b:${sevBg(s2)}">${esc(t("risk.chip",{cat:tCat(c),sev:tSev(s2)}))}</span>`).join("");
-  const why = tWhy(it, it.appetite, it.reasons)[0];
-  const speaking = S.speaking === it.id;
-  const voice = it.voice && (it.voice.context || it.voice.audio_url) ? `
-    <div class="voice ${speaking?"on":""}">
-      <button class="vbtn" data-listen="${it.id}">
-        ${speaking ? I.stop : I.play}<span>${esc(t(speaking ? "card.stop" : "card.listen"))}</span>
-        ${speaking ? `<span class="wave3"><i></i><i></i><i></i></span>` : ""}
-      </button>
-      ${(it.voice.summary || it.voice.context) ? `<button class="vread" data-why="${it.id}">${esc(t(S.showWhy[it.id] ? "card.stop" : "card.why"))}</button>` : ""}
-    </div>
-    ${S.showWhy[it.id] ? `<div class="whybox">
-      ${it.voice.summary ? `<p class="whysum">${esc(it.voice.summary)}</p>` : ""}
-      ${it.voice.if_blocked ? `<p class="whyblock"><b>${esc(t("card.ifBlocked"))}</b> ${esc(it.voice.if_blocked)}</p>` : ""}
-      ${it.voice.context ? `<p class="whyfull">${esc(it.voice.context)}</p>` : ""}
-    </div>` : ""}` : "";
 
-  return `<article class="icard ${settling?("settling "+settling):""}" data-card="${it.id}" style="--sev:${sevColor(sev)};--sevb:${sevBg(sev)}">
+/** The old single card, kept for the one by one walk, where there is nothing
+ * else on screen to say who is asking. */
+function cardHTML(it){
+  const settling = S.settled[it.id], queued = Net.queuedFor(it.id);
+  const M = window.Marks, sol = it.solution || { name: iName(it) };
+  return `<article class="icard ${settling?("settling "+settling):""}" data-card="${it.id}"
+      style="--sev:${sevColor(it.severity)};--sevb:${sevBg(it.severity)}">
     <div class="icard-top">
       ${M.solution(sol, 40)}
       <div class="iwho">
         <div class="isol">${esc(sol.name || iName(it))}</div>
         <div class="iagent">${M.agent(iAgent(it), 20)}<span>${esc(iAgent(it))}</span></div>
       </div>
-      <span class="sevtag">${esc(tSev(sev))}</span>
+      <span class="sevtag">${esc(tSev(it.severity))}</span>
     </div>
     <div class="iact">${esc(pretty(it.capability))}</div>
-    <div class="rchips">${risks}</div>
-    ${why?`<div class="ireason">${esc(why)}</div>`:''}
-    ${voice}
-    ${rows?`<div class="idetails">${rows}</div>`:''}
-    ${queued?`<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`:`<div class="iacts three">
-      <button class="btn btn-deny" data-decide="deny" data-id="${it.id}" ${settling?"disabled":""}>${esc(t("card.deny"))}</button>
-      <button class="btn btn-reflect" data-decide="reflect" data-id="${it.id}" ${settling?"disabled":""}>${I.reflect}<span>${esc(t("card.reflect"))}</span></button>
-      <button class="btn btn-primary" data-decide="approve" data-id="${it.id}" ${settling?"disabled":""}>${esc(t("card.approve"))}</button>
-    </div>`}
+    ${askBodyHTML(it)}
+    ${queued?`<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`
+      : decideRowHTML(it, settling)}
   </article>`;
 }
 
 /** One at a time, for a queue too long to skim. Position is shown because
  * "3 of 17" is the difference between working through something and being
  * buried by it. */
+function focusList(){
+  if (!S.focus) return [];
+  const groups = agentGroups(S.intents || []);
+  const g = groups.find((x) => x.key === S.focus.key);
+  return g ? g.items : [];
+}
 function focusHTML(){
-  const list = (S.intents || []).filter((i) => !S.focus.uid || (i.solution && i.solution.uid) === S.focus.uid);
+  const list = focusList();
   const it = list[S.focus.at];
   if (!it) {
     return `<div class="scrhead"><span class="eyebrow">${esc(t("inbox.eyebrow"))}</span><h1>${esc(t("inbox.title"))}</h1></div>
@@ -917,24 +1066,98 @@ function focusHTML(){
       <button class="btn btn-primary" data-focus-exit>${esc(t("cl.back"))}</button></div>`;
   }
   return `<div class="focusbar">
-      <button class="fx" data-focus-exit>${I.chevron}<span>${esc(t("cl.back"))}</span></button>
+      <button class="fx" data-focus-exit>${I.back}<span>${esc(t("cl.back"))}</span></button>
       <span class="fxpos">${esc(t("cl.of",{ i: S.focus.at + 1, n: list.length }))}</span>
     </div>
     <div class="cards focusone">${cardHTML(it)}</div>`;
 }
 
 /* ---- activity ---- */
+
+/** A record of answers, grouped by the agent who asked.
+ *
+ * It used to list everything including what was still waiting, which made it a
+ * second inbox with none of the buttons. What is waiting belongs in Discern.
+ * This is what was decided, when it was asked, and how long it sat there. */
+function decidedGroups(list){
+  const by = new Map();
+  for (const it of list) {
+    const sol = it.solution || { name: iName(it) };
+    const name = iAgent(it) || t("grp.unnamed");
+    const key = `${sol.uid || "?"}::${name}`;
+    if (!by.has(key)) by.set(key, { key, agent: name, solution: sol, items: [], latest: 0 });
+    const g = by.get(key);
+    g.items.push(it);
+    g.latest = Math.max(g.latest, iAnswered(it) || iAt(it) || 0);
+  }
+  return [...by.values()].sort((a, b) => b.latest - a.latest);
+}
+
+const iAnswered = (it) => (it.decision && it.decision.at) || it.decidedAt || null;
+
+/** How long the agent waited. Worth showing: an answer in four seconds and an
+ * answer in two days are different kinds of answer. */
+function waited(it){
+  const a = iAnswered(it), b = iAt(it);
+  if (!a || !b || a < b) return "";
+  return tSpan(a - b);
+}
+
 function activityHTML(){
-  const M = window.Marks;
   const head = `<div class="scrhead"><span class="eyebrow">${esc(t("activity.eyebrow"))}</span><h1>${esc(t("activity.title"))}</h1>
     <p class="sub">${esc(t("activity.sub"))}</p></div>`;
-  if (!S.timeline.length) return head + `<div class="empty"><div class="empty-mk">${I.activity}</div><div class="empty-t">${esc(t("activity.empty"))}</div></div>`;
-  return head + `<div class="tl">${S.timeline.map(it=>`<button class="tlrow" data-open="${it.id}">
-    <span class="tlic" style="--c:${sevColor(it.severity)};--b:${sevBg(it.severity)}">${it.state==="denied"?I.pause:I.play}</span>
-    <div class="tlm"><div class="tlt">${esc(pretty(it.capability))}</div>
-      <div class="tls">${M.agent(iAgent(it), 16)}<span>${esc(iAgent(it))} at ${esc(iName(it))}, ${esc(tAgo(iAt(it)))}</span></div></div>
-    <div class="tlend"><span class="stpill st-${it.state}">${esc(stateLabel(it.state))}</span>${I.chevron}</div>
-  </button>`).join("")}</div>` + moreHTML("activity");
+  // answers only. Something that ran without asking was never a decision, and
+  // something still waiting belongs to Discern, not to a record of what was said.
+  const done = (S.timeline || []).filter((it) => ANSWERED.has(it.state));
+  if (!done.length) return head + `<div class="empty"><div class="empty-mk">${I.activity}</div>
+    <div class="empty-t">${esc(t("activity.empty"))}</div></div>`;
+  return head + `<div class="agrps">${decidedGroups(done).map(tlGroupHTML).join("")}</div>` + moreHTML("activity");
+}
+
+function tlGroupHTML(g, i){
+  const M = window.Marks, open = groupOpen(g, i);
+  return `<section class="agrp tlgrp ${open ? "open" : ""}" data-gkey="${esc(g.key)}">
+    <div class="ghead">
+      <span class="gav">${M.agent(g.agent, 40)}</span>
+      <div class="gm">
+        <button class="gtog" data-gtog="${esc(g.key)}" aria-expanded="${open}">
+          <b class="gname">${esc(g.agent)}</b>
+          <small class="gcount">${esc(tn("act.answers", g.items.length))}</small>
+        </button>
+        <button class="gsol" data-gosol="${esc(g.solution.uid || "")}" data-goag="${esc(g.agent)}">
+          ${M.solution(g.solution, 18)}<span class="gsoln">${esc(g.solution.name || "")}</span>
+          <span class="gsolgo">${I.chevron}</span>
+        </button>
+      </div>
+      <button class="gchev" data-gtog="${esc(g.key)}" aria-expanded="${open}"
+              aria-label="${esc(t(open ? "act.less" : "act.more"))}">${I.chevron}</button>
+    </div>
+    ${open ? `<div class="gopen"><div class="glist">${g.items.map(tlRowHTML).join("")}</div></div>` : ""}
+  </section>`;
+}
+
+function tlRowHTML(it){
+  const open = !!S.open.a[it.id], w = waited(it);
+  return `<article class="arow tlitem ${open ? "open" : ""}" data-aid="${it.id}"
+      style="--sev:${sevColor(it.severity)};--sevb:${sevBg(it.severity)}">
+    <div class="atop">
+      <button class="aopen" data-open="${it.id}">
+        <span class="adot"></span>
+        <span class="am"><b class="aname">${esc(pretty(it.capability))}</b>
+          <small class="awhen">${esc(t("act.asked"))} ${esc(tAgo(iAt(it)))}${
+            w ? `, ${esc(t("act.answeredIn", { span: w }))}` : ""}</small></span>
+      </button>
+      <span class="stpill st-${it.state}">${esc(stateLabel(it.state))}</span>
+      <button class="achev sm" data-atog="${it.id}" aria-expanded="${open}"
+              aria-label="${esc(t(open ? "act.less" : "act.more"))}">${I.chevron}</button>
+    </div>
+    ${open ? `<div class="abody">
+      <div class="kv"><span>${esc(t("act.asked"))}</span><b>${esc(tWhen(iAt(it)))}</b></div>
+      ${iAnswered(it) ? `<div class="kv"><span>${esc(t("act.answered"))}</span><b>${esc(tWhen(iAnswered(it)))}</b></div>` : ""}
+      ${askBodyHTML(it)}
+      <button class="btn btn-ghost block" data-open="${it.id}">${esc(t("act.detail"))}</button>
+    </div>` : ""}
+  </article>`;
 }
 
 /** The whole record of one action, which is the thing the audit ledger exists
@@ -946,7 +1169,6 @@ function detailHTML(){
     .map(([c,s2])=>`<span class="rchip" style="--c:${sevColor(s2)};--b:${sevBg(s2)}">${esc(t("risk.chip",{cat:tCat(c),sev:tSev(s2)}))}</span>`).join("");
   const rows = Object.entries(it.details||{}).map(([k,v])=>
     `<div class="drow"><span class="dk">${esc(k)}</span><span class="dv">${esc(Array.isArray(v)?v.join(", "):v)}</span></div>`).join("");
-  const speaking = S.speaking === it.id;
   return `<div class="scrim" data-detail-close>
     <div class="sheet detailsheet" role="dialog">
       <div class="dhead">${M.solution(sol, 38)}
@@ -956,11 +1178,8 @@ function detailHTML(){
       <div class="dagent">${M.agent(iAgent(it), 26)}<span>${esc(iAgent(it))}</span>
         <span class="sevtag" style="--sev:${sevColor(it.severity)};--sevb:${sevBg(it.severity)}">${esc(tSev(it.severity))}</span></div>
       <div class="rchips">${risks}</div>
-      ${it.voice && (it.voice.context||it.voice.audio_url) ? `
-        <div class="voice ${speaking?"on":""}">
-          <button class="vbtn" data-listen="${it.id}">${speaking?I.stop:I.play}<span>${esc(t(speaking?"card.stop":"card.listen"))}</span></button>
-        </div>
-        ${it.voice.context ? `<p class="dsay">${esc(it.voice.context)}</p>` : ""}` : ""}
+      ${it.voice && it.voice.summary ? `<p class="whysum">${esc(it.voice.summary)}</p>` : ""}
+      ${it.voice && it.voice.context ? `<p class="dsay">${esc(it.voice.context)}</p>` : ""}
       ${rows ? `<div class="idetails">${rows}</div>` : ""}
       <div class="kv"><span>${esc(t("act.when"))}</span><b>${esc(tAgo(iAt(it)))}</b></div>
       <div class="kv"><span>${esc(t("act.ref"))}</span><b class="ref">${iRef(it)}</b></div>
@@ -1012,21 +1231,38 @@ function agentGraphHTML(sol, appetite){
   const M = window.Marks, agents = sol.agents || [];
   if (!agents.length) return "";
   const ap = appetite || sol.appetite || DEFAULT_APPETITE;
+  // what is actually waiting from each of them, right now
+  const waiting = new Map();
+  for (const it of (S.intents || [])) {
+    const uid = (it.solution && it.solution.uid) || it.solutionUid;
+    if (uid !== sol.uid) continue;
+    const n = iAgent(it);
+    waiting.set(n, (waiting.get(n) || 0) + 1);
+  }
   const nodes = agents.map((a, i) => {
     const abs = a.abilities || [];
     const asks = abs.filter((ab) => {
       const v = reconcile(ab.risk || {}, ab.severity || "LOW", ap, ab.discernment || "auto");
       return !v.allow;
     }).length;
+    const now = waiting.get(a.name) || 0;
     const worst = abs.reduce((m, ab) => maxSev(m, ab.severity || "LOW"), "LOW");
-    return `<div class="gnode ${asks?"asks":""}" style="--c:${sevColor(worst)}">
+    // The badge is a live count and a way in: tapping it takes you to Discern
+    // narrowed to this one agent, which is a narrower question than the inbox
+    // and the reason someone is looking at this screen at all.
+    const badge = now
+      ? `<button class="gasks live" data-agasks="${esc(a.name)}" data-agsol="${esc(sol.uid)}"
+           title="${esc(tn("sol.asksNow", now))}">${I.bell}<b>${now}</b></button>`
+      : asks ? `<span class="gasks" title="${esc(t("rev.asks"))}">${I.bell}${asks}</span>`
+             : `<span class="gruns" title="${esc(t("rev.runs"))}">${I.check}</span>`;
+    return `<div class="gnode ${now ? "live" : asks ? "asks" : ""}" data-agent="${esc(a.name)}"
+        style="--c:${sevColor(worst)}">
       ${i ? `<span class="gedge" aria-hidden="true"></span>` : ""}
       <div class="gbody">
         ${M.agent(a.name, 30)}
         <div class="gmeta"><b>${esc(a.name)}</b>
           <small>${esc(tn("sol.abilities", abs.length))}</small></div>
-        ${asks ? `<span class="gasks" title="${esc(t("rev.asks"))}">${I.bell}${asks}</span>`
-               : `<span class="gruns" title="${esc(t("rev.runs"))}">${I.check}</span>`}
+        ${badge}
       </div></div>`;
   }).join("");
   return `<section class="panel"><div class="panelhd"><h3>${esc(t("sol.flow"))}</h3>
@@ -1491,17 +1727,29 @@ function wire(){
     if(cc){ S.signin.iso = cc.dataset.cc; S.signin.picker = false; S.signin.error = ""; render();
       const f=document.getElementById("id"); if(f) f.focus(); return; }
     if(el.closest("[data-picker-close]") && !el.closest(".ccsheet")){ S.signin.picker = false; render(); return; }
-    const ex = el.closest("[data-expand]");
-    if(ex){ const u=ex.dataset.expand; S.expanded[u] = !S.expanded[u]; render(); return; }
-    const fo = el.closest("[data-focus]");
-    if(fo){ S.focus = { uid: fo.dataset.focus, at: 0 }; render(); return; }
+    // -- agent groups: fold, unfold, answer as one, or walk them one by one --
+    const gt = el.closest("[data-gtog]");
+    if(gt){ const k=gt.dataset.gtog; S.open.g[k] = !groupOpenNow(k); render(); return; }
+    const gs = el.closest("[data-gosol]");
+    if(gs){ openSolutionFor(gs.dataset.gosol, gs.dataset.goag); return; }
+    const ga = el.closest("[data-agasks]");
+    if(ga){ focusAgentAsks(ga.dataset.agsol, ga.dataset.agasks); return; }
+    const gd = el.closest("[data-gdec]");
+    if(gd){ const g = groupByKey(gd.dataset.gkey); if(!g) return;
+      const ids = g.items.map(i=>i.id);
+      askConfirm(gd.dataset.gdec, { ids, count: ids.length, label: g.agent }); return; }
+    const g1 = el.closest("[data-gone]");
+    if(g1){ S.focus = { key: g1.dataset.gone, at: 0 }; S.ask = null; render(); return; }
     if(el.closest("[data-focus-exit]")){ S.focus = null; render(); return; }
-    const wy = el.closest("[data-why]");
-    if(wy){ const id=wy.dataset.why; S.showWhy[id] = !S.showWhy[id]; render(); return; }
-    const bk = el.closest("[data-bulk]");
-    if(bk){ const uid=bk.dataset.cuid, dec=bk.dataset.bulk;
-      const ids = S.intents.filter(i => ((i.solution&&i.solution.uid)||i.solutionUid) === uid).map(i=>i.id);
-      askConfirm(dec, { ids, count: ids.length }); return; }
+    // -- one action: unfold in place, or open it over everything else --
+    const at = el.closest("[data-atog]");
+    if(at){ const id=at.dataset.atog; S.open.a[id] = !S.open.a[id]; render();
+      if (S.open.a[id]) bringIntoView(`[data-aid="${id}"]`);
+      return; }
+    const aa = el.closest("[data-aask]");
+    if(aa){ S.ask = aa.dataset.aask; S.drop = null; render(); return; }
+    if(el.closest("[data-ask-close]") && !el.closest(".asksheet")){ S.ask=null; render(); return; }
+    if(el.closest("[data-ask-close]")){ S.ask=null; render(); return; }
     if(el.closest("[data-envask-stay]")){
       const c=document.getElementById("envdont"); S.envAcked = !!(c && c.checked); savePrefs();
       S.envAsk=false; render(); return; }
@@ -1510,20 +1758,21 @@ function wire(){
       S.envAsk=false; S.env=esw.dataset.envaskSwitch; savePrefs(); reloadEnv(); return; }
     if(el.closest("[data-confirm-go]")){ runConfirmed(); return; }
     if(el.closest("[data-confirm-close]")){ S.confirm=null; render(); return; }
+    // -- the two filter menus --
+    const dp = el.closest("[data-drop]");
+    if(dp){ const w=dp.dataset.drop; S.drop = S.drop===w ? null : w; render(); return; }
     const fs = el.closest("[data-fsol]");
-    if(fs){ S.filter.solution = fs.dataset.fsol; applyFilter(); return; }
+    if(fs){ toggleFilter("solutions", fs.dataset.fsol); return; }
     const fv = el.closest("[data-fsev]");
-    if(fv){ S.filter.severity = fv.dataset.fsev; applyFilter(); return; }
-    if(el.closest("[data-fclear]")){ S.filter={solution:"",severity:""}; applyFilter(); return; }
-    const lsn = el.closest("[data-listen]");
-    if(lsn){ const id=lsn.dataset.listen;
-      const it = S.intents.find(x=>x.id===id) || S.timeline.find(x=>x.id===id) || S.detail;
-      if(it) speak(it); return; }
+    if(fv){ toggleFilter("severities", fv.dataset.fsev); return; }
+    if(el.closest("[data-fclear]")){ S.filter={solutions:[],severities:[]}; S.drop=null; savePrefs(); applyFilter(); return; }
+    // a tap anywhere else closes an open menu, which is what people expect
+    if(S.drop && !el.closest(".fdrop")){ S.drop=null; render(); return; }
     const op = el.closest("[data-open]");
     if(op){ const id=op.dataset.open;
       S.detail = S.timeline.find(x=>x.id===id) || S.intents.find(x=>x.id===id) || null; render(); return; }
-    if(el.closest("[data-detail-close]") && !el.closest(".detailsheet")){ stopSpeaking(); S.detail=null; render(); return; }
-    if(el.closest("[data-detail-close]")){ stopSpeaking(); S.detail=null; render(); return; }
+    if(el.closest("[data-detail-close]") && !el.closest(".detailsheet")){ S.detail=null; render(); return; }
+    if(el.closest("[data-detail-close]")){ S.detail=null; render(); return; }
     const rc = el.closest("[data-recent]");
     if(rc){ const v = rc.dataset.recent, P = window.Phone;
       const dialed = P.splitPasted(v);
@@ -1646,10 +1895,77 @@ async function retryNow(){
   if (ok){ Net.goOnline(); S.mode="connected"; await silentRefresh(); }
   else toast(`<div class="tm">${esc(t("net.failed"))}</div>`,"warn");
 }
+/** Turning one value of one axis on or off.
+ *
+ * The All row is not a value, it is the absence of all of them, so choosing it
+ * empties the list rather than adding something called all. Unticking the last
+ * remaining value lands in the same place, which is why nobody can end up
+ * looking at nothing. */
+function toggleFilter(axis, value){
+  const cur = S.filter[axis] || [];
+  S.filter[axis] = !value ? [] : cur.includes(value) ? cur.filter((x) => x !== value) : cur.concat([value]);
+  savePrefs();
+  applyFilter();
+}
+
 async function applyFilter(){
-  S.intents = []; S.inboxNext = null; S.inboxTotal = 0; render();
+  S.intents = []; S.inboxNext = null; S.inboxTotal = 0;
+  S.scrollTop = 0;                       // a new question starts at the top
+  render();
   try { await Backend.refresh(); } catch {}
   render();
+}
+
+/* ---- moving between the inbox and a solution ---- */
+const groupByKey = (key) => agentGroups(S.intents || []).find((g) => g.key === key);
+const groupOpenNow = (key) => {
+  const gs = agentGroups(S.intents || []);
+  const i = gs.findIndex((g) => g.key === key);
+  return i < 0 ? false : groupOpen(gs[i], i);
+};
+
+/** The solution an agent belongs to, opened on that agent.
+ * Asked for because the question "who is this, and what else can they do"
+ * comes up on every single ask, and the answer lives one screen away. */
+function openSolutionFor(uid, agent){
+  if (!uid) return;
+  S.ask = null; S.focus = null; S.drop = null;
+  S.view = "solutions"; S.selectedSol = uid; S.solAgent = agent || null;
+  S.scrollTop = 0;
+  render();
+  if (agent) bringIntoView(`[data-agent="${cssq(agent)}"]`);
+}
+
+/** The other direction: one agent's asks, from the solution screen.
+ * The inbox shows everyone. This narrows to the one agent whose count was
+ * tapped, which is a different question and deserves a different answer. */
+function focusAgentAsks(uid, agent){
+  S.view = "inbox"; S.selectedSol = null; S.solAgent = null;
+  S.filter = { solutions: uid ? [uid] : [], severities: [] };
+  S.open.g = {}; S.open.a = {};
+  const key = `${uid || "?"}::${agent}`;
+  S.open.g[key] = true;
+  savePrefs();
+  S.scrollTop = 0;
+  applyFilter().then(() => {
+    // everyone else folds away, so the one that was asked for is the screen
+    for (const g of agentGroups(S.intents || [])) if (g.key !== key) S.open.g[g.key] = false;
+    render();
+    bringIntoView(`[data-gkey="${cssq(key)}"]`);
+  });
+}
+
+const cssq = (v) => String(v).replace(/["\\]/g, "\\$&");
+
+/** Put something where it can be read, without yanking the page.
+ * Called after a render, so the element is the new one, not the one that was
+ * just thrown away. */
+function bringIntoView(sel){
+  requestAnimationFrame(() => {
+    const el = document.querySelector(sel);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
 }
 
 /** Infinite scroll, with the button kept underneath. A sentinel is cheaper than
