@@ -121,32 +121,90 @@ function loadPrefs(){
     selectedSol:null, review:null, reviewData:null,
     push:{ supported:"serviceWorker" in navigator && "PushManager" in window, permission:
       (typeof Notification!=="undefined" ? Notification.permission : "default"), on:false, busy:false },
-    // splash runs once per launch; the lock is cleared once per launch too, so
-    // reopening the app asks again while moving between screens does not
-    splash:true, locked:false, lockBusy:false, pinEntry:"", pinSetup:null,
+    // the lock is cleared once per launch, so reopening the app asks again
+    // while moving between screens does not
+    locked:false, lockBusy:false, pinEntry:"", pinSetup:null,
+    health:{ reachable:true, ok:true, audit_ok:null, why:"" },
     filter:{ solution:"", severity:"" }, speaking:null, detail:null, moreBusy:false,
-    summary:null, expanded:{}, focus:null, confirm:null, showWhy:{},
+    summary:null, expanded:{}, focus:null, confirm:null, showWhy:{}, envAsk:false,
     // sign in walks: identifier, then a password or a name, never both at once
     signin:{ step:"id", id:"", busy:false, error:"",
              // the field decides for itself which of the two it is holding
              kind:"empty", iso:(window.Phone ? window.Phone.detect() : "US"), picker:false, search:"",
              pw:"", showPw:false },
+    envAcked:false,
     net:Net.state, settled:{} });
 }
 function savePrefs(){ try{ localStorage.setItem("discern.prefs", JSON.stringify({
   env:S.env,plat:S.plat,form:S.form,theme:S.theme,lang:S.lang,fullscreen:S.fullscreen,
-  token:S.token,user:S.user,lockMode:S.lockMode,lockCred:S.lockCred,
+  token:S.token,user:S.user,envAcked:S.envAcked,lockMode:S.lockMode,lockCred:S.lockCred,
   pinSalt:S.pinSalt,pinHash:S.pinHash,recent:S.recent})); }catch{} }
 function applyTheme(){ const q=new URLSearchParams(location.search).get("theme"); const th=q||S.theme;
   if (th==="light"||th==="dark") document.documentElement.dataset.theme=th; else delete document.documentElement.dataset.theme; }
 
+/* ---------------- getting back in without a network ----------------
+ *
+ * Signing in normally is a question for the server: it holds the accounts. But
+ * a person on a plane who signed in last week is not a stranger, and making
+ * them wait for a signal to read their own cached inbox is the kind of thing
+ * that makes an app feel like a website.
+ *
+ * So a successful sign in leaves a sealed record behind: the identifier, the
+ * password stretched through the same PBKDF2 work factor as the PIN, and the
+ * session it produced. Offline, the typed password is stretched again and
+ * compared. Nothing here is a security boundary against someone holding the
+ * phone with the screen unlocked, and it is not meant to be: the server still
+ * decides what the session may do the moment there is a network again. It is a
+ * way to reopen a door this device has already opened.
+ *
+ * The review account is deliberately left out. A reviewer is checking what the
+ * live service does, so their sign in always goes to the service. */
+const VAULT_KEY = "discern.vault";
+const REVIEW_ID = "test@500xlaunch.com";
+const normId = (x) => String(x || "").trim().toLowerCase();
+
+const Vault = {
+  all(){ try { return JSON.parse(localStorage.getItem(VAULT_KEY)) || {}; } catch { return {}; } },
+  read(env, identifier){
+    const r = this.all()[env || S.env];
+    return r && (!identifier || r.id === normId(identifier)) ? r : null;
+  },
+  /** Remembered after a real sign in, never instead of one. */
+  async keep(identifier, password){
+    const id = normId(identifier);
+    if (!S.token || id === REVIEW_ID) return;
+    const rec = { id, token:S.token, user:S.user, at:Date.now(), salt:null, hash:null };
+    if (password) { rec.salt = b64(rand(16)); rec.hash = await pinHash(password, rec.salt); }
+    else { const was = this.read(S.env, id); if (was) { rec.salt = was.salt; rec.hash = was.hash; } }
+    const all = this.all(); all[S.env] = rec;
+    try { localStorage.setItem(VAULT_KEY, JSON.stringify(all)); } catch {}
+  },
+  async verify(identifier, password){
+    const r = this.read(S.env, identifier);
+    if (!r || !r.salt || !r.hash) return false;
+    return (await pinHash(password, r.salt)) === r.hash;
+  },
+  /** Hand the remembered session back to the app. */
+  restore(identifier){
+    const r = this.read(S.env, identifier);
+    if (!r) return false;
+    S.token = r.token; S.user = r.user; savePrefs();
+    return true;
+  },
+  forget(env){ const all = this.all(); delete all[env || S.env];
+    try { localStorage.setItem(VAULT_KEY, JSON.stringify(all)); } catch {} },
+};
+
 /* ---------------- backend ---------------- */
 const Backend = {
   async probe(){
-    const ok = await Net.probe();
-    if (ok) { Net.goOnline(); S.mode = "connected"; return true; }
+    const h = await Net.health();
+    S.health = h;
+    if (h.reachable && h.ok) { Net.goOnline(); S.mode = "connected"; return true; }
     const cached = Net.cache.read(S.env);
-    S.mode = (S.token && cached) ? "degraded" : "demo";
+    // a remembered sign in counts as much as a cached view: either one means
+    // this device has something real to show, so it opens degraded and not in demo
+    S.mode = (cached && (S.token || Vault.read(S.env))) ? "degraded" : "demo";
     if (S.mode === "demo") Local.seed(); else Net.goOffline();
     return false;
   },
@@ -154,13 +212,21 @@ const Backend = {
    * how the app knows to ask who this person is. */
   async login(identifier, password){
     if (S.mode==="demo") return Local.login(identifier);
+    // no server to ask: the device answers for itself if it has been here
+    if (S.mode!=="connected" && normId(identifier) !== REVIEW_ID) {
+      if (!password) { const e=new Error("password"); e.status=401; throw e; }
+      if (await Vault.verify(identifier, password)) { Vault.restore(identifier); return; }
+      const e = new Error(t("signin.offlineNo")); e.status = 401; throw e;
+    }
     const out = await Net.request("POST","/v1/user/login",{identifier,password},{auth:false});
     S.token = out.token; S.user = out.user; savePrefs();
+    await Vault.keep(identifier, password);
   },
   async register(identifier, name){
     if (S.mode==="demo") return Local.login(identifier,name);
     const out = await Net.request("POST","/v1/user/register",{identifier,name},{auth:false});
     S.token = out.token; S.user = out.user; savePrefs();
+    await Vault.keep(identifier, null);
   },
   /** First page of everything. Falls back to the cached view, then to demo. */
   async refresh(){
@@ -303,6 +369,7 @@ async function boot(){
   if (q.get("env") === "test" || q.get("env") === "live") S.env = q.get("env");
   if (q.get("view")) S.view = q.get("view");
   applyTheme();
+  if (!q.get("nosplash")) playSplash();
   render();
 
   Net.start({ base:BASE, env:()=>S.env, token:()=>S.token,
@@ -329,7 +396,16 @@ async function boot(){
 
   // hold the launch animation, then reveal whatever comes next. ?nosplash=1
   // skips it, which is what the screenshot tooling uses.
-  setTimeout(() => { S.splash = false; render(); }, q.get("nosplash") ? 0 : 1650);
+  // the sheet waits for the animation rather than landing on top of it
+  setTimeout(() => {
+    maybeAskEnv(); render();
+    // the sign in screen carries its own notice, so this is for the case where
+    // the app opened straight into a session that cannot reach anything
+    if (S.token) {
+      if (!S.health.reachable) toast(`<span class="tic">${I.cloudoff}</span><div class="tm">${esc(t("net.offlineIn"))}</div>`,"warn");
+      else if (S.health.why) toast(`<span class="tic">${I.shield}</span><div class="tm">${esc(t("net.degraded"))}</div>`,"warn");
+    }
+  }, q.get("nosplash") ? 0 : 1500);
 
   // deep links: ?review= the permission label before connecting, ?solution= a
   // connected solution's settings. Both are how a notification tap lands you on
@@ -394,11 +470,24 @@ function speak(it){
 
    The review account never sees any of it. A store reviewer can enrol no
    biometric, and a lock they cannot open is a failed review. */
+/* Who is this, and what should they be shown?
+ *
+ *   builder   holds a Horizon console account, developer or admin. Beta exists
+ *             for them and nobody else.
+ *   reviewer  the store review account. No lock, ever.
+ *
+ * Everyone else sees Live and never learns an environment switch exists. */
+const isBuilder = () => !!(S.user && (S.user.role === "developer" || S.user.role === "admin"));
+const canSwitchEnv = () => isBuilder();
+
 const lockSupported = () => !!(window.PublicKeyCredential && navigator.credentials && window.isSecureContext);
 const isReviewer = () => !!(S.user && S.user.review);
 /** The review account is offered no lock of any kind: a store reviewer can
  * enrol no biometric and should not be handed a PIN to remember. */
-const lockOffered = () => !isReviewer();
+/** The lock is offered in Live only. A reviewer can enrol nothing, and someone
+ * building in Beta is going in and out all day: a lock there costs more than it
+ * protects, and the data behind it is test data. */
+const lockOffered = () => !isReviewer() && S.env === "live";
 const lockOn = () => S.lockMode === "device" || S.lockMode === "pin";
 const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 const unb64 = (s2) => { const b=atob(s2.replace(/-/g,"+").replace(/_/g,"/")); return Uint8Array.from([...b].map(c=>c.charCodeAt(0))); };
@@ -501,11 +590,20 @@ function armLockOnResume(){
   let left = 0;
   const leaving = () => { left = Date.now(); };
   const returning = () => {
-    if (!left || !S.token || !lockOn() || !lockOffered()) return;
+    if (!left) return;
     // a glance at the notification shade should not demand a face; a real
-    // departure should. Ten seconds is the line.
-    if (Date.now() - left > 10000) { S.locked = true; S.pinEntry = ""; render(); }
+    // departure should. Ten seconds is the line, and it is the same line for
+    // replaying the launch animation: coming back should feel like arriving.
+    const real = Date.now() - left > 10000;
     left = 0;
+    if (!real || !S.token) return;
+    playSplash();
+    if (lockOn() && lockOffered()) { S.locked = true; S.pinEntry = ""; }
+    maybeAskEnv();
+    render();
+    // what it knows is already cached, so the screen is never blank while this
+    // catches up with whatever happened while the app was away
+    Net.probe().then((ok) => { if (ok) { Net.goOnline(); S.mode = "connected"; silentRefresh(); } });
   };
   document.addEventListener("visibilitychange", () => (document.hidden ? leaving() : returning()));
   addEventListener("blur", leaving);
@@ -577,8 +675,7 @@ function render(){
   const root = document.getElementById("root");
   root.innerHTML = shellHTML();
   const app = document.getElementById("app-root");
-  if (app) app.innerHTML = S.splash ? splashHTML()
-                         : S.pinSetup ? pinSetupHTML()
+  if (app) app.innerHTML = S.pinSetup ? pinSetupHTML()
                          : S.locked ? lockHTML()
                          : !S.token ? signinHTML() : appHTML();
   applyDevice(); wire(); paintNet(); watchForMore();
@@ -609,7 +706,7 @@ function appHTML(){
   const nav = NAV();
   return `
   <header class="topbar">${MK}<span class="title">${esc(t("app.short"))}</span>
-    ${S.env !== "live" ? `<button class="envchip ${S.env}" data-toggle-env aria-label="${esc(t("set.env"))}">${esc(ENVS[S.env].label())}</button>` : ""}
+    ${S.env !== "live" && canSwitchEnv() ? `<button class="envchip ${S.env}" data-toggle-env aria-label="${esc(t("set.env"))}">${esc(ENVS[S.env].label())}</button>` : ""}
     <span class="spacer"></span>
     <button class="iconbtn" data-nav="inbox" aria-label="${esc(t("nav.inbox"))}">${I.bell}${pending?`<span class="count">${pending>9?'9+':pending}</span>`:''}</button>
   </header>
@@ -619,7 +716,7 @@ function appHTML(){
     <main class="screen-wrap"><div class="wrap">${!S.ready?skeletonHTML():screenHTML()}</div></main>
   </div>
   ${wide?'':`<nav class="tabbar">${nav.map(([v,l,ic])=>`<button data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${esc(l)}</span>${v==="inbox"&&pending?'<span class="tabdot"></span>':''}</button>`).join("")}</nav>`}
-  <div id="overlay">${S.confirm ? confirmHTML() : S.detail ? detailHTML() : ""}</div>`;
+  <div id="overlay">${S.envAsk ? envAskHTML() : S.confirm ? confirmHTML() : S.detail ? detailHTML() : ""}</div>`;
 }
 function screenHTML(){ if (S.focus && S.view === "inbox") return focusHTML();
   return ({inbox:inboxHTML,activity:activityHTML,solutions:solutionsHTML,settings:settingsHTML}[S.view]||inboxHTML)(); }
@@ -1027,7 +1124,8 @@ function settingsHTML(){
       : `<button class="btn btn-primary block" data-enablepush ${p.busy?"disabled":""}>${p.busy?`<span class="tic spin">${I.sync}</span>`:I.bell}<span>${esc(t("set.notifyOn"))}</span></button>`}
   </section>
   <section class="panel"><div class="panelhd"><h3>${esc(t("set.lock"))}</h3><p>${esc(t("set.lockSub"))}</p></div>
-    ${!lockOffered() ? `<div class="thin-empty">${esc(t("set.lockReview"))}</div>` : `
+    ${isReviewer() ? `<div class="thin-empty">${esc(t("set.lockReview"))}</div>`
+      : S.env !== "live" ? `<div class="thin-empty">${esc(t("set.lockBeta"))}</div>` : `
     <div class="lockopts">
       <button class="lockopt ${S.lockMode==="off"?"on":""}" data-lockmode="off">
         <b>${esc(t("set.lockOff2"))}</b><small>${esc(t("set.lockOffSub"))}</small></button>
@@ -1040,28 +1138,42 @@ function settingsHTML(){
   <section class="panel"><div class="panelhd"><h3>${esc(t("set.language"))}</h3></div>
     <div class="langgrid">${LANGS.map(l=>`<button class="langb ${window.I18N.lang===l.code?'on':''}" data-lang="${l.code}">
       <b>${l.native}</b><small>${l.name}</small></button>`).join("")}</div></section>
-  <section class="panel"><div class="panelhd"><h3>${esc(t("set.env"))}</h3><p>${esc(t("set.envSub"))}</p></div>
-    <div class="envseg">${Object.entries(ENVS).map(([k,e])=>`<button class="${S.env===k?'on':''}" data-env="${k}">${esc(e.label())}</button>`).join("")}</div></section>
+  ${canSwitchEnv() ? `<section class="panel"><div class="panelhd"><h3>${esc(t("set.env"))}</h3><p>${esc(t("set.envSub"))}</p></div>
+    <div class="envseg">${Object.entries(ENVS).map(([k,e])=>`<button class="${S.env===k?'on':''}" data-env="${k}">${esc(e.label())}</button>`).join("")}</div></section>` : ""}
   <section class="panel"><div class="panelhd"><h3>${esc(t("set.appearance"))}</h3></div>
     <div class="envseg">${[["system",t("set.system")],["light",t("set.light")],["dark",t("set.dark")]].map(([k,l])=>`<button class="${S.theme===k?'on':''}" data-theme-set="${k}">${esc(l)}</button>`).join("")}</div></section>
   <section class="panel"><button class="btn btn-ghost block" data-signout>${esc(t("set.signOut"))}</button></section>
   <p class="motto">${esc(t("app.motto")).replace(/\n/g,"<br/>")}</p>`;
 }
 
-/* ---- launch ----
-   The mark draws itself, the motto arrives under it, then the app. It is the
-   one moment the product gets to say what it is before asking for anything. */
-function splashHTML(){
-  // the stroke starts fully retracted and the ring at zero, inline, so the very
-  // first painted frame is the beginning of the animation and never the logo
-  const mk = MK
-    .replace('class="wave"', 'class="wave" style="stroke-dasharray:420;stroke-dashoffset:420"')
-    .replace('<circle', '<circle style="transform:scale(0);transform-origin:200px 128px"');
-  return `<div class="splash">
-    <div class="splash-mk">${mk}</div>
-    <div class="splash-name">${esc(t("app.name"))}</div>
-    <p class="splash-motto">${esc(t("app.motto")).replace(/\n/g,"<br/>")}</p>
+/** The launch animation, deliberately outside the render tree.
+ *
+ * It used to be part of the screen, which meant every render() during boot
+ * rebuilt its SVG and restarted the stroke from zero. Booting renders three or
+ * four times, so the mark stuttered. Now it is one element appended to the
+ * document, animated once, and removed when it is done. Nothing the app draws
+ * can touch it. */
+function playSplash(){
+  const had = document.querySelector(".splashlayer");
+  if (had) had.remove();
+  // one source of truth for the mark: take the stroke and the ring apart
+  const wave = MK.replace(/<circle[^>]*\/>/, "");
+  const ring = MK.replace(/<path[^>]*\/>/, "");
+  const el = document.createElement("div");
+  el.className = "splashlayer";
+  el.innerHTML = `<div class="spmk">
+    <div class="spwave">${wave}</div>
+    <i class="spwipe"></i>
+    <div class="spring">${ring}</div>
+    <i class="sppulse"></i>
   </div>`;
+  document.body.appendChild(el);
+  const done = () => {
+    el.classList.add("out");
+    el.addEventListener("transitionend", () => el.remove(), { once:true });
+    setTimeout(() => el.remove(), 800);
+  };
+  setTimeout(done, 1550);
 }
 
 /* ---- screen lock ---- */
@@ -1108,14 +1220,31 @@ function pinSetupHTML(){
    whether this person already has an account. Only if they do not do we ask who
    they are, and only the account that has a password is ever shown a password
    field. */
+/** What the launch probe found, said once, where signing in happens.
+ *
+ * It is a notice and not a wall: the whole point is that someone who has been
+ * here before can carry on. */
+function healthNoteHTML(){
+  const h = S.health || {};
+  if (!h.reachable) return `<div class="hnote warn">
+      <span class="tic">${I.cloudoff}</span>
+      <div><b>${esc(t("signin.offTitle"))}</b><span>${esc(t("signin.offBody"))}</span></div></div>`;
+  if (h.why === "degraded" || h.why === "unhealthy") return `<div class="hnote warn">
+      <span class="tic">${I.shield}</span>
+      <div><b>${esc(t("signin.degTitle"))}</b><span>${esc(t("signin.degBody"))}</span></div></div>`;
+  return "";
+}
+
 function signinHTML(){
   const st = S.signin;
   const err = st.error ? `<div class="signin-err">${esc(st.error)}</div>` : "";
+  const note = healthNoteHTML();
   const head = `<div class="signin-mk">${MK}</div>
     <h1>${esc(t("app.name"))}</h1><p class="signin-motto">${esc(t("app.motto")).replace(/\n/g,"<br/>")}</p>`;
 
   if (st.step === "name") {
     return `<div class="signin">${head}
+      ${note}
       <div class="signin-lead"><b>${esc(t("signin.newTitle"))}</b>
         <span>${esc(t("signin.newBody",{id:st.identifier || st.id}))}</span></div>
       ${err}
@@ -1129,6 +1258,7 @@ function signinHTML(){
 
   if (st.step === "password") {
     return `<div class="signin">${head}
+      ${note}
       <div class="signin-lead"><b>${esc(st.identifier || st.id)}</b><span>${esc(t("signin.pwNote"))}</span></div>
       ${err}
       <div class="field"><label for="pw">${esc(t("signin.pw"))}</label>
@@ -1141,6 +1271,8 @@ function signinHTML(){
         </div></div>
       <button class="btn btn-primary block big" data-pw ${st.busy?"disabled":""}>
         ${st.busy?`<span class="tic spin">${I.sync}</span>`:""}<span>${esc(t("signin.continue"))}</span></button>
+      ${passkeyOffered(st.identifier || st.id) ? `<button class="btn btn-ghost block" data-passkey>
+        <span class="tic">${I.face}</span><span>${esc(t("signin.usePasskey"))}</span></button>` : ""}
       <button class="btn btn-ghost block" data-signin-back>${esc(t("signin.back"))}</button>
       <div id="overlay"></div></div>`;
   }
@@ -1151,6 +1283,7 @@ function signinHTML(){
   const picker = st.picker ? countryPickerHTML() : "";
 
   return `<div class="signin">${head}
+    ${note}
     ${err}
     <div class="field idfield">
       <label for="id">${esc(t("signin.id"))}</label>
@@ -1226,6 +1359,26 @@ function countryPickerHTML(){
       <div class="cclist">${rows.map((c)=>`<button class="ccrow ${c.iso===S.signin.iso?"on":""}" data-cc="${c.iso}">
         <span class="ccflag">${P.flag(c.iso)}</span><span class="ccname">${esc(c.label)}</span>
         <span class="ccdial">+${c.dial}</span></button>`).join("") || `<div class="thin-empty">${esc(t("more.end"))}</div>`}</div>
+    </div></div>`;
+}
+
+/** Someone who builds can be in either environment, and the cost of forgetting
+ * which is high in one direction: a decision taken in Live is real. So they are
+ * told on the way in, every time they come back, until they say not to. That
+ * choice lasts until they sign out, because signing out is the moment the
+ * answer might change. */
+function envAskHTML(){
+  const here = ENVS[S.env].label();
+  const other = S.env === "live" ? "test" : "live";
+  return `<div class="scrim" data-envask-close>
+    <div class="sheet envsheet" role="dialog">
+      <span class="envbadge ${S.env}">${esc(here)}</span>
+      <h3>${esc(t("env.youAreIn",{env:here}))}</h3>
+      <p>${esc(t(S.env === "live" ? "env.liveBody" : "env.betaBody"))}</p>
+      <label class="envdont"><input type="checkbox" id="envdont" ${S.envAcked?"checked":""}/>
+        <span>${esc(t("env.dontAsk"))}</span></label>
+      <button class="btn btn-primary block big" data-envask-stay>${esc(t("env.stay",{env:here}))}</button>
+      <button class="btn btn-ghost block" data-envask-switch="${other}">${esc(t("env.switchTo",{env:ENVS[other].label()}))}</button>
     </div></div>`;
 }
 
@@ -1349,6 +1502,12 @@ function wire(){
     if(bk){ const uid=bk.dataset.cuid, dec=bk.dataset.bulk;
       const ids = S.intents.filter(i => ((i.solution&&i.solution.uid)||i.solutionUid) === uid).map(i=>i.id);
       askConfirm(dec, { ids, count: ids.length }); return; }
+    if(el.closest("[data-envask-stay]")){
+      const c=document.getElementById("envdont"); S.envAcked = !!(c && c.checked); savePrefs();
+      S.envAsk=false; render(); return; }
+    const esw = el.closest("[data-envask-switch]");
+    if(esw){ const c=document.getElementById("envdont"); S.envAcked = !!(c && c.checked);
+      S.envAsk=false; S.env=esw.dataset.envaskSwitch; savePrefs(); reloadEnv(); return; }
     if(el.closest("[data-confirm-go]")){ runConfirmed(); return; }
     if(el.closest("[data-confirm-close]")){ S.confirm=null; render(); return; }
     const fs = el.closest("[data-fsol]");
@@ -1375,9 +1534,11 @@ function wire(){
       return; }
     if(el.closest("[data-signin]")){ signin(); return; }
     if(el.closest("[data-pw]")){ signinPassword(); return; }
+    if(el.closest("[data-passkey]")){ signinPasskey(); return; }
     if(el.closest("[data-create]")){ signinRegister(); return; }
     if(el.closest("[data-signin-back]")){ S.signin = { step:"id", id:S.signin.id, busy:false, error:"" }; render(); return; }
-    if(el.closest("[data-signout]")){ S.token=null; S.user=null; S.locked=false; savePrefs(); render(); return; }
+    if(el.closest("[data-signout]")){ S.token=null; S.user=null; S.locked=false;
+      S.envAcked=false; S.envAsk=false; savePrefs(); render(); return; }
   };
   // a phone keyboard offers Go or Done, and people press it
   root.onkeydown = e=>{
@@ -1601,6 +1762,11 @@ async function setStatus(link,to){
   const s=S.solutions.find(x=>x.link===link); if(s)s.status=to; render();
   try{ await Backend.setStatus(link,to); }catch{}
 }
+/** Only a builder is ever asked, and only while they have not waved it away. */
+function maybeAskEnv(){
+  if (S.token && canSwitchEnv() && !S.envAcked) S.envAsk = true;
+}
+
 /** Keep the last few, newest first, without duplicates. Three is enough to be
  * useful and few enough to stay out of the way. */
 function rememberIdentifier(v){
@@ -1656,12 +1822,45 @@ async function signinPassword(){
   try {
     await Backend.login(S.signin.identifier || S.signin.id, pw);
     rememberIdentifier(S.signin.identifier || S.signin.id);
+    if (S.mode !== "connected") await Backend.refresh();
     S.signin = { ...S.signin, step:"id", id:"", error:"", busy:false, pw:"", showPw:false };
     await Backend.refresh(); S.view = "inbox"; render();
   } catch (e) {
     S.signin.busy = false;
     S.signin.error = e.status === 401 ? t("signin.needPw") : (e.message || t("net.failed"));
     render();
+  }
+}
+
+/** The phone's own lock, standing in for the password.
+ *
+ * Only offered when all three things are true: the device holds a platform
+ * credential, it holds a remembered session for this identifier, and the
+ * account is not the review account. A face is a better proof than a typed
+ * password and it works with the radio off, which is the point. */
+function passkeyOffered(identifier){
+  return !!(S.lockCred && Vault.read(S.env, identifier) && normId(identifier) !== REVIEW_ID);
+}
+
+async function signinPasskey(){
+  const id = S.signin.identifier || S.signin.id;
+  if (!passkeyOffered(id)) return;
+  S.signin.error = ""; S.signin.busy = true; render();
+  try {
+    const got = await navigator.credentials.get({ publicKey: {
+      challenge: rand(32),
+      allowCredentials: [{ type:"public-key", id: unb64(S.lockCred) }],
+      userVerification: "required", timeout: 60000,
+    }});
+    if (!got) throw new Error("cancelled");
+    Vault.restore(id);
+    rememberIdentifier(id);
+    S.signin = { ...S.signin, step:"id", id:"", error:"", busy:false, pw:"", showPw:false };
+    S.view = "inbox";
+    try { await Backend.refresh(); } catch {}
+    render();
+  } catch {
+    S.signin.busy = false; S.signin.error = t("t.lockDenied"); render();
   }
 }
 

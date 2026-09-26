@@ -148,15 +148,33 @@ const Net = (() => {
     }, jitter);
   }
 
-  async function probe() {
+  /** What the backend says about itself, in three separate facts.
+   *
+   *   reachable  a reply arrived at all, so there is a network and a server
+   *   ok         that reply was a success, so requests will work
+   *   audit_ok   the record behind it verifies, so answers can be trusted
+   *
+   * They are kept apart because they call for different things: no network is
+   * something to wait out, a bad reply is something to report, and a broken
+   * audit chain is something to warn about while still letting people work. */
+  async function health() {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      return { reachable: false, ok: false, audit_ok: null, why: "offline" };
+    }
     try {
       const ctl = new AbortController();
       const kill = setTimeout(() => ctl.abort(), 6000);
       const r = await fetch(`${base}/healthz`, { headers: { "x-xurface-env": envOf() }, signal: ctl.signal, cache: "no-store" });
       clearTimeout(kill);
-      return r.ok;
-    } catch { return false; }
+      const d = await r.json().catch(() => ({}));
+      return { reachable: true, ok: r.ok, status: r.status,
+               audit_ok: typeof d.audit_ok === "boolean" ? d.audit_ok : null,
+               why: r.ok ? (d.audit_ok === false ? "degraded" : "") : "unhealthy" };
+    } catch { return { reachable: false, ok: false, audit_ok: null, why: "unreachable" }; }
   }
+
+  /** The yes or no version, which is all the reconnect loop needs. */
+  async function probe() { const h = await health(); return h.reachable && h.ok; }
 
   /** The last good view, so an offline open is not an empty screen. */
   const cache = {
@@ -177,7 +195,7 @@ const Net = (() => {
   return {
     get state() { return state; },
     subscribe(fn) { subs.add(fn); return () => subs.delete(fn); },
-    start, request, durable, flush, probe, goOnline, goOffline, cache,
+    start, request, durable, flush, probe, health, goOnline, goOffline, cache,
     get pending() { return state.queue.length; },
     queuedFor(intentId) { return state.queue.find((q) => q.intentId === intentId); },
   };

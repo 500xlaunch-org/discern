@@ -269,7 +269,8 @@ input{font-family:inherit}
 .motto{text-align:center;font-family:var(--serif);font-style:italic;color:var(--faint);font-size:1rem;margin:14px 0 4px}
 
 /* ---------------- sign in ---------------- */
-.signin{flex:1;display:flex;flex-direction:column;justify-content:center;gap:15px;padding:30px 26px;max-width:400px;margin:0 auto;width:100%}
+.signin{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;
+  gap:15px;padding:30px 26px;max-width:400px;margin:0 auto;width:100%}
 .signin-mk{width:66px;height:66px;color:var(--xur);margin:0 auto}
 .signin-mk svg{width:100%;height:100%}
 .signin h1{font-family:var(--serif);font-weight:600;font-size:1.85rem;margin:0;text-align:center;letter-spacing:-.01em}
@@ -461,30 +462,41 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 
 /* ================== launch and lock ================== */
 
-/* The mark draws itself, the name and motto arrive under it. One moment to say
-   what the product is before it asks for anything. */
-.splash{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:2px;background:var(--bg);animation:splashout .4s ease 1.25s both}
-.splash-mk{width:104px;height:104px;color:var(--xur)}
-.splash-mk .mk{width:104px;height:104px}
-.splash-mk .mk .wave{stroke-dasharray:420;stroke-dashoffset:420;
-  animation:draw .95s cubic-bezier(.4,0,.2,1) 0s forwards}
-.splash-mk .mk circle{transform-origin:200px 128px;transform:scale(0);
-  animation:ring .45s cubic-bezier(.2,.9,.3,1.4) .6s forwards}
-.splash-name{margin-top:18px;font-family:var(--serif);font-size:1.72rem;font-weight:600;letter-spacing:.2px;
-  color:var(--ink);opacity:0;animation:rise .5s ease .5s both}
-.splash-motto{margin:7px 0 0;text-align:center;color:var(--muted);font-size:.9rem;line-height:1.5;
-  opacity:0;animation:rise .5s ease .68s both}
-@keyframes draw{to{stroke-dashoffset:0}}
-@keyframes ring{to{transform:scale(1)}}
+/* The launch animation.
+   Every moving part here is a transform or an opacity, which the compositor
+   owns. The earlier version animated stroke-dashoffset, a main thread property,
+   so any work the app did while booting showed up as a stutter in the mark.
+   The stroke now appears under a panel the colour of the page that slides off
+   to the right: the same left to right reveal, none of the contention. */
+.splashlayer{position:fixed;inset:0;z-index:60;display:grid;place-items:center;
+  background:var(--bg);opacity:1;transition:opacity .45s ease;will-change:opacity}
+.splashlayer.out{opacity:0;pointer-events:none}
+
+.spmk{position:relative;width:132px;height:132px;color:var(--xur)}
+.spmk .mk{position:absolute;inset:0;width:100%;height:100%}
+.spwave,.spring{position:absolute;inset:0}
+/* the panel starts just left of the stroke and leaves to the right */
+.spwipe{position:absolute;top:-6%;bottom:-6%;left:8%;right:-4%;background:var(--bg);
+  transform:translate3d(0,0,0);animation:spwipe 1s cubic-bezier(.32,.02,.22,1) .1s both}
+.spring .mk{transform:scale(.2);opacity:0;
+  animation:spring .5s cubic-bezier(.18,.9,.28,1.25) .86s both}
+/* one ring of attention leaving the eye, the product in a single gesture */
+.sppulse{position:absolute;left:78.1%;top:50%;width:26.6%;aspect-ratio:1;margin:-13.3% 0 0 -13.3%;
+  border:2px solid currentColor;border-radius:50%;opacity:0;
+  animation:sppulse 1.05s cubic-bezier(.2,.6,.2,1) 1.18s forwards}
+
+@keyframes spwipe{from{transform:translate3d(0,0,0)}to{transform:translate3d(105%,0,0)}}
+@keyframes spring{from{transform:scale(.2);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes sppulse{
+  0%{transform:scale(.92);opacity:.55}
+  100%{transform:scale(2.5);opacity:0}
+}
 @keyframes mkpop{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:none}}
 @keyframes rise{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
-@keyframes splashout{to{opacity:0}}
 @media (prefers-reduced-motion: reduce){
-  .splash,.splash-mk,.splash-name,.splash-motto,.splash-mk .mk .wave,.splash-mk .mk circle{animation:none!important}
-  .splash-mk .mk .wave{stroke-dashoffset:0}
-  .splash-mk .mk circle{transform:none}
-  .splash-name,.splash-motto{opacity:1}
+  .spwipe{animation:none;transform:translate3d(105%,0,0)}
+  .spring .mk{animation:none;transform:none;opacity:1}
+  .sppulse{animation:none;opacity:0}
 }
 
 /* The lock is a gate on this device, not a second sign in: the session is
@@ -572,7 +584,7 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 /* the full height screens need the same room */
 .signin,.lockscreen{padding-top:calc(30px + var(--sat));padding-bottom:calc(26px + var(--sab));
   padding-inline:calc(26px + var(--sal)) calc(26px + var(--sar))}
-.splash{padding-top:var(--sat);padding-bottom:var(--sab)}
+
 .rail{padding-top:calc(16px + var(--sat));padding-bottom:calc(16px + var(--sab))}
 .wrap{padding-inline:calc(16px + var(--sal)) calc(16px + var(--sar))}
 /* nothing should end up under the navigation bar when a list runs long */
@@ -740,3 +752,35 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .confirmsheet p{margin:0;color:var(--muted);font-size:.92rem;line-height:1.55}
 .cmany{color:var(--ink)!important;font-weight:550}
 .confirmsheet .btn{width:100%}
+
+/* ---- which environment am I in ---- */
+.envsheet{gap:12px;text-align:center;align-items:center}
+.envsheet h3{margin:0;font-size:1.18rem}
+.envsheet p{margin:0;color:var(--muted);font-size:.92rem;line-height:1.55;max-width:38ch}
+.envbadge{align-self:center;font-family:var(--mono);font-size:.72rem;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;padding:5px 12px;border-radius:99px}
+.envbadge.live{color:var(--lo);background:var(--lo-bg)}
+.envbadge.test{color:var(--hi);background:var(--hi-bg)}
+.envdont{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:.85rem;
+  padding:6px 0;cursor:pointer}
+.envdont input{width:18px;height:18px;accent-color:var(--xur);flex:none}
+.envsheet .btn{width:100%}
+
+/* the connect field was full width and looked like a form, not a question */
+/* one column width for everything asked for, so the fields read as a set
+   rather than a wide box with a narrow button under it */
+.signin .field,.signin .btn,.signin .recents,.signin .signin-err,
+.signin .signin-lead,.signin .hnote,.signin .idhint{max-width:320px;width:100%}
+.signin .idfield{max-width:320px}
+
+/* The state of the world, stated on the sign in screen. A notice, not a wall:
+   someone who has been here before can still get in. */
+.hnote{display:flex;gap:10px;align-items:flex-start;width:100%;max-width:320px;
+  padding:11px 13px;border-radius:14px;text-align:start;
+  border:1px solid color-mix(in oklab,var(--warn) 38%,transparent);
+  background:color-mix(in oklab,var(--warn) 12%,var(--card))}
+.hnote .tic{flex:none;width:18px;height:18px;color:var(--warn);margin-top:1px}
+.hnote .tic svg{width:18px;height:18px}
+.hnote div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.hnote b{font-size:13.5px;font-weight:600}
+.hnote span{font-size:12.5px;line-height:1.4;color:var(--dim)}
