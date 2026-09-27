@@ -162,6 +162,21 @@ function savePrefs(){ try{ localStorage.setItem("discern.prefs", JSON.stringify(
 function applyTheme(){ const q=new URLSearchParams(location.search).get("theme"); const th=q||S.theme;
   if (th==="light"||th==="dark") document.documentElement.dataset.theme=th; else delete document.documentElement.dataset.theme; }
 
+/** The country this phone is in, and nothing finer.
+ *
+ * Two letters, taken from the phone's own locale rather than from an address
+ * or a position. It lets a developer see that two thirds of their people are
+ * in Brazil, and it cannot be used to find any of them. Nothing else about
+ * where somebody is ever leaves the device. */
+function region(){
+  try {
+    const loc = new Intl.Locale(navigator.language || "en");
+    if (loc.region) return loc.region;
+  } catch (e) {}
+  const m = /[-_]([A-Za-z]{2})\b/.exec(String(navigator.language || ""));
+  return m ? m[1].toUpperCase() : undefined;
+}
+
 /* ---------------- getting back in without a network ----------------
  *
  * Signing in normally is a question for the server: it holds the accounts. But
@@ -243,13 +258,13 @@ const Backend = {
       if (await Vault.verify(identifier, password)) { Vault.restore(identifier); return; }
       const e = new Error(t("signin.offlineNo")); e.status = 401; e.said = true; throw e;
     }
-    const out = await Net.request("POST","/v1/user/login",{identifier,password},{auth:false});
+    const out = await Net.request("POST","/v1/user/login",{identifier,password,region:region()},{auth:false});
     S.token = out.token; S.user = out.user; savePrefs();
     await Vault.keep(identifier, password);
   },
   async register(identifier, name){
     if (S.mode==="demo") return Local.login(identifier,name);
-    const out = await Net.request("POST","/v1/user/register",{identifier,name},{auth:false});
+    const out = await Net.request("POST","/v1/user/register",{identifier,name,region:region()},{auth:false});
     S.token = out.token; S.user = out.user; savePrefs();
     await Vault.keep(identifier, null);
   },
