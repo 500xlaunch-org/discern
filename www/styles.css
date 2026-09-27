@@ -889,3 +889,56 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .gasks.live:hover{box-shadow:0 4px 14px color-mix(in oklab,var(--xur) 45%,transparent)}
 .gasks.live:active{transform:scale(.96)}
 .gnode.live .gbody{border-color:color-mix(in oklab,var(--xur) 40%,var(--line))}
+
+/* ================== the vault ==================
+   A list that can be read without opening anything: names and hints are in the
+   clear, secrets are not. Seeing one is always its own deliberate tap. */
+.vpanel{display:flex;flex-direction:column;gap:12px}
+.vlead{display:flex;gap:11px;align-items:flex-start}
+.vic{flex:none;width:34px;height:34px;border-radius:11px;display:grid;place-items:center;
+  background:var(--xur-soft);color:var(--xur-ink)}
+.vic svg{width:18px;height:18px}
+.vic.sm{width:28px;height:28px;border-radius:9px}
+.vic.sm svg{width:15px;height:15px}
+.vlead div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.vlead b{font-size:.98rem;font-weight:650}
+.vlead span{font-size:.85rem;color:var(--muted);line-height:1.5}
+.vwarn{border:1px solid color-mix(in oklab,var(--warn,#c9781a) 40%,transparent);
+  background:color-mix(in oklab,var(--warn,#c9781a) 12%,var(--card,var(--surface)));
+  color:var(--ink);border-radius:12px;padding:10px 12px;font-size:.84rem;line-height:1.5}
+.vcheck{display:flex;align-items:center;gap:9px;font-size:.87rem;color:var(--muted)}
+.vcheck input{width:18px;height:18px;flex:none;accent-color:var(--xur)}
+.vtop{display:flex;align-items:center;gap:10px}
+.vprot{flex:1;display:inline-flex;align-items:center;gap:6px;color:var(--faint);font-size:.78rem;font-weight:600}
+.vprot svg{width:14px;height:14px}
+
+.vlist{display:flex;flex-direction:column;gap:8px}
+.vitem{border:1px solid var(--line);border-radius:13px;background:var(--surface);overflow:hidden}
+.vitem.open{border-color:var(--xur)}
+.vhead{display:flex;align-items:center;gap:10px;padding:11px 12px}
+.vm{flex:1;min-width:0;display:flex;flex-direction:column}
+.vm b{font-size:.92rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vm small{font-size:.75rem;color:var(--faint)}
+.vgrants{flex:none;min-width:20px;height:20px;padding:0 6px;border-radius:99px;background:var(--xur-soft);
+  color:var(--xur-ink);font-size:.72rem;font-weight:700;display:grid;place-items:center}
+.vshow{flex:none;border:1px solid var(--line);background:transparent;color:var(--muted);
+  border-radius:9px;padding:5px 10px;font-size:.78rem;font-weight:600}
+.vshow:hover{border-color:var(--xur);color:var(--xur-ink)}
+.vbody{padding:0 12px 12px;display:flex;flex-direction:column;gap:8px;animation:cardin .2s ease both}
+.vbody .dv.mono{font-family:var(--mono,ui-monospace,SFMono-Regular,Menlo,monospace);
+  word-break:break-all;unicode-bidi:plaintext;direction:ltr}
+.vgrantlist{display:flex;flex-wrap:wrap;gap:6px}
+.vgrant{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;
+  padding:3px 4px 3px 4px;font-size:.76rem;color:var(--muted)}
+.vgrant button{border:0;background:transparent;color:var(--sv,#d23b3b);font-size:.74rem;font-weight:650;
+  padding:2px 7px;border-radius:99px}
+.vkinds{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:7px}
+.vkind{display:flex;flex-direction:column;align-items:center;gap:5px;border:1px solid var(--line);
+  background:var(--surface);color:var(--muted);border-radius:12px;padding:11px 6px;
+  font-size:.76rem;font-weight:600;transition:.15s}
+.vkind .tic{width:20px;height:20px;display:grid;place-items:center}
+.vkind .tic svg{width:19px;height:19px}
+.vkind:hover{border-color:var(--xur);color:var(--ink)}
+.vkind.on{border-color:var(--xur);background:var(--xur-soft);color:var(--xur-ink)}
+.vform{display:flex;flex-direction:column;gap:10px;animation:cardin .2s ease both}
+.vnote{margin:0;font-size:.79rem;color:var(--faint);line-height:1.5}

@@ -140,6 +140,9 @@ function loadPrefs(){
     locked:false, lockBusy:false, pinEntry:"", pinSetup:null,
     health:{ reachable:true, ok:true, audit_ok:null, why:"" },
     detail:null, moreBusy:false, drop:null, ask:null, scrollTop:0,
+    // the vault's own screen state; the vault itself lives in vault.js
+    vault:{ items:[], shown:{}, adding:{ kind:null }, busy:false, error:"",
+            setup:{ stage:"first", first:"", error:"", useDevice:true } },
     // which agent groups and which individual actions are unfolded
     open:{ g:{}, a:{} },
     summary:null, focus:null, confirm:null, envAsk:false, solAgent:null,
@@ -424,7 +427,10 @@ async function boot(){
     }
   }
   if (S.token){ try{ await Backend.refresh(); }catch(e){ if (e.status===401){ S.token=null; S.user=null; savePrefs(); } } }
-  S.ready = true; render();
+  S.ready = true;
+  if (window.Vault) window.Vault.subscribe(() => {});
+  vaultRefresh();
+  render();
 
   // hold the launch animation, then reveal whatever comes next. ?nosplash=1
   // skips it, which is what the screenshot tooling uses.
@@ -671,6 +677,7 @@ async function testPush(){
 
 /* ==================== rendering ==================== */
 const NAV = ()=>[["inbox",t("nav.inbox"),I.inbox],["activity",t("nav.activity"),I.activity],
+  ["vault",t("nav.vault"),I.shield],
   ["solutions",t("nav.solutions"),I.solutions],["settings",t("nav.settings"),I.settings]];
 
 /** Where the reader was, kept across a redraw.
@@ -742,7 +749,8 @@ function appHTML(){
     : S.detail ? detailHTML() : S.ask ? askHTML() : ""}</div>`;
 }
 function screenHTML(){ if (S.focus && S.view === "inbox") return focusHTML();
-  return ({inbox:inboxHTML,activity:activityHTML,solutions:solutionsHTML,settings:settingsHTML}[S.view]||inboxHTML)(); }
+  return ({inbox:inboxHTML,activity:activityHTML,vault:vaultHTML,
+           solutions:solutionsHTML,settings:settingsHTML}[S.view]||inboxHTML)(); }
 
 /* ---- the connection strip: always honest about where the data came from ---- */
 function paintNet(){
@@ -1193,6 +1201,204 @@ function detailHTML(){
       <div class="kv"><span>${esc(t("act.ref"))}</span><b class="ref">${iRef(it)}</b></div>
       <button class="btn btn-ghost block" data-detail-close>${esc(t("act.close"))}</button>
     </div></div>`;
+}
+
+/* ---- vault ----
+ *
+ * The screen for the thing in vault.js. Two rules run through all of it.
+ *
+ * A list can be read without opening anything: names and hints are in the
+ * clear, secrets are not, because a list you must unlock to navigate is a list
+ * nobody navigates. And nothing is revealed by accident: seeing a secret is
+ * always a deliberate act with its own tap, and the vault closes itself two
+ * minutes after the last one. */
+const VKIND = {
+  wifi:    { icon: () => I.globe,   label: () => t("v.kind.wifi") },
+  login:   { icon: () => I.at,      label: () => t("v.kind.login") },
+  otp:     { icon: () => I.sync,    label: () => t("v.kind.otp") },
+  mfa:     { icon: () => I.shield,  label: () => t("v.kind.mfa") },
+  passkey: { icon: () => I.face,    label: () => t("v.kind.passkey") },
+  card:    { icon: () => I.work,    label: () => t("v.kind.card") },
+  note:    { icon: () => I.inbox,   label: () => t("v.kind.note") },
+};
+
+function vaultHTML(){
+  const V = window.Vault, st = V ? V.state : { exists:false };
+  const head = `<div class="scrhead"><span class="eyebrow">${esc(t("v.eyebrow"))}</span><h1>${esc(t("nav.vault"))}</h1>
+    <p class="sub">${esc(t("v.sub"))}</p></div>`;
+  if (!st.exists) return head + vaultSetupHTML();
+  if (!st.unlocked) return head + vaultLockedHTML();
+  return head + vaultOpenHTML();
+}
+
+/** Setting it up. The trade is stated before it is made: there is no recovery,
+ * and that is the property being bought, not a limitation being hidden. */
+function vaultSetupHTML(){
+  const s = S.vault.setup;
+  return `<section class="panel vpanel">
+    <div class="vlead"><span class="vic">${I.shield}</span>
+      <div><b>${esc(t("v.setup.title"))}</b><span>${esc(t("v.setup.body"))}</span></div></div>
+    <div class="vwarn">${esc(t("v.setup.noRecovery"))}</div>
+    ${s.error ? `<div class="signin-err">${esc(s.error)}</div>` : ""}
+    <div class="field"><label for="vpin">${esc(t(s.stage === "again" ? "v.setup.again" : "v.setup.pin"))}</label>
+      <input id="vpin" type="password" inputmode="numeric" autocomplete="off" maxlength="6"
+             enterkeyhint="go" placeholder="******" value="${esc(s.entry || "")}"/></div>
+    ${lockSupported() ? `<label class="vcheck"><input type="checkbox" id="vdev" ${s.useDevice ? "checked" : ""}/>
+      <span>${esc(t("v.setup.useDevice"))}</span></label>` : ""}
+    <button class="btn btn-primary block big" data-vcreate ${s.busy ? "disabled" : ""}>
+      ${s.busy ? `<span class="tic spin">${I.sync}</span>` : ""}<span>${esc(t(s.stage === "again" ? "v.setup.confirm" : "v.setup.next"))}</span></button>
+  </section>`;
+}
+
+function vaultLockedHTML(){
+  const V = window.Vault, wait = V.penalty(), left = V.triesLeft();
+  return `<section class="panel vpanel">
+    <div class="vlead"><span class="vic">${I.shield}</span>
+      <div><b>${esc(t("v.locked.title"))}</b><span>${esc(tn("v.locked.count", V.state.count))}</span></div></div>
+    ${S.vault.error ? `<div class="signin-err">${esc(S.vault.error)}</div>` : ""}
+    ${wait > 0 ? `<div class="vwarn">${esc(t("v.locked.wait", { time: tSpan(wait) }))}</div>`
+      : left != null && left <= 3 ? `<div class="vwarn">${esc(tn("v.locked.left", left))}</div>` : ""}
+    <div class="field"><label for="vpin">${esc(t("v.locked.pin"))}</label>
+      <input id="vpin" type="password" inputmode="numeric" autocomplete="off" maxlength="6"
+             enterkeyhint="go" placeholder="******"/></div>
+    <button class="btn btn-primary block big" data-vunlock ${S.vault.busy || wait > 0 ? "disabled" : ""}>
+      ${S.vault.busy ? `<span class="tic spin">${I.sync}</span>` : ""}<span>${esc(t("v.locked.open"))}</span></button>
+  </section>`;
+}
+
+function vaultOpenHTML(){
+  const items = S.vault.items || [];
+  const kinds = Object.keys(VKIND);
+  const add = S.vault.adding;
+  const list = items.length
+    ? `<div class="vlist">${items.map(vitemHTML).join("")}</div>`
+    : `<div class="thin-empty">${esc(t("v.empty"))}</div>`;
+  return `<section class="panel vpanel">
+      <div class="vtop">
+        <span class="vprot">${I.shield}<span>${esc(t("v.prot." + (window.Vault.state.protection || "pin")))}</span></span>
+        <button class="btn btn-ghost sm" data-vlock>${esc(t("v.lock"))}</button>
+      </div>
+      ${list}
+    </section>
+    <section class="panel vpanel">
+      <div class="panelhd"><h3>${esc(t("v.add.title"))}</h3><p>${esc(t("v.add.body"))}</p></div>
+      <div class="vkinds">${kinds.map((k) => `<button class="vkind ${add.kind === k ? "on" : ""}" data-vkind="${k}">
+        <span class="tic">${VKIND[k].icon()}</span><span>${esc(VKIND[k].label())}</span></button>`).join("")}</div>
+      ${add.kind ? vaultFormHTML(add.kind) : ""}
+    </section>`;
+}
+
+function vaultFormHTML(kind){
+  const spec = window.Vault.KINDS[kind];
+  return `<div class="vform">
+    ${spec.fields.map((f) => {
+      const secret = spec.secret.includes(f);
+      return `<div class="field"><label for="vf_${f}">${esc(t("v.f." + f))}</label>
+        <input id="vf_${f}" type="${secret ? "password" : "text"}" autocomplete="off"
+               inputmode="${f === "number" ? "numeric" : "text"}"/></div>`;
+    }).join("")}
+    ${kind === "card" ? `<p class="vnote">${esc(t("v.card.noCvv"))}</p>` : ""}
+    <button class="btn btn-primary block" data-vsave>${esc(t("v.add.save"))}</button>
+  </div>`;
+}
+
+function vitemHTML(it){
+  const shown = S.vault.shown[it.id];
+  const kind = VKIND[it.kind] || VKIND.note;
+  return `<article class="vitem ${shown ? "open" : ""}" data-vid="${it.id}">
+    <div class="vhead">
+      <span class="vic sm">${kind.icon()}</span>
+      <div class="vm"><b>${esc(it.label)}</b>
+        <small>${esc(kind.label())}${it.hint ? " &middot; " + esc(it.hint) : ""}</small></div>
+      ${(it.grants || []).length ? `<span class="vgrants" title="${esc(t("v.grants.title"))}">${(it.grants || []).length}</span>` : ""}
+      <button class="vshow" data-vshow="${it.id}">${esc(t(shown ? "v.hide" : "v.show"))}</button>
+    </div>
+    ${shown ? `<div class="vbody">
+      ${Object.entries(shown).map(([k, v]) => `<div class="drow"><span class="dk">${esc(t("v.f." + k))}</span>
+        <span class="dv mono">${esc(v)}</span></div>`).join("")}
+      ${(it.grants || []).length ? `<div class="vgrantlist">${(it.grants || []).map((g) => {
+        const sol = (S.solutions || []).find((x) => x.uid === g) || { uid: g, name: g };
+        return `<span class="vgrant">${window.Marks.solution(sol, 16)}<span>${esc(sol.name)}</span>
+          <button data-vrevoke="${it.id}" data-vsol="${esc(g)}">${esc(t("v.grants.revoke"))}</button></span>`;
+      }).join("")}</div>` : ""}
+      <button class="btn btn-ghost block" data-vdelete="${it.id}">${esc(t("v.delete"))}</button>
+    </div>` : ""}
+  </article>`;
+}
+
+/* ---- the vault's own actions ---- */
+
+async function vaultRefresh(){
+  if (!window.Vault) return;
+  await window.Vault.load();
+  S.vault.items = window.Vault.state.unlocked ? await window.Vault.list() : [];
+  render();
+}
+
+async function vaultCreate(){
+  const el = document.getElementById("vpin");
+  const pin = (el ? el.value : "").trim();
+  const s = S.vault.setup;
+  if (!/^\d{6}$/.test(pin)) { s.error = t("v.err.sixDigits"); render(); return; }
+  if (s.stage !== "again") {
+    s.first = pin; s.stage = "again"; s.entry = ""; s.error = "";
+    s.useDevice = document.getElementById("vdev") ? document.getElementById("vdev").checked : s.useDevice;
+    render(); return;
+  }
+  if (pin !== s.first) { S.vault.setup = { stage: "first", first: "", error: t("v.err.mismatch"), useDevice: s.useDevice }; render(); return; }
+  s.busy = true; s.error = ""; render();
+  try {
+    await window.Vault.create(pin, { useDeviceLock: s.useDevice });
+    S.vault.setup = { stage: "first", first: "", error: "", useDevice: true };
+    await vaultRefresh();
+    toast(`<span class="tic">${I.shield}</span><div class="tm">${esc(t("v.t.created"))}</div>`, "ok");
+  } catch (e) {
+    s.busy = false; s.error = t("v.err.create"); render();
+  }
+}
+
+async function vaultUnlock(){
+  const el = document.getElementById("vpin");
+  const pin = (el ? el.value : "").trim();
+  if (!/^\d{6}$/.test(pin)) { S.vault.error = t("v.err.sixDigits"); render(); return; }
+  S.vault.busy = true; S.vault.error = ""; render();
+  try {
+    await window.Vault.unlock(pin);
+    S.vault.busy = false; S.vault.error = "";
+    await vaultRefresh();
+  } catch (e) {
+    S.vault.busy = false;
+    S.vault.error = e.message === "wiped" ? t("v.err.wiped")
+      : e.message === "too-soon" ? t("v.err.tooSoon")
+      : e.message === "device-unlock-failed" ? t("v.err.device")
+      : t("v.err.wrong");
+    await vaultRefresh();
+  }
+}
+
+async function vaultSave(){
+  const kind = S.vault.adding.kind;
+  const spec = window.Vault.KINDS[kind];
+  const value = {};
+  for (const f of spec.fields) {
+    const el = document.getElementById("vf_" + f);
+    if (el && el.value.trim()) value[f] = el.value.trim();
+  }
+  if (!Object.keys(value).length) return;
+  try {
+    await window.Vault.put({ kind, value });
+    S.vault.adding = { kind: null };
+    await vaultRefresh();
+    toast(`<span class="tic">${I.check}</span><div class="tm">${esc(t("v.t.saved"))}</div>`, "ok");
+  } catch (e) { toast(`<div class="tm">${esc(t("v.err.save"))}</div>`, "warn"); }
+}
+
+async function vaultShow(id){
+  if (S.vault.shown[id]) { delete S.vault.shown[id]; render(); return; }
+  try {
+    S.vault.shown[id] = await window.Vault.reveal(id);
+    render();
+  } catch (e) { S.vault.error = t("v.err.wrong"); await vaultRefresh(); }
 }
 
 /* ---- solutions ---- */
@@ -1654,6 +1860,7 @@ function askConfirm(decision, opts){ S.confirm = { decision, ...opts }; render()
 async function runConfirmed(){
   const c = S.confirm; if (!c) return;
   S.confirm = null; render();
+  if (c.vaultDelete) { await window.Vault.remove(c.vaultDelete); delete S.vault.shown[c.vaultDelete]; await vaultRefresh(); return; }
   if (c.ids) { await decideGroup(c.decision, c.ids, c.count); return; }
   await decide(c.id, c.decision);
 }
@@ -1797,8 +2004,25 @@ function wire(){
     if(el.closest("[data-passkey]")){ signinPasskey(); return; }
     if(el.closest("[data-create]")){ signinRegister(); return; }
     if(el.closest("[data-signin-back]")){ S.signin = { step:"id", id:S.signin.id, busy:false, error:"" }; render(); return; }
+    // -- vault --
+    if(el.closest("[data-vcreate]")){ vaultCreate(); return; }
+    if(el.closest("[data-vunlock]")){ vaultUnlock(); return; }
+    if(el.closest("[data-vlock]")){ window.Vault.lock(); S.vault.shown={}; vaultRefresh(); return; }
+    if(el.closest("[data-vsave]")){ vaultSave(); return; }
+    const vk = el.closest("[data-vkind]");
+    if(vk){ S.vault.adding = { kind: S.vault.adding.kind === vk.dataset.vkind ? null : vk.dataset.vkind }; render(); return; }
+    const vs = el.closest("[data-vshow]");
+    if(vs){ vaultShow(vs.dataset.vshow); return; }
+    const vd = el.closest("[data-vdelete]");
+    if(vd){ const id = vd.dataset.vdelete;
+      askConfirm("deny", { vaultDelete:id, label:(S.vault.items.find(x=>x.id===id)||{}).label }); return; }
+    const vr = el.closest("[data-vrevoke]");
+    if(vr){ window.Vault.revoke(vr.dataset.vrevoke, vr.dataset.vsol).then(vaultRefresh); return; }
     if(el.closest("[data-signout]")){ S.token=null; S.user=null; S.locked=false;
-      S.envAcked=false; S.envAsk=false; savePrefs(); render(); return; }
+      S.envAcked=false; S.envAsk=false;
+      // the vault stays on the device, but it does not stay open
+      if (window.Vault) { window.Vault.lock(); S.vault.shown = {}; }
+      savePrefs(); render(); return; }
     // nothing else claimed the tap, so the only thing that changed is the menu
     if (closedDrop) render();
   };
@@ -1806,6 +2030,7 @@ function wire(){
   root.onkeydown = e=>{
     if (e.key !== "Enter") return;
     const id = e.target.id;
+    if (id === "vpin") { e.preventDefault(); return window.Vault && window.Vault.state.exists ? vaultUnlock() : vaultCreate(); }
     if (id === "id") { e.preventDefault(); signin(); }
     else if (id === "pw") { e.preventDefault(); signinPassword(); }
     else if (id === "nm" && S.signin.step === "name") { e.preventDefault(); signinRegister(); }
