@@ -141,6 +141,7 @@ function loadPrefs(){
     health:{ reachable:true, ok:true, audit_ok:null, why:"" },
     detail:null, moreBusy:false, drop:null, ask:null, scrollTop:0,
     // the vault's own screen state; the vault itself lives in vault.js
+    cred:{ chosen:null, creating:false, remember:false, busy:false, error:"" },
     vault:{ items:[], shown:{}, adding:{ kind:null }, busy:false, error:"",
             setup:{ stage:"first", first:"", error:"", useDevice:true } },
     // which agent groups and which individual actions are unfolded
@@ -279,6 +280,12 @@ const Backend = {
       else { S.mode="demo"; Local.seed(); await Local.refresh(); }
     }
   },
+  /** Hand over a sealed credential. It is sealed before it gets here: this
+   * only posts an envelope nobody along the way can open. */
+  async release(id, sealed){
+    if (S.mode === "demo") return Local.release(id);
+    return Net.request("POST", `/v1/user/intents/${id}/release`, sealed);
+  },
   async decideMany(decision, ids){
     if (S.mode === "demo") { for (const id of ids) await Local.decide(id, decision === "approve" ? "approve" : decision); return { decided: ids.length, skipped: [] }; }
     return Net.request("POST", "/v1/user/inbox/decide", { decision, ids });
@@ -370,6 +377,8 @@ const Local = (()=>{
     async connect(uid){ const s=sol(uid); const link=id("lnk"); st.links[uid]={link,status:"active",appetite:{...DEFAULT_APPETITE,...(uid==="battlemate"||uid==="freeleap"?{intellectual:"HIGH",data:"HIGH"}:uid==="devbot"?{system:"HIGH"}:{})}};
       let pending=0, nth=0; for (const a of s.agents) for (const ab of a.abilities){ const v=reconcile(ab.risk,ab.severity,st.links[uid].appetite,ab.discernment); const rec={id:id("int"),solName:s.name,solution:{uid,name:s.name,slug:catOf(uid).slug},agent:a.name,capability:ab.key,details:sample(ab.key),risk:ab.risk,severity:ab.severity,reasons:v.reasons,discernment:ab.discernment,appetite:st.links[uid].appetite,at:Date.now()-(nth++)*17*60000,hash:hash(),sol:uid,link}; if (v.allow){ rec.state="allowed"; st.timeline.unshift(rec);} else { rec.state="pending"; st.intents.unshift(rec); pending++; } }
       return {ok:true,pending}; },
+    async release(id2){ const i=st.intents.findIndex(x=>x.id===id2); if(i<0)return; const it=st.intents.splice(i,1)[0];
+      it.state="approved"; it.decision={decision:"approve",at:Date.now()}; it.decidedAt=Date.now(); st.timeline.unshift(it); },
     async decide(id2,decision,opts){ const i=st.intents.findIndex(x=>x.id===id2); if(i<0)return; const it=st.intents.splice(i,1)[0];
       it.state = decision==="deny" ? "denied" : decision==="reflect" ? "reflected"
         : (opts&&opts.edited_details) ? "edited" : "approved";
@@ -944,16 +953,18 @@ function actionRowHTML(it){
     <div class="atop">
       <button class="aopen" data-aask="${it.id}">
         <span class="adot"></span>
-        <span class="am"><b class="aname">${esc(pretty(it.capability))}</b>
+        <span class="am"><b class="aname">${isCredAsk(it)
+            ? esc(t("cred.wants", { what: credWhat(it) }))
+            : esc(pretty(it.capability))}</b>
           <small class="awhen">${esc(tAgo(iAt(it)))}</small></span>
       </button>
       <span class="sevtag">${esc(tSev(it.severity))}</span>
       <button class="achev" data-atog="${it.id}" aria-expanded="${open}"
               aria-label="${esc(t(open ? "act.less" : "act.more"))}">${I.chevron}</button>
     </div>
-    ${open ? `<div class="abody">${askBodyHTML(it)}
+    ${open ? `<div class="abody">${isCredAsk(it) ? credBodyHTML(it) : askBodyHTML(it)}
       ${queued ? `<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`
-        : decideRowHTML(it, settling)}</div>` : ""}
+        : isCredAsk(it) ? credActionsHTML(it) : decideRowHTML(it, settling)}</div>` : ""}
   </article>`;
 }
 
@@ -1005,10 +1016,10 @@ function askHTML(){
             ${M.solution(sol, 16)}<span>${esc(sol.name || "")}</span></button></div>
         <span class="sevtag">${esc(tSev(it.severity))}</span>
       </div>
-      <h3 class="askact">${esc(pretty(it.capability))}</h3>
-      <div class="askscroll">${askBodyHTML(it)}</div>
+      <h3 class="askact">${isCredAsk(it) ? esc(t("cred.title")) : esc(pretty(it.capability))}</h3>
+      <div class="askscroll">${isCredAsk(it) ? credBodyHTML(it) : askBodyHTML(it)}</div>
       ${Net.queuedFor(it.id) ? `<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`
-        : decideRowHTML(it, S.settled[it.id])}
+        : isCredAsk(it) ? credActionsHTML(it) : decideRowHTML(it, S.settled[it.id])}
       <button class="btn btn-ghost block" data-ask-close>${esc(t("act.close"))}</button>
     </div></div>`;
 }
@@ -1399,6 +1410,159 @@ async function vaultShow(id){
     S.vault.shown[id] = await window.Vault.reveal(id);
     render();
   } catch (e) { S.vault.error = t("v.err.wrong"); await vaultRefresh(); }
+}
+
+/* ---- an agent asking for a credential ----
+ *
+ * The one ask that is answered from the vault rather than with a yes or a no.
+ * It is deliberately its own screen inside the sheet: choosing which password
+ * to hand over is a different act from approving an action, and the buttons
+ * should not look the same.
+ *
+ * Nothing is released until an item is chosen, and nothing is sealed until the
+ * vault is open. */
+const isCredAsk = (it) => it && it.kind === "credential_request";
+/** What the agent is after, named the way the person would name it.
+ *
+ * The developer's own words when they gave any, because "your work mailbox"
+ * is worth more than "login". Otherwise the kind, with the possessive the
+ * sentence needs, which is why the template does not carry one itself. */
+function credWhat(it){
+  const c = it.credential || {};
+  if (c.name) return c.name;
+  const k = VKIND[c.type];
+  return t("cred.yourKind", { kind: (k ? k.label() : t("v.kind.note")).toLowerCase() });
+}
+
+function credBodyHTML(it){
+  const c = it.credential || {};
+  const V = window.Vault, st = V ? V.state : { exists:false };
+  const cr = S.cred;
+  const matching = (S.vault.items || []).filter((x) => x.kind === c.type);
+  const kind = VKIND[c.type] || VKIND.note;
+
+  const head = `<div class="credask">
+    <span class="vic">${kind.icon()}</span>
+    <div><b>${esc(t("cred.wants", { what: credWhat(it) }))}</b>
+      ${c.field ? `<span>${esc(t("cred.onlyField", { field: t("v.f." + c.field) }))}</span>` : ""}
+    </div></div>
+    ${c.reason ? `<p class="whysum">${esc(c.reason)}</p>` : ""}
+    <p class="vnote">${esc(t("cred.note"))}</p>`;
+
+  if (!st.exists) return head + `<div class="vwarn">${esc(t("cred.noVault"))}</div>
+    <button class="btn btn-ghost block" data-nav="vault">${esc(t("cred.goVault"))}</button>`;
+
+  if (!st.unlocked) return head + `<div class="field"><label for="cpin">${esc(t("v.locked.pin"))}</label>
+      <input id="cpin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="******"/></div>
+    ${cr.error ? `<div class="signin-err">${esc(cr.error)}</div>` : ""}
+    <button class="btn btn-ghost block" data-cunlock ${cr.busy ? "disabled" : ""}>
+      ${cr.busy ? `<span class="tic spin">${I.sync}</span>` : ""}<span>${esc(t("cred.unlock"))}</span></button>`;
+
+  const picker = matching.length ? `<div class="credpick">${matching.map((m) => `
+      <button class="credopt ${cr.chosen === m.id ? "on" : ""}" data-cpick="${m.id}">
+        <span class="fbox ${cr.chosen === m.id ? "on" : ""}">${cr.chosen === m.id ? I.check : ""}</span>
+        <span class="credm"><b>${esc(m.label)}</b>${m.hint ? `<small>${esc(m.hint)}</small>` : ""}</span>
+      </button>`).join("")}</div>`
+    : `<div class="thin-empty">${esc(t("cred.none", { what: kind.label() }))}</div>`;
+
+  const creating = cr.creating ? `<div class="vform">
+      ${window.Vault.KINDS[c.type].fields.map((f) => {
+        const secret = window.Vault.KINDS[c.type].secret.includes(f);
+        return `<div class="field"><label for="cf_${f}">${esc(t("v.f." + f))}</label>
+          <input id="cf_${f}" type="${secret ? "password" : "text"}" autocomplete="off"/></div>`;
+      }).join("")}
+      <button class="btn btn-ghost block" data-cmake>${esc(t("cred.makeIt"))}</button>
+    </div>`
+    : `<button class="btn btn-ghost block" data-cnew>${esc(t("cred.newOne"))}</button>`;
+
+  return head + picker + creating
+    + `<label class="vcheck"><input type="checkbox" id="cremember" ${cr.remember ? "checked" : ""}/>
+        <span>${esc(t("cred.remember"))}</span></label>`
+    + (cr.error ? `<div class="signin-err">${esc(cr.error)}</div>` : "");
+}
+
+function credActionsHTML(it){
+  const cr = S.cred, ready = !!cr.chosen && window.Vault && window.Vault.state.unlocked;
+  return `<div class="iacts">
+    <button class="btn btn-deny" data-decide="deny" data-id="${it.id}">${esc(t("cred.refuse"))}</button>
+    <button class="btn btn-primary" data-crelease="${it.id}" ${ready && !cr.busy ? "" : "disabled"}>
+      ${cr.busy ? `<span class="tic spin">${I.sync}</span>` : ""}<span>${esc(t("cred.release"))}</span></button>
+  </div>`;
+}
+
+/** Opening one starts clean, except that something already granted to this
+ * Solution is offered first. A grant saves the finding, never the asking. */
+function openCredAsk(id){
+  S.cred = { chosen:null, creating:false, remember:false, busy:false, error:"" };
+  const it = (S.intents || []).find((x) => x.id === id);
+  if (!isCredAsk(it)) return;
+  const uid = (it.solution && it.solution.uid) || it.solutionUid;
+  const type = (it.credential || {}).type;
+  const already = (S.vault.items || []).find((m) => m.kind === type && (m.grants || []).includes(uid));
+  if (already) { S.cred.chosen = already.id; S.cred.remember = true; }
+}
+
+async function credUnlock(){
+  const el = document.getElementById("cpin");
+  const pin = (el ? el.value : "").trim();
+  if (!/^\d{6}$/.test(pin)) { S.cred.error = t("v.err.sixDigits"); render(); return; }
+  S.cred.busy = true; S.cred.error = ""; render();
+  try {
+    await window.Vault.unlock(pin);
+    S.cred.busy = false; S.cred.error = "";
+    await vaultRefresh();
+  } catch (e) {
+    S.cred.busy = false;
+    S.cred.error = e.message === "wiped" ? t("v.err.wiped")
+      : e.message === "too-soon" ? t("v.err.tooSoon") : t("v.err.wrong");
+    await vaultRefresh();
+  }
+}
+
+async function credMake(){
+  const it = (S.intents || []).find((x) => x.id === S.ask);
+  if (!it) return;
+  const type = (it.credential || {}).type;
+  const spec = window.Vault.KINDS[type];
+  const value = {};
+  for (const f of spec.fields) {
+    const el = document.getElementById("cf_" + f);
+    if (el && el.value.trim()) value[f] = el.value.trim();
+  }
+  if (!Object.keys(value).length) return;
+  try {
+    const { id } = await window.Vault.put({ kind: type, value });
+    S.cred.creating = false; S.cred.chosen = id;
+    await vaultRefresh();
+  } catch (e) { S.cred.error = t("v.err.save"); render(); }
+}
+
+/** Seal it to the Solution that asked, hand it over, and record what the
+ * person chose to remember. The plaintext never leaves this function. */
+async function credRelease(intentId){
+  const it = (S.intents || []).find((x) => x.id === intentId);
+  if (!it || !S.cred.chosen) return;
+  const c = it.credential || {};
+  S.cred.busy = true; S.cred.error = ""; render();
+  try {
+    const sealed = await window.Vault.release(S.cred.chosen, {
+      solutionUid: (it.solution && it.solution.uid) || it.solutionUid,
+      publicKey: it.release_key, field: c.field,
+    });
+    await Backend.release(intentId, sealed);
+    if (S.cred.remember) await window.Vault.grant(S.cred.chosen, (it.solution && it.solution.uid) || it.solutionUid);
+    S.intents = S.intents.filter((x) => x.id !== intentId);
+    S.inboxTotal = Math.max(0, S.inboxTotal - 1);
+    S.timeline = [Object.assign({}, it, { state: "approved", decision: { decision: "approve", at: Date.now() } })].concat(S.timeline);
+    S.ask = null; S.cred = { chosen: null, creating: false, remember: false, busy: false, error: "" };
+    await vaultRefresh();
+    toast(`<span class="tic">${I.shield}</span><div class="tm">${esc(t("cred.t.released"))}</div>`, "ok");
+    silentRefresh();
+  } catch (e) {
+    S.cred.busy = false;
+    S.cred.error = e.message === "no-release-key" ? t("cred.err.noKey") : (e.message || t("net.failed"));
+    render();
+  }
 }
 
 /* ---- solutions ---- */
@@ -1861,6 +2025,7 @@ async function runConfirmed(){
   const c = S.confirm; if (!c) return;
   S.confirm = null; render();
   if (c.vaultDelete) { await window.Vault.remove(c.vaultDelete); delete S.vault.shown[c.vaultDelete]; await vaultRefresh(); return; }
+  if (c.credRelease) { await credRelease(c.credRelease); return; }
   if (c.ids) { await decideGroup(c.decision, c.ids, c.count); return; }
   await decide(c.id, c.decision);
 }
@@ -1966,7 +2131,7 @@ function wire(){
       if (S.open.a[id]) bringIntoView(`[data-aid="${id}"]`);
       return; }
     const aa = el.closest("[data-aask]");
-    if(aa){ S.ask = aa.dataset.aask; S.drop = null; render(); return; }
+    if(aa){ S.ask = aa.dataset.aask; S.drop = null; openCredAsk(S.ask); render(); return; }
     if(el.closest("[data-ask-close]") && !el.closest(".asksheet")){ S.ask=null; render(); return; }
     if(el.closest("[data-ask-close]")){ S.ask=null; render(); return; }
     if(el.closest("[data-envask-stay]")){
@@ -2005,6 +2170,13 @@ function wire(){
     if(el.closest("[data-create]")){ signinRegister(); return; }
     if(el.closest("[data-signin-back]")){ S.signin = { step:"id", id:S.signin.id, busy:false, error:"" }; render(); return; }
     // -- vault --
+    if(el.closest("[data-cunlock]")){ credUnlock(); return; }
+    if(el.closest("[data-cnew]")){ S.cred.creating = true; render(); return; }
+    if(el.closest("[data-cmake]")){ credMake(); return; }
+    const cp = el.closest("[data-cpick]");
+    if(cp){ S.cred.chosen = S.cred.chosen === cp.dataset.cpick ? null : cp.dataset.cpick; render(); return; }
+    const crl = el.closest("[data-crelease]");
+    if(crl){ askConfirm("approve", { credRelease: crl.dataset.crelease, label: t("cred.release") }); return; }
     if(el.closest("[data-vcreate]")){ vaultCreate(); return; }
     if(el.closest("[data-vunlock]")){ vaultUnlock(); return; }
     if(el.closest("[data-vlock]")){ window.Vault.lock(); S.vault.shown={}; vaultRefresh(); return; }
@@ -2110,7 +2282,11 @@ function wire(){
     if (recents) recents.hidden = st.id.length > 0;
   }
 
-  root.onchange = e=>{ const c=e.target.closest("[data-ctl]"); if(!c)return;
+  root.onchange = e=>{
+    // the two checkboxes that are read when they change rather than on submit
+    if (e.target.id === "cremember") { S.cred.remember = e.target.checked; return; }
+    if (e.target.id === "vdev") { S.vault.setup.useDevice = e.target.checked; return; }
+    const c=e.target.closest("[data-ctl]"); if(!c)return;
     if(c.dataset.ctl==="plat")S.plat=e.target.value;
     if(c.dataset.ctl==="form")S.form=e.target.value;
     if(c.dataset.ctl==="lang"){ S.lang=window.I18N.setLang(e.target.value); tellWorkerLang(); }

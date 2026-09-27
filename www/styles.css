@@ -813,6 +813,9 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .askhead .sevtag{flex:none}
 .asksheet .askact{margin:0;font-size:1.12rem;font-weight:650;line-height:1.3;
   text-wrap:balance;text-align:start}
+/* the sheet centres its own headings; everything being read inside it
+   should still start where the language starts */
+.asksheet .askscroll,.asksheet .askscroll p,.asksheet .askscroll div{text-align:start}
 .askscroll{flex:1;min-height:0;overflow:auto;text-align:start;display:flex;flex-direction:column;gap:9px;
   -webkit-overflow-scrolling:touch}
 
@@ -942,3 +945,22 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .vkind.on{border-color:var(--xur);background:var(--xur-soft);color:var(--xur-ink)}
 .vform{display:flex;flex-direction:column;gap:10px;animation:cardin .2s ease both}
 .vnote{margin:0;font-size:.79rem;color:var(--faint);line-height:1.5}
+
+/* an agent asking to be handed something, rather than to do something */
+.credask{display:flex;gap:11px;align-items:flex-start}
+.credask div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.credask b{font-size:.97rem;font-weight:650;line-height:1.35}
+.credask span{font-size:.83rem;color:var(--muted)}
+.credpick{display:flex;flex-direction:column;gap:7px}
+.credopt{display:flex;align-items:center;gap:10px;width:100%;text-align:start;
+  border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 12px;
+  color:var(--ink);transition:.15s}
+.credopt:hover{border-color:var(--xur)}
+.credopt.on{border-color:var(--xur);background:var(--xur-soft)}
+.credm{display:flex;flex-direction:column;min-width:0}
+.credm b{font-size:.9rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.credm small{font-size:.76rem;color:var(--faint)}
+.credopt .fbox{flex:none;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line-2);
+  display:grid;place-items:center;color:#fff}
+.credopt .fbox svg{width:13px;height:13px}
+.credopt .fbox.on{background:var(--xur);border-color:var(--xur)}
