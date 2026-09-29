@@ -786,7 +786,24 @@ function tList(items) {
   catch { return items.join(", "); }
 }
 
-const tCat = (c) => t(`cat.${c}`);
+/** Names for categories this build has never heard of.
+ *
+ * The seven that ship with Horizon are translated into every language here. A
+ * platform can add its own, and nobody has translated those, so the name its
+ * administrator typed is what a person sees. Better their words than the word
+ * "cat.clinical", which is what a missing key would otherwise print. */
+const EXTRA_CATS = Object.create(null);
+function setCatNames(map) {
+  for (const k of Object.keys(map || {})) if (map[k]) EXTRA_CATS[k] = String(map[k]);
+}
+const tCat = (c) => {
+  const key = `cat.${c}`;
+  const known = (DICT[LANG] && DICT[LANG][key]) ?? DICT.en[key];
+  if (known) return fill(known);
+  if (EXTRA_CATS[c]) return EXTRA_CATS[c];
+  // last resort: make the key read like words rather than like a key
+  return String(c).replace(/[_-]+/g, " ").replace(/^./, (m) => m.toUpperCase());
+};
 const tSev = (s) => t(`sev.${s}`);
 
 /** Why an action needs discernment, phrased locally. Horizon sends structured
@@ -804,7 +821,7 @@ function tWhy(entry, appetite, fallback) {
   return fallback && fallback.length ? [String(fallback[0])] : [t("why.within")];
 }
 
-window.I18N = { LANGS, DICT, setLang, pickLang, t, tn, tAgo, tSpan, tWhen, tList, tCat, tSev, tWhy, isRTL, fmtNum,
+window.I18N = { LANGS, DICT, setLang, pickLang, t, tn, tAgo, tSpan, tWhen, tList, tCat, setCatNames, tSev, tWhy, isRTL, fmtNum,
   get lang() { return LANG; } };
 
 })();

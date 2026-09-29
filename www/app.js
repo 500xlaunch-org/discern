@@ -13,7 +13,7 @@
  */
 "use strict";
 
-const { t, tn, tAgo, tSpan, tWhen, tList, tCat, tSev, tWhy, isRTL, LANGS } = window.I18N;
+const { t, tn, tAgo, tSpan, tWhen, tList, tCat, setCatNames, tSev, tWhy, isRTL, LANGS } = window.I18N;
 const Net = window.Net;
 
 /* ---------------- icons ---------------- */
@@ -48,6 +48,24 @@ const I = {
 const SEVS = ["LOW","MEDIUM","HIGH","SEVERE"], ORD = {LOW:0,MEDIUM:1,HIGH:2,SEVERE:3};
 const maxSev=(a,b)=>ORD[a]>=ORD[b]?a:b, gt=(a,b)=>ORD[a]>ORD[b], bump=s=>SEVS[Math.min(3,ORD[s]+1)];
 const CAT_KEYS = ["identity","financial","location","intellectual","conversation","data","system"];
+/** The categories this platform actually scores against.
+ *
+ * The seven are built in, and a platform can add its own: a clinic scores
+ * things a bank has no word for. The list arrives from Horizon, so the appetite
+ * screen offers every category a person could be asked about and not only the
+ * ones this build of the app happened to know about when it shipped. */
+let TAXO_KEYS = null, TAXO_RAW = null;
+const catKeys = () => TAXO_KEYS && TAXO_KEYS.length ? TAXO_KEYS : CAT_KEYS;
+/** Returns whether anything changed, so a caller can decide to repaint. */
+function learnTaxonomy(cats){
+  if (!Array.isArray(cats) || !cats.length) return false;
+  const keys = cats.map(c=>c.key).filter(Boolean);
+  const same = TAXO_KEYS && TAXO_KEYS.length === keys.length && TAXO_KEYS.every((k,i)=>k===keys[i]);
+  TAXO_KEYS = keys; TAXO_RAW = cats;
+  const names = {}; for (const c of cats) if (c.key && c.label) names[c.key] = c.label;
+  setCatNames(names);
+  return !same;
+}
 const DEFAULT_APPETITE = {identity:"LOW",financial:"LOW",location:"MEDIUM",intellectual:"LOW",conversation:"MEDIUM",data:"MEDIUM",system:"LOW"};
 const RULES = [
   [/(password|passkey|2fa|mfa|otp|credential|secret|token|scope|permission|\brole\b|grant|consent|login|sign[-_ ]?in|oauth|authn|authz|authoriz\w*|\bauth\b)/i,"identity","HIGH"],
@@ -282,15 +300,20 @@ const Backend = {
       S.timeline = timeline.intents; S.tlNext = timeline.next||null; S.tlTotal = timeline.total ?? timeline.intents.length;
       S.solutions = sols.solutions;
       Backend.summary().then((sm)=>{ S.summary = sm; const el=document.querySelector(".sevbar"); if (el||sm) render(); });
+      // what the categories are called here, and whether this platform added
+      // any. Off the critical path: it changes labels, and an inbox that will
+      // not load because a label list did not is a worse app.
+      Net.request("GET","/v1/risk/taxonomy",null,{auth:false})
+        .then((d)=>{ if (learnTaxonomy(d && d.categories)) render(); }).catch(()=>{});
       const linked = new Set(S.solutions.map(s=>s.uid));
       S.catalog = cat.solutions.filter(s=>!linked.has(s.uid));
       S.mode = "connected";
       Net.cache.write(S.env, { intents:S.intents, timeline:S.timeline, solutions:S.solutions, catalog:S.catalog,
-        inboxTotal:S.inboxTotal, tlTotal:S.tlTotal });
+        inboxTotal:S.inboxTotal, tlTotal:S.tlTotal, taxonomy:TAXO_RAW });
     } catch (e) {
       if (!(e instanceof window.NetworkError)) throw e;
       const c = Net.cache.read(S.env);
-      if (c) { Object.assign(S, { intents:c.intents||[], timeline:c.timeline||[], solutions:c.solutions||[],
+      if (c) { learnTaxonomy(c.taxonomy); Object.assign(S, { intents:c.intents||[], timeline:c.timeline||[], solutions:c.solutions||[],
         catalog:c.catalog||[], inboxTotal:c.inboxTotal||0, tlTotal:c.tlTotal||0, inboxNext:null, tlNext:null, mode:"degraded" }); }
       else { S.mode="demo"; Local.seed(); await Local.refresh(); }
     }
@@ -1672,7 +1695,7 @@ function soldetailHTML(s){
   ${s.description?`<p class="soldesc">${esc(s.description)}</p>`:''}
   ${agentGraphHTML(s, s.appetite)}
   <section class="panel"><div class="panelhd"><h3>${esc(t("sol.appetite"))}</h3><p>${esc(t("sol.appetiteSub"))}</p></div>
-    <div class="apwrap">${CAT_KEYS.map(c=>appetiteRow(s,c)).join("")}</div></section>
+    <div class="apwrap">${catKeys().map(c=>appetiteRow(s,c)).join("")}</div></section>
   <section class="panel"><div class="panelhd"><h3>${esc(t("sol.kill"))}</h3><p>${esc(t("sol.killSub"))}</p></div>
     <button class="btn ${s.status==='active'?'btn-warn':'btn-primary'} block" data-status="${s.link}" data-to="${s.status==='active'?'paused':'active'}">${esc(s.status==='active'?t("sol.pause"):t("sol.resume"))}</button></section>
   <section class="panel"><div class="panelhd"><h3>${esc(t("sol.agentsTitle"))}</h3></div>
