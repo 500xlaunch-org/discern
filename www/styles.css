@@ -1054,3 +1054,20 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
   display:grid;place-items:center;color:#fff}
 .credopt .fbox svg{width:13px;height:13px}
 .credopt .fbox.on{background:var(--xur);border-color:var(--xur)}
+
+/* ---- moving the vault to another phone ---- */
+/* the code is read off one screen and typed into another, so it is set large,
+   in a face where every character is unmistakable, in three groups */
+.xcode{font-family:var(--mono);font-size:1.7rem;font-weight:600;letter-spacing:.14em;text-align:center;
+  padding:16px 10px;border:1px dashed var(--xur);border-radius:14px;background:var(--xur-soft);color:var(--xur-ink);
+  direction:ltr;user-select:all;word-spacing:.3em}
+.xwait{display:flex;align-items:center;justify-content:center;gap:8px;color:var(--faint);font-size:.82rem}
+.xwait .tic{display:grid;place-items:center}
+.xwait svg{width:16px;height:16px}
+.xinput{font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;text-align:center;direction:ltr}
+.vmove .vacts{margin-top:2px}
+
+/* the terms, where somebody agrees to them and where they can find them again */
+.signin .legal{max-width:300px;width:100%;text-align:center;font-size:.74rem;color:var(--faint);line-height:1.5}
+.signin .legal a,.legallinks a{color:var(--muted)}
+.legallinks{display:flex;gap:16px;flex-wrap:wrap;font-size:.86rem}

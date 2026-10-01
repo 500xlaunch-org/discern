@@ -318,3 +318,53 @@ test("destroy leaves nothing behind", async () => {
   assert.equal(V.state.exists, false);
   assert.equal((await V.list()).length, 0);
 });
+
+/* ---- moving a vault between two devices ---- */
+
+test("a fingerprint is eight readable characters and belongs to one key", async () => {
+  const { V } = loadVault();
+  const a = await V.receiver(), b = await V.receiver();
+  assert.match(a.fingerprint, /^[A-HJ-NP-Z2-9]{8}$/, "no I, O, 0 or 1");
+  assert.notEqual(a.fingerprint, b.fingerprint);
+  assert.equal(await V.fingerprint(a.publicKey), a.fingerprint, "the sending side computes the same one");
+});
+
+test("a vault moves to another device, and only that device can read it", async () => {
+  const sender = loadVault().V, receiving = loadVault().V;
+  await sender.create(PIN, { useDeviceLock: false });
+  const { id } = await sender.put({ kind: "wifi", value: { network: "Home", password: "hunter2" } });
+  await sender.put({ kind: "card", value: { label: "Visa", number: "4111111111111111", expiry: "12/29" } });
+  await sender.grant(id, { solution: "sol_a", agent: "joiner", purpose: "join" });
+
+  const r = await receiving.receiver();
+  const out = await sender.sealFor(r.publicKey, r.fingerprint);
+  assert.equal(out.count, 2);
+  assert.ok(!JSON.stringify(out.envelope).includes("hunter2"), "what travels is ciphertext");
+
+  // somebody else's key opens nothing
+  const stranger = await receiving.receiver();
+  await assert.rejects(() => stranger.open(out.envelope));
+
+  const items = await r.open(out.envelope);
+  await receiving.create("135792", { useDeviceLock: false });
+  assert.equal(JSON.stringify(await receiving.importItems(items)), JSON.stringify({ added: 2, skipped: 0 }));
+  const listed = await receiving.list();
+  const wifi = listed.find((x) => x.kind === "wifi");
+  assert.equal((await receiving.reveal(wifi.id)).password, "hunter2");
+  assert.equal(wifi.grants.length, 0, "allowances were given on the other phone, and stay there");
+
+  // receiving the same again adds nothing twice
+  assert.equal(JSON.stringify(await receiving.importItems(items)), JSON.stringify({ added: 0, skipped: 2 }));
+});
+
+test("a key with the wrong fingerprint is refused before anything is sealed", async () => {
+  const sender = loadVault().V, receiving = loadVault().V;
+  await sender.create(PIN, { useDeviceLock: false });
+  await sender.put({ kind: "note", value: { label: "x", text: "secret" } });
+  const real = await receiving.receiver(), swapped = await receiving.receiver();
+  // a relay that swapped in its own key is caught: the person typed the real one's fingerprint
+  await assert.rejects(() => sender.sealFor(swapped.publicKey, real.fingerprint), /fingerprint-mismatch/);
+  // spacing and case in what was typed do not matter
+  const ok = await sender.sealFor(real.publicKey, real.fingerprint.toLowerCase().replace(/(....)/, "$1 "));
+  assert.equal(ok.count, 1);
+});

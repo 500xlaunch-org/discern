@@ -324,6 +324,14 @@ const Backend = {
   },
   /** Hand over a sealed credential. It is sealed before it gets here: this
    * only posts an envelope nobody along the way can open. */
+  /* moving a vault: a relay on Horizon that holds an envelope for minutes */
+  async xferOpen(receiverKey){
+    if (S.mode==="demo") throw Object.assign(new Error("needs-service"), { said: true });
+    return Net.request("POST", "/v1/user/vault-transfer", { receiver_key: receiverKey });
+  },
+  async xferKey(id){ return Net.request("GET", `/v1/user/vault-transfer/${encodeURIComponent(id)}/key`); },
+  async xferSend(id, envelope){ return Net.request("POST", `/v1/user/vault-transfer/${encodeURIComponent(id)}/envelope`, envelope); },
+  async xferCollect(id){ return Net.request("GET", `/v1/user/vault-transfer/${encodeURIComponent(id)}`); },
   async release(id, sealed){
     if (S.mode === "demo") return Local.release(id);
     return Net.request("POST", `/v1/user/intents/${id}/release`, sealed);
@@ -1397,6 +1405,111 @@ function vaultLockedHTML(){
   </section>`;
 }
 
+/* ---- moving the vault to another of your devices ----
+ *
+ * The receiving phone shows a code; the sending phone types it. The code is a
+ * four letter id and an eight letter fingerprint of the receiving phone's one
+ * time key, and the sending phone refuses unless the key it is given has that
+ * fingerprint. What crosses is encrypted for that key alone, waits on Horizon
+ * for at most ten minutes in memory, and is deleted as it is collected.
+ */
+let XFER_RX = null, XFER_POLL = null;
+const xferFmt = (id, fp) => `${id} ${fp.slice(0, 4)} ${fp.slice(4)}`;
+
+function vaultMoveHTML(){
+  const m = S.vault.move || {};
+  if (m.mode === "receive") {
+    return `<section class="panel vpanel vmove">
+      <div class="panelhd"><h3>${esc(t("v.move.rxTitle"))}</h3><p>${esc(t("v.move.rxBody"))}</p></div>
+      ${m.code ? `<div class="xcode" aria-label="${esc(t("v.move.code"))}">${esc(m.code)}</div>
+        <div class="xwait"><span class="tic spin">${I.sync}</span><span>${esc(t("v.move.waiting", { min: m.minutes || 10 }))}</span></div>`
+        : `<div class="xwait"><span class="tic spin">${I.sync}</span><span>${esc(t("v.move.preparing"))}</span></div>`}
+      ${m.error ? `<div class="signin-err">${esc(m.error)}</div>` : ""}
+      <button class="btn btn-ghost block" data-xcancel>${esc(t("v.cancel"))}</button>
+    </section>`;
+  }
+  if (m.mode === "send") {
+    return `<section class="panel vpanel vmove">
+      <div class="panelhd"><h3>${esc(t("v.move.txTitle"))}</h3><p>${esc(t("v.move.txBody"))}</p></div>
+      <div class="field"><label for="xcode">${esc(t("v.move.code"))}</label>
+        <input id="xcode" class="xinput" autocomplete="off" autocapitalize="characters" spellcheck="false"
+               maxlength="16" placeholder="ABCD EFGH JKLM" value="${esc(m.typed || "")}"/></div>
+      ${m.error ? `<div class="signin-err">${esc(m.error)}</div>` : ""}
+      <div class="vacts">
+        <button class="btn btn-ghost" data-xcancel>${esc(t("v.cancel"))}</button>
+        <button class="btn btn-primary" data-xsend ${m.busy ? "disabled" : ""}>
+          ${m.busy ? `<span class="tic spin">${I.sync}</span>` : ""}<span>${esc(t("v.move.send"))}</span></button></div>
+    </section>`;
+  }
+  return `<section class="panel vpanel vmove">
+    <div class="panelhd"><h3>${esc(t("v.move.title"))}</h3><p>${esc(t("v.move.body"))}</p></div>
+    <div class="vacts">
+      <button class="btn btn-ghost" data-xmode="send">${esc(t("v.move.toOther"))}</button>
+      <button class="btn btn-ghost" data-xmode="receive">${esc(t("v.move.fromOther"))}</button></div>
+  </section>`;
+}
+
+function xferStop(){
+  clearTimeout(XFER_POLL); XFER_POLL = null; XFER_RX = null;
+  S.vault.move = {};
+}
+
+async function xferReceive(){
+  S.vault.move = { mode: "receive" }; render();
+  try {
+    XFER_RX = await window.Vault.receiver();
+    const slot = await Backend.xferOpen(XFER_RX.publicKey);
+    S.vault.move = { mode: "receive", id: slot.id, code: xferFmt(slot.id, XFER_RX.fingerprint),
+                     until: slot.expiresAt, minutes: Math.max(1, Math.round((slot.expiresAt - Date.now()) / 60000)) };
+    render();
+    xferPoll();
+  } catch (e) {
+    S.vault.move = { mode: "receive", error: e.message === "needs-service" ? t("v.move.needsService") : (e.message || t("net.failed")) };
+    render();
+  }
+}
+
+async function xferPoll(){
+  const m = S.vault.move || {};
+  if (m.mode !== "receive" || !m.id || !XFER_RX) return;
+  if (Date.now() > m.until) { S.vault.move = { mode: "receive", error: t("v.move.expired") }; render(); return; }
+  try {
+    const got = await Backend.xferCollect(m.id);
+    if (got.waiting) { XFER_POLL = setTimeout(xferPoll, 2500); return; }
+    const items = await XFER_RX.open(got.envelope);
+    const res = await window.Vault.importItems(items);
+    xferStop();
+    await vaultRefresh();
+    toast(`<span class="tic">${I.shield}</span><div class="tm">${esc(tn("v.move.t.received", res.added))}</div>`, "ok");
+  } catch (e) {
+    if (e && e.status === 404) { S.vault.move = { mode: "receive", error: t("v.move.expired") }; render(); return; }
+    if (e instanceof window.NetworkError) { XFER_POLL = setTimeout(xferPoll, 4000); return; }
+    S.vault.move = { mode: "receive", error: t("v.move.unreadable") }; render();
+  }
+}
+
+async function xferSend(){
+  const raw = ((document.getElementById("xcode") || {}).value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  S.vault.move = Object.assign({}, S.vault.move, { typed: raw });
+  if (raw.length !== 12) { S.vault.move.error = t("v.move.codeShape"); render(); return; }
+  const id = raw.slice(0, 4), fp = raw.slice(4);
+  S.vault.move.busy = true; S.vault.move.error = ""; render();
+  try {
+    const k = await Backend.xferKey(id);
+    const sealed = await window.Vault.sealFor(k.receiverKey, fp);
+    await Backend.xferSend(id, sealed.envelope);
+    xferStop(); render();
+    toast(`<span class="tic">${I.shield}</span><div class="tm">${esc(tn("v.move.t.sent", sealed.count))}</div>`, "ok");
+  } catch (e) {
+    S.vault.move.busy = false;
+    S.vault.move.error = e.message === "fingerprint-mismatch" ? t("v.move.mismatch")
+      : e.status === 404 ? t("v.move.noSuch")
+      : e.message === "needs-service" ? t("v.move.needsService")
+      : (e.message || t("net.failed"));
+    render();
+  }
+}
+
 function vaultOpenHTML(){
   const items = S.vault.items || [];
   const kinds = Object.keys(VKIND);
@@ -1416,7 +1529,8 @@ function vaultOpenHTML(){
       <div class="vkinds">${kinds.map((k) => `<button class="vkind ${add.kind === k ? "on" : ""}" data-vkind="${k}">
         <span class="tic">${VKIND[k].icon()}</span><span>${esc(VKIND[k].label())}</span></button>`).join("")}</div>
       ${add.kind ? vaultFormHTML(add.kind) : ""}
-    </section>`;
+    </section>
+    ${vaultMoveHTML()}`;
 }
 
 function vaultFormHTML(kind){
@@ -1990,6 +2104,10 @@ function settingsHTML(){
     <div class="envseg">${Object.entries(ENVS).map(([k,e])=>`<button class="${S.env===k?'on':''}" data-env="${k}">${esc(e.label())}</button>`).join("")}</div></section>` : ""}
   <section class="panel"><div class="panelhd"><h3>${esc(t("set.appearance"))}</h3></div>
     <div class="envseg">${[["system",t("set.system")],["light",t("set.light")],["dark",t("set.dark")]].map(([k,l])=>`<button class="${S.theme===k?'on':''}" data-theme-set="${k}">${esc(l)}</button>`).join("")}</div></section>
+  <section class="panel legalpanel">
+    <div class="panelhd"><h3>${esc(t("legal.title"))}</h3><p>${esc(t("legal.free"))}</p></div>
+    <div class="legallinks"><a href="${BASE}/terms" target="_blank" rel="noopener">${esc(t("legal.terms"))}</a>
+      <a href="${BASE}/privacy" target="_blank" rel="noopener">${esc(t("legal.privacy"))}</a></div></section>
   <section class="panel"><button class="btn btn-ghost block" data-signout>${esc(t("set.signOut"))}</button></section>
   <p class="motto">${esc(t("app.motto")).replace(/\n/g,"<br/>")}</p>`;
 }
@@ -2157,6 +2275,8 @@ function signinHTML(){
       ${st.busy?`<span class="tic spin">${I.sync}</span>`:""}<span>${esc(t("signin.next"))}</span></button>
     <div class="signin-note">${I.shield}<span>${esc(t("signin.note"))}</span></div>
     <div class="signin-langs">${I.globe}${LANGS.map(l=>`<button class="${window.I18N.lang===l.code?'on':''}" data-lang="${l.code}">${l.native}</button>`).join("")}</div>
+    <div class="legal">${esc(t("legal.agree"))} <a href="${BASE}/terms" target="_blank" rel="noopener">${esc(t("legal.terms"))}</a>
+      &middot; <a href="${BASE}/privacy" target="_blank" rel="noopener">${esc(t("legal.privacy"))}</a></div>
     ${picker}
     <div id="overlay"></div></div>`;
 }
@@ -2540,6 +2660,11 @@ function wire(){
       askConfirm("deny", { vaultDelete:id, label:(S.vault.items.find(x=>x.id===id)||{}).label }); return; }
     const vr = el.closest("[data-vrevoke]");
     if(vr){ window.Vault.revoke(vr.dataset.vrevoke, vr.dataset.vkey).then(vaultRefresh); return; }
+    const xm = el.closest("[data-xmode]");
+    if(xm){ if (xm.dataset.xmode === "receive") xferReceive(); else { S.vault.move = { mode: "send" }; render();
+      setTimeout(() => { const f = document.getElementById("xcode"); if (f) f.focus(); }, 0); } return; }
+    if(el.closest("[data-xcancel]")){ xferStop(); render(); return; }
+    if(el.closest("[data-xsend]")){ xferSend(); return; }
     const vedt = el.closest("[data-vedit]");
     if(vedt){ S.vault.editing = vedt.dataset.vedit || null; render(); return; }
     const vup = el.closest("[data-vupdate]");

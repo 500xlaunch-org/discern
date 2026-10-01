@@ -478,6 +478,108 @@ const Vault = {
   grantKey: (g) => grantKey(g),
   purposeKey: (p) => purposeKey(p),
 
+  /* ---- moving the vault to another of your devices ----
+   *
+   * The receiving device makes a key pair that exists for this one move and
+   * shows a code: the relay's id, then a fingerprint of its public key. The
+   * sending device types the code, fetches the key, and refuses unless the key
+   * it was given has that fingerprint. Forty bits of fingerprint inside a ten
+   * minute window means a relay that tried to swap in a key of its own would
+   * need to find one matching it in time, which it cannot.
+   *
+   * What travels is every item's kind, name, hint and value. Not the allowances:
+   * those were given on the other phone, for that phone, and the new one asks
+   * again. */
+
+  /** Forty bits of SHA-256 over the raw public key, as eight characters a
+   * person can read aloud without confusing 0 and O. */
+  async fingerprint(pubRaw) {
+    const h = new Uint8Array(await crypto.subtle.digest("SHA-256", typeof pubRaw === "string" ? unb64(pubRaw) : pubRaw));
+    // thirty two symbols, five bits each, with nothing that reads as another:
+    // no I, no O, and no 0 or 1
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let bits = 0, acc = 0, out = "";
+    for (let i = 0; i < 5; i++) {
+      acc = ((acc << 8) | h[i]) & 0xffff; bits += 8;
+      while (bits >= 5) { out += alphabet[(acc >> (bits - 5)) & 31]; bits -= 5; }
+    }
+    return out;
+  },
+
+  /** The receiving side: a key pair for this one move. The private half never
+   * leaves this object. */
+  async receiver() {
+    const kp = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, false, ["deriveBits"]);
+    const pub = new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey));
+    const fp = await Vault.fingerprint(pub);
+    return {
+      publicKey: b64(pub), fingerprint: fp,
+      /** Open what arrived. Throws if it was not sealed for this key. */
+      async open(env) {
+        const eph = await crypto.subtle.importKey("raw", unb64(env.ephemeral), { name: "ECDH", namedCurve: "P-256" }, false, []);
+        const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: eph }, kp.privateKey, 256));
+        const mat = await crypto.subtle.importKey("raw", shared, "HKDF", false, ["deriveKey"]);
+        const key = await crypto.subtle.deriveKey(
+          { name: "HKDF", hash: "SHA-256", salt: unb64(env.salt), info: enc.encode("xurface.vault.transfer") },
+          mat, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+        const clear = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(env.iv) }, key, unb64(env.ct));
+        const parsed = JSON.parse(new TextDecoder().decode(clear));
+        if (!parsed || parsed.v !== 1 || !Array.isArray(parsed.items)) throw new Error("not-a-vault");
+        return parsed.items;
+      },
+    };
+  },
+
+  /** The sending side: everything in the vault, sealed for one public key,
+   * after checking that key has the fingerprint the person typed. */
+  async sealFor(receiverKey, expectedFingerprint) {
+    if (!DEK) throw new Error("locked");
+    const fp = await Vault.fingerprint(receiverKey);
+    if (fp !== String(expectedFingerprint || "").toUpperCase().replace(/[^A-Z0-9]/g, "")) {
+      throw new Error("fingerprint-mismatch");
+    }
+    const rows = await tx(STORE_ITEMS, "readonly", (s) => s.getAll());
+    const items = [];
+    for (const r of rows) {
+      items.push({ kind: r.kind, label: r.label, hint: r.hint, value: await openItem(DEK, r) });
+    }
+    const theirs = await crypto.subtle.importKey("raw", unb64(receiverKey), { name: "ECDH", namedCurve: "P-256" }, false, []);
+    const mine = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+    const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: theirs }, mine.privateKey, 256));
+    const salt = rand(16);
+    const mat = await crypto.subtle.importKey("raw", shared, "HKDF", false, ["deriveKey"]);
+    const key = await crypto.subtle.deriveKey(
+      { name: "HKDF", hash: "SHA-256", salt, info: enc.encode("xurface.vault.transfer") },
+      mat, { name: "AES-GCM", length: 256 }, false, ["encrypt"]);
+    const iv = rand(12);
+    const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(JSON.stringify({ v: 1, items })));
+    armAutoLock();
+    return {
+      count: items.length,
+      envelope: { alg: "ecdh-p256-hkdf-sha256-aes256gcm", ephemeral: b64(await crypto.subtle.exportKey("raw", mine.publicKey)),
+                  salt: b64(salt), iv: b64(iv), ct: b64(ct) },
+    };
+  },
+
+  /** Put what arrived into this vault. Something already here with the same
+   * kind, name and value is not added twice. */
+  async importItems(items) {
+    if (!DEK) throw new Error("locked");
+    const rows = await tx(STORE_ITEMS, "readonly", (s) => s.getAll());
+    const have = new Set();
+    for (const r of rows) {
+      try { have.add(r.kind + "|" + r.label + "|" + stable(await openItem(DEK, r))); } catch {}
+    }
+    let added = 0;
+    for (const it of items) {
+      if (!it || !KINDS[it.kind] || !it.value) continue;
+      if (have.has(it.kind + "|" + it.label + "|" + stable(it.value))) continue;
+      await Vault.put({ kind: it.kind, label: it.label, hint: it.hint, value: it.value });
+      added++;
+    }
+    return { added, skipped: items.length - added };
+  },
+
   /** Hand one value out, once, sealed to the Solution that asked.
    *
    * The Solution's release key is an ECDH P-256 public key it published in its
