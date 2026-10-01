@@ -788,14 +788,14 @@ function appHTML(){
   <header class="topbar">${MK}<span class="title">${esc(t("app.short"))}</span>
     ${S.env !== "live" && canSwitchEnv() ? `<button class="envchip ${S.env}" data-toggle-env aria-label="${esc(t("set.env"))}">${esc(ENVS[S.env].label())}</button>` : ""}
     <span class="spacer"></span>
-    <button class="iconbtn" data-nav="inbox" aria-label="${esc(t("nav.inbox"))}">${I.bell}${pending?`<span class="count">${pending>9?'9+':pending}</span>`:''}</button>
+    ${wide ? `<button class="iconbtn" data-refresh aria-label="${esc(t("pull.refresh"))}">${I.sync}</button>` : ""}
   </header>
   <div id="netbar"></div>
   <div class="body">
     ${wide?`<nav class="rail">${nav.map(([v,l,ic])=>`<a href="#" data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${esc(l)}</span>${v==="inbox"&&pending?`<span class="railcount">${pending}</span>`:''}</a>`).join("")}<span class="railgrow"></span><div class="railuser">${esc((S.user&&S.user.name)||t("set.you"))}</div></nav>`:''}
     <main class="screen-wrap"><div class="wrap">${!S.ready?skeletonHTML():screenHTML()}</div></main>
   </div>
-  ${wide?'':`<nav class="tabbar">${nav.map(([v,l,ic])=>`<button data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${esc(l)}</span>${v==="inbox"&&pending?'<span class="tabdot"></span>':''}</button>`).join("")}</nav>`}
+  ${wide?'':`<nav class="tabbar">${nav.map(([v,l,ic])=>`<button data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${esc(l)}</span>${v==="inbox"&&pending?`<span class="tabcount" aria-label="${esc(tn("inbox.sub",pending))}">${pending>99?"99+":pending}</span>`:''}</button>`).join("")}</nav>`}
   <div id="overlay">${S.envAsk ? envAskHTML() : S.confirm ? confirmHTML()
     : S.detail ? detailHTML() : S.ask ? askHTML() : ""}</div>`;
 }
@@ -1424,9 +1424,15 @@ function vaultFormHTML(kind){
   return `<div class="vform">
     ${spec.fields.map((f) => {
       const secret = spec.secret.includes(f);
+      const input = `<input id="vf_${f}" type="${secret ? "password" : "text"}" autocomplete="off"
+               inputmode="${f === "number" ? "numeric" : "text"}" spellcheck="false" autocapitalize="none"/>`;
+      // A secret is typed hidden, and can be looked at before it is saved: a
+      // wifi password mistyped into a vault is a password that never works, and
+      // there is no way to read it back out to find the typo afterwards.
       return `<div class="field"><label for="vf_${f}">${esc(t("v.f." + f))}</label>
-        <input id="vf_${f}" type="${secret ? "password" : "text"}" autocomplete="off"
-               inputmode="${f === "number" ? "numeric" : "text"}"/></div>`;
+        ${secret ? `<div class="pwwrap">${input}
+          <button type="button" class="pweye" data-veye="vf_${f}" aria-controls="vf_${f}"
+                  aria-label="${esc(t("signin.showPw"))}" aria-pressed="false">${I.eye}</button></div>` : input}</div>`;
     }).join("")}
     ${kind === "card" ? `<p class="vnote">${esc(t("v.card.noCvv"))}</p>` : ""}
     <button class="btn btn-primary block" data-vsave>${esc(t("v.add.save"))}</button>
@@ -2193,15 +2199,111 @@ function applyDevice(){
 }
 addEventListener("resize", applyDevice);
 
+
+/* ---- pull down to refresh ----
+ *
+ * The gesture every phone app has taught everybody. It replaces the bell that
+ * used to sit in the top corner and did nothing when you were already on the
+ * inbox: the count now lives on the tab itself, and fetching what is new is a
+ * pull, the way it is everywhere else.
+ *
+ * Listened for on the document rather than on the scroller, because render()
+ * replaces the whole tree and a listener on the old scroller dies with it. It
+ * only starts when the screen is already at the top, so it never fights an
+ * ordinary scroll, and the indicator lives outside #root so a redraw cannot
+ * take it away mid pull.
+ */
+const PULL = { y0: null, dy: 0, busy: false, el: null };
+const PULL_AT = 64;            // how far, in pixels of finger, before letting go refreshes
+
+function pullEl(){
+  if (PULL.el && document.body.contains(PULL.el)) return PULL.el;
+  const el = document.createElement("div");
+  el.className = "pull";
+  el.setAttribute("aria-hidden", "true");
+  el.innerHTML = `<span class="pullic">${I.sync}</span>`;
+  document.body.appendChild(el);
+  return (PULL.el = el);
+}
+function pullShow(dy, ready){
+  const el = pullEl(), d = Math.min(dy, 110);
+  el.style.setProperty("--d", d + "px");
+  el.style.setProperty("--r", Math.round(d * 3.2) + "deg");
+  el.classList.toggle("ready", !!ready);
+  el.classList.add("on");
+  // the page comes down with the finger, so the disc has room and the pull is felt
+  const w = document.querySelector(".screen-wrap > .wrap");
+  if (w) { w.style.transition = "none"; w.style.transform = `translateY(${Math.round(d * 0.7)}px)`; }
+}
+function pullSettle(px){
+  const w = document.querySelector(".screen-wrap > .wrap");
+  if (!w) return;
+  w.style.transition = "transform .22s cubic-bezier(.2,.8,.2,1)";
+  w.style.transform = px ? `translateY(${px}px)` : "";
+}
+function pullHide(){
+  pullSettle(0);
+  const el = PULL.el; if (!el) return;
+  el.classList.remove("on", "ready", "spin");
+  el.style.setProperty("--d", "0px");
+}
+async function pullRefresh(){
+  if (PULL.busy || !S.token) return;
+  PULL.busy = true;
+  const el = pullEl();
+  el.classList.add("on", "spin");
+  el.style.setProperty("--d", PULL_AT + "px");
+  pullSettle(Math.round(PULL_AT * 0.7));
+  const started = Date.now();
+  try {
+    await silentRefresh();
+  } finally {
+    // long enough to be seen turning: a refresh that flashes reads as nothing happened
+    const left = 450 - (Date.now() - started);
+    if (left > 0) await new Promise((r) => setTimeout(r, left));
+    PULL.busy = false;
+    pullHide();
+  }
+}
+function wirePull(){
+  const scroller = (t) => t && t.closest && t.closest(".screen-wrap");
+  document.addEventListener("touchstart", (e) => {
+    const sc = scroller(e.target);
+    if (!sc || PULL.busy || S.locked || !S.token || sc.scrollTop > 0 || e.touches.length !== 1) { PULL.y0 = null; return; }
+    // a sheet or a dialog open over the screen is not something to refresh under
+    if (document.querySelector("#overlay > *")) { PULL.y0 = null; return; }
+    PULL.y0 = e.touches[0].clientY; PULL.dy = 0;
+  }, { passive: true });
+  document.addEventListener("touchmove", (e) => {
+    if (PULL.y0 == null) return;
+    const sc = scroller(e.target);
+    const raw = e.touches[0].clientY - PULL.y0;
+    if (!sc || raw <= 0 || sc.scrollTop > 0) { if (PULL.dy) pullHide(); PULL.dy = 0; return; }
+    // resistance: the finger travels further than the indicator, the way it feels everywhere else
+    PULL.dy = raw * 0.5;
+    if (PULL.dy > 6) { e.preventDefault(); pullShow(PULL.dy, PULL.dy >= PULL_AT); }
+  }, { passive: false });
+  const end = () => {
+    if (PULL.y0 == null) return;
+    const go = PULL.dy >= PULL_AT;
+    PULL.y0 = null; PULL.dy = 0;
+    if (go) pullRefresh(); else pullHide();
+  };
+  document.addEventListener("touchend", end, { passive: true });
+  document.addEventListener("touchcancel", end, { passive: true });
+}
+
 /* ---- events ---- */
 function wire(){
   const root=document.getElementById("root");
+  if (!PULL.wired) { PULL.wired = true; wirePull(); }
   root.onclick = async e=>{
     const el=e.target;
     // An open menu closes on a tap anywhere else, but that tap still counts:
     // swallowing it means everything on the screen needs pressing twice.
     let closedDrop = false;
     if (S.drop && !el.closest(".fdrop")) { S.drop = null; closedDrop = true; }
+    if(el.closest("[data-refresh]")){ pullRefresh(); return; }
     const nav=el.closest("[data-nav]"); if(nav){ e.preventDefault(); S.view=nav.dataset.nav; S.selectedSol=null; render(); return; }
     if(el.closest("[data-ctl='fullscreen']")){ S.fullscreen=!S.fullscreen; savePrefs(); render(); return; }
     if(el.closest("[data-toggle-env]")){ S.env=S.env==="test"?"live":"test"; savePrefs(); reloadEnv(); return; }
@@ -2233,6 +2335,17 @@ function wire(){
     if(el.closest("[data-back]")){ S.selectedSol=null; render(); return; }
     const lvl=el.closest("[data-level]"); if(lvl){ const box=lvl.closest("[data-appetite]"); await setAppetite(box.dataset.appetite,box.dataset.cat,lvl.dataset.level); return; }
     const stt=el.closest("[data-status]"); if(stt){ await setStatus(stt.dataset.status,stt.dataset.to); return; }
+    const ve = el.closest("[data-veye]");
+    if (ve) {
+      const f = document.getElementById(ve.dataset.veye); if (!f) return;
+      const show = f.type === "password";
+      f.type = show ? "text" : "password";
+      ve.innerHTML = show ? I.eyeOff : I.eye;
+      ve.setAttribute("aria-pressed", String(show));
+      ve.setAttribute("aria-label", t(show ? "signin.hidePw" : "signin.showPw"));
+      f.focus(); f.setSelectionRange(f.value.length, f.value.length);
+      return;
+    }
     if(el.closest("[data-pweye]")){
       const f=document.getElementById("pw"); S.signin.pw = f ? f.value : "";
       S.signin.showPw = !S.signin.showPw; render();

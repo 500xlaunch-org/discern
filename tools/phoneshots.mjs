@@ -35,9 +35,11 @@ const VIEWS = [
   ["access", "the way in, not signed in"],
   ["inbox", "what is waiting"],
   ["focus", "one decision, on its own"],
+  ["pull", "the inbox, mid pull to refresh"],
   ["activity", "what you decided"],
   ["solutions", "what is connected"],
   ["vault", "what your agents may reach"],
+  ["vaultadd", "adding a wifi password, shown"],
   ["settings", "everything else"],
 ];
 
@@ -59,6 +61,28 @@ const harness = (view) => `<!doctype html><meta charset="utf-8">
           for (let i = 0; i < ids.length; i++) await Backend.decide(ids[i], how[i % how.length]);
           await Backend.refresh();
         }
+        if (want === "vaultadd") {
+          // creating a vault does not finish under headless Chrome, and its own
+          // tests cover that; this is about how the form looks, so draw just it
+          S.view = "vault"; S.ready = true; render();
+          document.querySelector(".screen-wrap .wrap").innerHTML =
+            '<div class="scrhead"><h1>Vault</h1></div><section class="panel vpanel">' + vaultFormHTML("wifi") + "</section>";
+          document.getElementById("vf_network").value = "Home-5G";
+          const pw = document.getElementById("vf_password");
+          pw.value = "correct horse battery";
+          document.querySelector("[data-veye]").click();   // through the real handler
+          return;
+        }
+        if (want === "pull") {
+          // a real gesture, through the real listeners: down from the top of the inbox
+          S.view = "inbox"; S.ready = true; render();
+          const sc = document.querySelector(".screen-wrap");
+          const at = (y) => new Touch({ identifier: 1, target: sc, clientX: 200, clientY: y });
+          sc.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true, touches: [at(200)] }));
+          for (const y of [230, 280, 330, 370])
+            sc.dispatchEvent(new TouchEvent("touchmove", { bubbles: true, cancelable: true, touches: [at(y)] }));
+          return;
+        }
         if (want === "focus") {
           // the one by one walk, as the group button starts it
           const g = agentGroups(S.intents)[0];
@@ -76,7 +100,7 @@ async function shot(view, file, profile) {
   rmSync(profile, { recursive: true, force: true });
   try {
     await run(CHROME, ["--headless=new", "--disable-gpu", "--no-first-run", `--user-data-dir=${profile}`,
-      "--force-device-scale-factor=2", `--window-size=${W},${H}`, "--hide-scrollbars",
+      "--force-device-scale-factor=2", "--touch-events=enabled", `--window-size=${W},${H}`, "--hide-scrollbars",
       "--virtual-time-budget=5000", `--screenshot=${file}`,
       `http://127.0.0.1:${PORT}/_shot.html`],
       { timeout: 25000, killSignal: "SIGKILL" });

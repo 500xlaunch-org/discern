@@ -136,7 +136,25 @@ input{font-family:inherit}
 .tabbar button{position:relative;flex:1;border:0;background:transparent;color:var(--faint);display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 0;border-radius:11px;font-size:.64rem;font-weight:600}
 .tabbar button svg{width:23px;height:23px}
 .tabbar button[aria-current="page"]{color:var(--xur)}
-.tabbar .tabdot{position:absolute;top:4px;left:calc(50% + 11px);width:6px;height:6px;border-radius:99px;background:var(--sv)}
+/* how many are waiting, on the tab that holds them: the number is the news */
+.tabbar .tabcount{position:absolute;top:2px;left:calc(50% + 7px);min-width:18px;height:18px;padding:0 5px;
+  border-radius:99px;background:var(--sv);color:#fff;font-size:.62rem;font-weight:700;line-height:18px;
+  text-align:center;font-variant-numeric:tabular-nums;border:2px solid var(--surface);box-sizing:content-box}
+[dir="rtl"] .tabbar .tabcount{left:auto;right:calc(50% + 7px)}
+
+/* pull down to refresh: a disc that follows the finger and turns as it comes */
+.pull{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 58px);z-index:60;width:38px;height:38px;
+  margin-left:-19px;border-radius:99px;background:var(--raise,var(--surface));border:1px solid var(--line);
+  box-shadow:var(--sh-lg);display:grid;place-items:center;color:var(--faint);pointer-events:none;
+  opacity:0;transform:translateY(calc(var(--d,0px) - 46px)) scale(.8);
+  transition:opacity .15s,color .15s,transform .18s cubic-bezier(.2,.8,.2,1)}
+.pull.on{opacity:1;transform:translateY(calc(var(--d,0px) - 46px)) scale(1)}
+.pull .pullic{display:grid;place-items:center;transform:rotate(var(--r,0deg))}
+.pull svg{width:19px;height:19px}
+.pull.ready{color:var(--xur)}
+.pull.spin{color:var(--xur)}
+.pull.spin .pullic{animation:spin .8s linear infinite}
+@media (prefers-reduced-motion: reduce){.pull.spin .pullic{animation:none}}
 
 /* ---------------- headings + generic ---------------- */
 /* One line, and a second only when it carries state. A phone screen is 800px
