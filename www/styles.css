@@ -184,7 +184,9 @@ input{font-family:inherit}
 .slogo.sm{width:26px;height:26px;border-radius:8px}.slogo.sm svg{width:14px;height:14px}
 .iwho{min-width:0;flex:1}
 .isol{font-weight:650;font-size:1rem;letter-spacing:-.01em;line-height:1.15}
-.iagent{color:var(--muted);font-size:.82rem}
+.iagent{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.82rem;
+  margin-top:2px;min-width:0}
+.iagent>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sevtag{font-family:var(--mono);font-size:.62rem;font-weight:600;letter-spacing:.06em;padding:4px 9px;border-radius:8px;color:var(--sev);background:var(--sevb)}
 .iact{font-size:1.12rem;font-weight:650;letter-spacing:-.01em;margin:11px 0 8px;text-wrap:balance}
 .rchips{display:flex;flex-wrap:wrap;gap:6px}
