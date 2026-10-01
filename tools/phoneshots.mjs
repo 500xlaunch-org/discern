@@ -40,6 +40,7 @@ const VIEWS = [
   ["solutions", "what is connected"],
   ["vault", "what your agents may reach"],
   ["vaultadd", "adding a wifi password, shown"],
+  ["credask", "an agent asking for the office wifi"],
   ["settings", "everything else"],
 ];
 
@@ -60,6 +61,22 @@ const harness = (view) => `<!doctype html><meta charset="utf-8">
           const ids = S.intents.map((x) => x.id), how = ["approve", "deny", "approve", "reflect"];
           for (let i = 0; i < ids.length; i++) await Backend.decide(ids[i], how[i % how.length]);
           await Backend.refresh();
+        }
+        if (want === "credask") {
+          // a request as Horizon sends it, through the real sheet; the vault is
+          // stood in for because creating one does not finish under headless Chrome
+          const it = { id: "int_demo_cred", kind: "credential_request", state: "pending", severity: "SEVERE",
+            risk: { data: "SEVERE", system: "SEVERE" }, capability: "credential.wifi", agent: "Joiner",
+            solution: S.solutions[0], solutionUid: (S.solutions[0] || {}).uid, release_key: "x", createdAt: Date.now(),
+            credential: { type: "wifi", name: "the office wifi", reason: "Join the office wifi to print your boarding pass",
+                          purpose: "join the office wifi" } };
+          S.intents = [it].concat(S.intents);
+          window.Vault = Object.assign({}, window.Vault, { state: { exists: true, unlocked: true },
+            purposeKey: (x) => String(x || "").toLowerCase().replace(/\\s+/g, " ").trim() });
+          S.vault.items = [{ id: "vit_1", kind: "wifi", label: "Office", hint: "5 GHz", grants: [] },
+                           { id: "vit_2", kind: "wifi", label: "Home-5G", hint: "", grants: [] }];
+          S.view = "inbox"; S.ready = true; openCredAsk(it.id); S.cred.chosen = "vit_1"; S.ask = it.id; render();
+          return;
         }
         if (want === "vaultadd") {
           // creating a vault does not finish under headless Chrome, and its own

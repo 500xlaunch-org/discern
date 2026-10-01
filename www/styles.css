@@ -999,11 +999,32 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .vbody{padding:0 12px 12px;display:flex;flex-direction:column;gap:8px;animation:cardin .2s ease both}
 .vbody .dv.mono{font-family:var(--mono,ui-monospace,SFMono-Regular,Menlo,monospace);
   word-break:break-all;unicode-bidi:plaintext;direction:ltr}
-.vgrantlist{display:flex;flex-wrap:wrap;gap:6px}
-.vgrant{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;
-  padding:3px 4px 3px 4px;font-size:.76rem;color:var(--muted)}
-.vgrant button{border:0;background:transparent;color:var(--sv,#d23b3b);font-size:.74rem;font-weight:650;
-  padding:2px 7px;border-radius:99px}
+/* who may ask for this again, for what, since when, and the way to stop them */
+.vgrantlist{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.vglab{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--faint)}
+.vgrant{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:12px;
+  padding:8px 8px 8px 10px;font-size:.8rem;color:var(--muted);background:var(--surface)}
+.vgm{flex:1;min-width:0;display:flex;flex-direction:column}
+.vgm b{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vgm small{color:var(--faint);font-size:.74rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vgrant button{flex:none;border:0;background:transparent;color:var(--sv,#d23b3b);font-size:.76rem;font-weight:650;
+  padding:6px 9px;border-radius:9px}
+.vgrant button:hover{background:var(--sv-bg,transparent)}
+.vacts{display:flex;gap:8px}
+.vacts .btn{flex:1}
+
+/* once, or for this purpose: chosen before anything is handed over */
+.credscope{display:flex;flex-direction:column;gap:7px;margin-top:4px}
+.credscope>b{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--faint)}
+.scopeopt{display:flex;align-items:center;gap:10px;width:100%;text-align:start;
+  border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 12px;color:var(--ink);transition:.15s}
+.scopeopt:hover{border-color:var(--xur)}
+.scopeopt.on{border-color:var(--xur);background:var(--xur-soft)}
+.scopeopt .credm small{white-space:normal}
+.scopeopt .fbox{flex:none;width:20px;height:20px;border-radius:99px;border:1.5px solid var(--line-2);
+  display:grid;place-items:center;color:#fff}
+.scopeopt .fbox svg{width:12px;height:12px}
+.scopeopt .fbox.on{background:var(--xur);border-color:var(--xur)}
 .vkinds{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:7px}
 .vkind{display:flex;flex-direction:column;align-items:center;gap:5px;border:1px solid var(--line);
   background:var(--surface);color:var(--muted);border-radius:12px;padding:11px 6px;

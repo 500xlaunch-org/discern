@@ -210,6 +210,32 @@ const KINDS = {
   note:     { fields: ["label", "text"], secret: ["text"] },
 };
 
+
+/* ---- allowances ---- */
+
+/** The same object with its keys in one order, so two values can be compared
+ * without caring how they were typed in. */
+function stable(v) {
+  if (v == null || typeof v !== "object") return JSON.stringify(v);
+  return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + stable(v[k])).join(",") + "}";
+}
+
+/** A purpose, as something two requests can agree on: lower case, spaces
+ * collapsed, bounded. An agent that declares "Join the office wifi" twice is
+ * asking for the same thing twice. */
+function purposeKey(p) {
+  return String(p || "").toLowerCase().replace(/\s+/g, " ").trim().slice(0, 120);
+}
+
+function grantKey(g) { return [g.solution, g.agent, g.purpose].join("|"); }
+
+/** Allowances that still mean something. Older vaults stored a bare Solution
+ * id, which said nothing about the agent or the purpose; those are dropped,
+ * and the next request simply asks again. */
+function liveGrants(rec) {
+  return (rec.grants || []).filter((g) => g && typeof g === "object" && g.solution && g.v === (rec.version || 1));
+}
+
 const Vault = {
   KINDS,
   get state() {
@@ -342,7 +368,8 @@ const Vault = {
   async list() {
     const rows = await tx(STORE_ITEMS, "readonly", (s) => s.getAll());
     return (rows || []).map((r) => ({ id: r.id, kind: r.kind, label: r.label, hint: r.hint,
-                                      usedAt: r.usedAt, createdAt: r.createdAt, grants: r.grants || [] }))
+                                      usedAt: r.usedAt, createdAt: r.createdAt, updatedAt: r.updatedAt,
+                                      version: r.version || 1, grants: liveGrants(r) }))
       .sort((a, b) => b.createdAt - a.createdAt);
   },
 
@@ -363,12 +390,27 @@ const Vault = {
     const kind = KINDS[item.kind] ? item.kind : "note";
     const id = item.id || `vit_${b64(rand(9))}`;
     const value = item.value || {};
+
+    // Replacing an item. If what it holds has changed, every allowance given for
+    // it stops here: somebody agreed to hand over that value, not whatever is
+    // in this slot next. The same value saved again keeps them.
+    const prior = item.id ? await tx(STORE_ITEMS, "readonly", (s) => s.get(item.id)) : null;
+    let version = 1, grants = [];
+    if (prior) {
+      let before = null;
+      try { before = await openItem(DEK, prior); } catch { before = null; }
+      const same = before != null && stable(before) === stable(value) && prior.kind === kind;
+      version = same ? (prior.version || 1) : (prior.version || 1) + 1;
+      grants = same ? liveGrants(prior) : [];
+    }
+
     const sealed = await sealItem(DEK, id, kind, value);
     const first = KINDS[kind].fields.find((f) => !KINDS[kind].secret.includes(f));
     const rec = {
       id, kind, label: item.label || value[first] || kind,
       hint: item.hint || hintFor(kind, value),
-      ...sealed, createdAt: item.createdAt || Date.now(), grants: item.grants || [],
+      ...sealed, createdAt: prior ? prior.createdAt : (item.createdAt || Date.now()),
+      updatedAt: Date.now(), version, grants,
     };
     await tx(STORE_ITEMS, "readwrite", (s) => s.put(rec));
     armAutoLock(); await Vault.load();
@@ -380,30 +422,61 @@ const Vault = {
     await Vault.load();
   },
 
-  /** Standing permission for one Solution to ask for one item without the
-   * person being asked to find it again. It is a grant, not a copy: every use
-   * is still a release, and revoking it stops the next one. */
-  async grant(id, solutionUid) {
+  /** Permission given once, to be used again for the same purpose.
+   *
+   * An allowance names who may ask (the Solution and the agent inside it), why
+   * (the purpose the agent declared), and which version of the value it was
+   * given for. All four have to match for it to apply, so the same agent asking
+   * for the same password for a different reason asks again, and so does any
+   * agent after the password has been changed.
+   *
+   * It is a permission, not a copy: every use is still a release sealed to the
+   * Solution, and nothing about the value is stored in the allowance. */
+  async grant(id, who) {
     const rec = await tx(STORE_ITEMS, "readonly", (s) => s.get(id));
     if (!rec) throw new Error("no-such-item");
-    rec.grants = [...new Set([...(rec.grants || []), solutionUid])];
+    const g = { solution: String(who.solution || ""), agent: String(who.agent || ""),
+                purpose: purposeKey(who.purpose), at: Date.now(), v: rec.version || 1 };
+    if (!g.solution) throw new Error("no-solution");
+    rec.grants = [...liveGrants(rec).filter((x) => grantKey(x) !== grantKey(g)), g];
     await tx(STORE_ITEMS, "readwrite", (s) => s.put(rec));
     await Vault.load();
+    return g;
   },
-  async revoke(id, solutionUid) {
+
+  /** Take one allowance back, or every allowance on the item. */
+  async revoke(id, key) {
     const rec = await tx(STORE_ITEMS, "readonly", (s) => s.get(id));
     if (!rec) return;
-    rec.grants = (rec.grants || []).filter((g) => g !== solutionUid);
+    rec.grants = key ? liveGrants(rec).filter((g) => grantKey(g) !== key) : [];
     await tx(STORE_ITEMS, "readwrite", (s) => s.put(rec));
     await Vault.load();
   },
 
-  /** Everything a Solution has been granted, so the person can see it in one
+  /** Everything a Solution has been allowed, so the person can see it in one
    * place and take it back. */
   async grantsFor(solutionUid) {
     const rows = await Vault.list();
-    return rows.filter((r) => (r.grants || []).includes(solutionUid));
+    return rows.filter((r) => (r.grants || []).some((g) => g.solution === solutionUid));
   },
+
+  /** The item a request may be answered from without asking, if the person
+   * said so before for exactly this. Null otherwise, which means ask. */
+  async standingFor(ask) {
+    const want = { solution: String(ask.solution || ""), agent: String(ask.agent || ""),
+                   purpose: purposeKey(ask.purpose) };
+    const rows = await tx(STORE_ITEMS, "readonly", (s) => s.getAll());
+    for (const r of rows) {
+      if (ask.kind && r.kind !== ask.kind) continue;
+      const hit = liveGrants(r).find((g) => g.solution === want.solution && g.agent === want.agent
+        && g.purpose === want.purpose && g.v === (r.version || 1));
+      if (hit) return { id: r.id, label: r.label, grant: hit };
+    }
+    return null;
+  },
+
+  grantKey: (g) => grantKey(g),
+  purposeKey: (p) => purposeKey(p),
 
   /** Hand one value out, once, sealed to the Solution that asked.
    *

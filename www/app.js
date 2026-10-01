@@ -507,7 +507,7 @@ async function boot(){
 /** Refresh without tearing the screen down: no skeletons, no scroll jump. */
 async function silentRefresh(){
   if (!S.token) return;
-  try { await Backend.refresh(); render(); }
+  try { await Backend.refresh(); render(); credStanding(); }
   catch (e) {
     // 401 means this session is not valid here any more. Showing empty screens
     // instead of saying so is how a signed out app looks broken.
@@ -1453,14 +1453,59 @@ function vitemHTML(it){
     ${shown ? `<div class="vbody">
       ${Object.entries(shown).map(([k, v]) => `<div class="drow"><span class="dk">${esc(t("v.f." + k))}</span>
         <span class="dv mono">${esc(v)}</span></div>`).join("")}
-      ${(it.grants || []).length ? `<div class="vgrantlist">${(it.grants || []).map((g) => {
-        const sol = (S.solutions || []).find((x) => x.uid === g) || { uid: g, name: g };
-        return `<span class="vgrant">${window.Marks.solution(sol, 16)}<span>${esc(sol.name)}</span>
-          <button data-vrevoke="${it.id}" data-vsol="${esc(g)}">${esc(t("v.grants.revoke"))}</button></span>`;
+      ${(it.grants || []).length ? `<div class="vgrantlist"><b class="vglab">${esc(t("v.grants.title"))}</b>${(it.grants || []).map((g) => {
+        const sol = (S.solutions || []).find((x) => x.uid === g.solution) || { uid: g.solution, name: g.solution };
+        return `<div class="vgrant">${window.Marks.solution(sol, 18)}
+          <span class="vgm"><b>${esc(sol.name)}${g.agent ? " &middot; " + esc(g.agent) : ""}</b>
+            <small>${esc(g.purpose || t("cred.forPurposeAny"))} &middot; ${esc(tAgo(g.at))}</small></span>
+          <button data-vrevoke="${it.id}" data-vkey="${esc(window.Vault.grantKey(g))}">${esc(t("v.grants.revoke"))}</button></div>`;
       }).join("")}</div>` : ""}
-      <button class="btn btn-ghost block" data-vdelete="${it.id}">${esc(t("v.delete"))}</button>
+      ${S.vault.editing === it.id ? vaultEditHTML(it, shown) : `<div class="vacts">
+        <button class="btn btn-ghost" data-vedit="${it.id}">${esc(t("v.change"))}</button>
+        <button class="btn btn-ghost" data-vdelete="${it.id}">${esc(t("v.delete"))}</button></div>`}
     </div>` : ""}
   </article>`;
+}
+
+/** Changing what an item holds. Said plainly before it is done: every agent
+ * that was allowed this value has to ask again for the new one. */
+function vaultEditHTML(it, shown){
+  const spec = window.Vault.KINDS[it.kind];
+  return `<div class="vform">
+    ${spec.fields.map((f) => {
+      const secret = spec.secret.includes(f);
+      const input = `<input id="ve_${f}" type="${secret ? "password" : "text"}" autocomplete="off"
+        value="${esc((shown && shown[f]) || "")}" spellcheck="false" autocapitalize="none"/>`;
+      return `<div class="field"><label for="ve_${f}">${esc(t("v.f." + f))}</label>
+        ${secret ? `<div class="pwwrap">${input}<button type="button" class="pweye" data-veye="ve_${f}"
+          aria-label="${esc(t("signin.showPw"))}" aria-pressed="false">${I.eye}</button></div>` : input}</div>`;
+    }).join("")}
+    ${(it.grants || []).length ? `<p class="vwarn">${esc(tn("v.change.revokes", it.grants.length))}</p>` : ""}
+    <div class="vacts">
+      <button class="btn btn-ghost" data-vedit="">${esc(t("v.cancel"))}</button>
+      <button class="btn btn-primary" data-vupdate="${it.id}">${esc(t("v.add.save"))}</button></div>
+  </div>`;
+}
+
+async function vaultUpdate(id){
+  const it = (S.vault.items || []).find((x) => x.id === id); if (!it) return;
+  const spec = window.Vault.KINDS[it.kind];
+  const value = {};
+  for (const f of spec.fields) {
+    const el = document.getElementById("ve_" + f);
+    if (el && el.value.trim()) value[f] = el.value.trim();
+  }
+  if (!Object.keys(value).length) return;
+  try {
+    const before = (it.grants || []).length;
+    await window.Vault.put({ id, kind: it.kind, value });
+    S.vault.editing = null;
+    S.vault.shown[id] = await window.Vault.reveal(id);
+    await vaultRefresh();
+    const after = ((S.vault.items || []).find((x) => x.id === id) || {}).grants || [];
+    toast(`<span class="tic">${I.check}</span><div class="tm">${esc(before && !after.length
+      ? tn("v.t.changedRevoked", before) : t("v.t.saved"))}</div>`, "ok");
+  } catch (e) { toast(`<div class="tm">${esc(t("v.err.save"))}</div>`, "warn"); }
 }
 
 /* ---- the vault's own actions ---- */
@@ -1468,6 +1513,7 @@ function vitemHTML(it){
 async function vaultRefresh(){
   if (!window.Vault) return;
   await window.Vault.load();
+  setTimeout(credStanding, 0);
   S.vault.items = window.Vault.state.unlocked ? await window.Vault.list() : [];
   render();
 }
@@ -1601,9 +1647,20 @@ function credBodyHTML(it){
     </div>`
     : `<button class="btn btn-ghost block" data-cnew>${esc(t("cred.newOne"))}</button>`;
 
+  // what "the same purpose" means, said before anybody chooses it
+  const purpose = c.purpose && !/^credential\./.test(c.purpose) ? c.purpose : "";
   return head + picker + creating
-    + `<label class="vcheck"><input type="checkbox" id="cremember" ${cr.remember ? "checked" : ""}/>
-        <span>${esc(t("cred.remember"))}</span></label>`
+    + `<div class="credscope">
+        <b>${esc(t("cred.scope"))}</b>
+        <button class="scopeopt ${cr.scope !== "purpose" ? "on" : ""}" data-cscope="once">
+          <span class="fbox ${cr.scope !== "purpose" ? "on" : ""}">${cr.scope !== "purpose" ? I.check : ""}</span>
+          <span class="credm"><b>${esc(t("cred.once"))}</b><small>${esc(t("cred.onceSub"))}</small></span></button>
+        <button class="scopeopt ${cr.scope === "purpose" ? "on" : ""}" data-cscope="purpose">
+          <span class="fbox ${cr.scope === "purpose" ? "on" : ""}">${cr.scope === "purpose" ? I.check : ""}</span>
+          <span class="credm"><b>${esc(t("cred.forPurpose"))}</b>
+            <small>${esc(purpose ? t("cred.forPurposeSub", { purpose }) : t("cred.forPurposeAny"))}</small></span></button>
+        <p class="vnote">${esc(t("cred.changeRevokes"))}</p>
+      </div>`
     + (cr.error ? `<div class="signin-err">${esc(cr.error)}</div>` : "");
 }
 
@@ -1612,20 +1669,61 @@ function credActionsHTML(it){
   return `<div class="iacts">
     <button class="btn btn-deny" data-decide="deny" data-id="${it.id}">${esc(t("cred.refuse"))}</button>
     <button class="btn btn-primary" data-crelease="${it.id}" ${ready && !cr.busy ? "" : "disabled"}>
-      ${cr.busy ? `<span class="tic spin">${I.sync}</span>` : ""}<span>${esc(t("cred.release"))}</span></button>
+      ${cr.busy ? `<span class="tic spin">${I.sync}</span>` : ""}<span>${esc(t(cr.scope === "purpose" ? "cred.releasePurpose" : "cred.release"))}</span></button>
   </div>`;
 }
 
 /** Opening one starts clean, except that something already granted to this
  * Solution is offered first. A grant saves the finding, never the asking. */
 function openCredAsk(id){
-  S.cred = { chosen:null, creating:false, remember:false, busy:false, error:"" };
+  S.cred = { chosen:null, creating:false, scope:"once", busy:false, error:"" };
   const it = (S.intents || []).find((x) => x.id === id);
   if (!isCredAsk(it)) return;
-  const uid = (it.solution && it.solution.uid) || it.solutionUid;
-  const type = (it.credential || {}).type;
-  const already = (S.vault.items || []).find((m) => m.kind === type && (m.grants || []).includes(uid));
-  if (already) { S.cred.chosen = already.id; S.cred.remember = true; }
+  // something allowed before for this exact purpose is offered first; anything
+  // allowed for a different purpose, or before the value changed, is not
+  const want = credWho(it);
+  const already = (S.vault.items || []).find((m) => m.kind === want.kind
+    && (m.grants || []).some((g) => g.solution === want.solution && g.agent === want.agent && g.purpose === want.purpose));
+  if (already) { S.cred.chosen = already.id; S.cred.scope = "purpose"; }
+}
+
+/** Who is asking and why, in the shape an allowance is kept in. */
+function credWho(it){
+  const c = it.credential || {};
+  return { solution: (it.solution && it.solution.uid) || it.solutionUid,
+           agent: iAgent(it) || it.agent || "", purpose: window.Vault ? window.Vault.purposeKey(c.purpose || c.reason || "") : "",
+           kind: c.type };
+}
+
+/** Answer by itself what the person already answered.
+ *
+ * An agent asking for the same item, for the same purpose, after the person
+ * allowed exactly that and before the value has changed, does not need to be
+ * asked again: that is what they said. It still only happens on this device,
+ * with the vault open, and it is still a sealed release for one use. With the
+ * vault locked nothing happens until they open it, and the request waits in
+ * the inbox like any other. */
+async function credStanding(){
+  if (!window.Vault || !window.Vault.state.unlocked) return;
+  const asks = (S.intents || []).filter((it) => isCredAsk(it) && it.release_key);
+  let done = 0;
+  for (const it of asks) {
+    const who = credWho(it);
+    const hit = await window.Vault.standingFor(who);
+    if (!hit) continue;
+    try {
+      const sealed = await window.Vault.release(hit.id, { solutionUid: who.solution, publicKey: it.release_key,
+                                                          field: (it.credential || {}).field });
+      await Backend.release(it.id, Object.assign({}, sealed, { standing: true }));
+      S.intents = S.intents.filter((x) => x.id !== it.id);
+      S.inboxTotal = Math.max(0, S.inboxTotal - 1);
+      done++;
+    } catch { /* it stays in the inbox and is asked for in the ordinary way */ }
+  }
+  if (done) {
+    toast(`<span class="tic">${I.shield}</span><div class="tm">${esc(tn("cred.t.standing", done))}</div>`, "ok");
+    render();
+  }
 }
 
 async function credUnlock(){
@@ -1676,11 +1774,11 @@ async function credRelease(intentId){
       publicKey: it.release_key, field: c.field,
     });
     await Backend.release(intentId, sealed);
-    if (S.cred.remember) await window.Vault.grant(S.cred.chosen, (it.solution && it.solution.uid) || it.solutionUid);
+    if (S.cred.scope === "purpose") await window.Vault.grant(S.cred.chosen, credWho(it));
     S.intents = S.intents.filter((x) => x.id !== intentId);
     S.inboxTotal = Math.max(0, S.inboxTotal - 1);
     S.timeline = [Object.assign({}, it, { state: "approved", decision: { decision: "approve", at: Date.now() } })].concat(S.timeline);
-    S.ask = null; S.cred = { chosen: null, creating: false, remember: false, busy: false, error: "" };
+    S.ask = null; S.cred = { chosen: null, creating: false, scope: "once", busy: false, error: "" };
     await vaultRefresh();
     toast(`<span class="tic">${I.shield}</span><div class="tm">${esc(t("cred.t.released"))}</div>`, "ok");
     silentRefresh();
@@ -2425,6 +2523,8 @@ function wire(){
     if(el.closest("[data-cmake]")){ credMake(); return; }
     const cp = el.closest("[data-cpick]");
     if(cp){ S.cred.chosen = S.cred.chosen === cp.dataset.cpick ? null : cp.dataset.cpick; render(); return; }
+    const csc = el.closest("[data-cscope]");
+    if(csc){ S.cred.scope = csc.dataset.cscope; render(); return; }
     const crl = el.closest("[data-crelease]");
     if(crl){ askConfirm("approve", { credRelease: crl.dataset.crelease, label: t("cred.release") }); return; }
     if(el.closest("[data-vcreate]")){ vaultCreate(); return; }
@@ -2439,7 +2539,11 @@ function wire(){
     if(vd){ const id = vd.dataset.vdelete;
       askConfirm("deny", { vaultDelete:id, label:(S.vault.items.find(x=>x.id===id)||{}).label }); return; }
     const vr = el.closest("[data-vrevoke]");
-    if(vr){ window.Vault.revoke(vr.dataset.vrevoke, vr.dataset.vsol).then(vaultRefresh); return; }
+    if(vr){ window.Vault.revoke(vr.dataset.vrevoke, vr.dataset.vkey).then(vaultRefresh); return; }
+    const vedt = el.closest("[data-vedit]");
+    if(vedt){ S.vault.editing = vedt.dataset.vedit || null; render(); return; }
+    const vup = el.closest("[data-vupdate]");
+    if(vup){ vaultUpdate(vup.dataset.vupdate); return; }
     if(el.closest("[data-signout]")){ S.token=null; S.user=null; S.locked=false;
       S.envAcked=false; S.envAsk=false;
       // the vault stays on the device, but it does not stay open
@@ -2534,7 +2638,7 @@ function wire(){
 
   root.onchange = e=>{
     // the two checkboxes that are read when they change rather than on submit
-    if (e.target.id === "cremember") { S.cred.remember = e.target.checked; return; }
+
     if (e.target.id === "vdev") { S.vault.setup.useDevice = e.target.checked; return; }
     const c=e.target.closest("[data-ctl]"); if(!c)return;
     if(c.dataset.ctl==="plat")S.plat=e.target.value;

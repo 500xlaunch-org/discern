@@ -232,18 +232,57 @@ test("a release is sealed to the Solution that asked, and to nobody else", async
                        "another key opens nothing");
 });
 
-test("a grant is a permission, not a copy of the secret", async () => {
+test("an allowance is a permission, not a copy of the secret", async () => {
   const { V } = loadVault();
   await V.create(PIN, { useDeviceLock: false });
   const { id } = await V.put({ kind: "otp", value: { label: "Bank", seed: "JBSWY3DPEHPK3PXP" } });
 
-  await V.grant(id, "sol_bank");
+  const g = await V.grant(id, { solution: "sol_bank", agent: "payer", purpose: "Confirm a transfer" });
   const granted = await V.grantsFor("sol_bank");
   assert.equal(granted.length, 1);
-  assert.ok(!JSON.stringify(granted).includes("JBSWY3DPEHPK3PXP"), "the grant carries no seed");
+  assert.ok(!JSON.stringify(granted).includes("JBSWY3DPEHPK3PXP"), "the allowance carries no seed");
 
-  await V.revoke(id, "sol_bank");
+  await V.revoke(id, V.grantKey(g));
   assert.equal((await V.grantsFor("sol_bank")).length, 0, "and it can be taken back");
+});
+
+test("an allowance answers only the same agent, for the same purpose", async () => {
+  const { V } = loadVault();
+  await V.create(PIN, { useDeviceLock: false });
+  const { id } = await V.put({ kind: "wifi", value: { network: "Office", password: "hunter2" } });
+  await V.grant(id, { solution: "sol_a", agent: "joiner", purpose: "Join the office wifi" });
+
+  const same = await V.standingFor({ solution: "sol_a", agent: "joiner", purpose: "join  the OFFICE wifi", kind: "wifi" });
+  assert.equal(same && same.id, id, "the same purpose, however it is spaced or cased");
+  assert.equal(await V.standingFor({ solution: "sol_a", agent: "joiner", purpose: "Share it with a guest", kind: "wifi" }), null,
+    "a different reason asks again");
+  assert.equal(await V.standingFor({ solution: "sol_a", agent: "someone-else", purpose: "Join the office wifi", kind: "wifi" }), null,
+    "a different agent asks again");
+  assert.equal(await V.standingFor({ solution: "sol_b", agent: "joiner", purpose: "Join the office wifi", kind: "wifi" }), null,
+    "a different Solution asks again");
+});
+
+test("changing the value takes every allowance back; saving the same value does not", async () => {
+  const { V } = loadVault();
+  await V.create(PIN, { useDeviceLock: false });
+  const { id } = await V.put({ kind: "login", value: { site: "mail", username: "ada", password: "one" } });
+  await V.grant(id, { solution: "sol_a", agent: "reader", purpose: "Read the inbox" });
+  await V.grant(id, { solution: "sol_b", agent: "filer", purpose: "File receipts" });
+  assert.equal((await V.list()).find((r) => r.id === id).grants.length, 2);
+
+  // the same value, saved again: nothing changed, nothing is taken back
+  await V.put({ id, kind: "login", value: { username: "ada", site: "mail", password: "one" } });
+  let rec = (await V.list()).find((r) => r.id === id);
+  assert.equal(rec.grants.length, 2);
+  assert.equal(rec.version, 1);
+
+  // a new password: every allowance stops, and the next request asks
+  await V.put({ id, kind: "login", value: { site: "mail", username: "ada", password: "two" } });
+  rec = (await V.list()).find((r) => r.id === id);
+  assert.equal(rec.grants.length, 0, "nobody agreed to hand over the new one");
+  assert.equal(rec.version, 2);
+  assert.equal(await V.standingFor({ solution: "sol_a", agent: "reader", purpose: "Read the inbox", kind: "login" }), null);
+  assert.equal((await V.reveal(id)).password, "two");
 });
 
 test("a ciphertext cannot be moved from one record to another", async () => {
