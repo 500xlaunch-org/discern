@@ -139,10 +139,14 @@ input{font-family:inherit}
 .tabbar .tabdot{position:absolute;top:4px;left:calc(50% + 11px);width:6px;height:6px;border-radius:99px;background:var(--sv)}
 
 /* ---------------- headings + generic ---------------- */
-.scrhead{display:flex;flex-direction:column;gap:2px;margin:4px 0 6px}
+/* One line, and a second only when it carries state. A phone screen is 800px
+   and the first thing on it should be the thing you came to do. */
+.scrhead{display:flex;flex-direction:column;gap:1px;margin:2px 0 10px}
+.scrhead h1{font-size:1.24rem;margin:0;letter-spacing:-.02em;text-wrap:balance;font-weight:650;line-height:1.25}
+/* the inbox leads with how many are waiting, which is the whole point of it */
+.scrhead.lead h1{font-size:1.34rem}
 .eyebrow{font-family:var(--mono);font-size:.66rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
-.scrhead h1{font-size:1.62rem;margin:1px 0 0;letter-spacing:-.025em;text-wrap:balance;font-weight:650}
-.sub{color:var(--muted);font-size:.92rem;margin:0}
+.sub{color:var(--muted);font-size:.86rem;margin:0;line-height:1.45}
 .loading{display:flex;flex-direction:column;align-items:center;gap:12px;color:var(--muted);padding:70px 20px;font-size:.9rem}
 .spinner{width:26px;height:26px;border:3px solid var(--line);border-top-color:var(--xur);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -204,10 +208,10 @@ input{font-family:inherit}
 .ref{font-family:var(--mono);font-size:.62rem;color:var(--faint)}
 
 /* ---------------- solutions ---------------- */
-.secrow{display:flex;align-items:baseline;gap:8px;margin:12px 2px 2px}
+.secrow{display:flex;align-items:baseline;gap:8px;margin:16px 2px 7px}
 .sech{font-size:.82rem;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--muted);margin:0}
 .secn{font-family:var(--mono);font-size:.72rem;color:var(--faint)}
-.sollist{display:flex;flex-direction:column;gap:10px}
+.sollist{display:flex;flex-direction:column;gap:9px}
 .solrow{display:flex;align-items:center;gap:13px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:13px 15px;box-shadow:var(--sh-sm);transition:border-color .15s,transform .06s}
 .solrow:hover{border-color:var(--hair)}.solrow:active{transform:translateY(1px)}
 .solm{flex:1;min-width:0}
@@ -217,13 +221,27 @@ input{font-family:inherit}
 .solasks.quiet{color:var(--faint)}
 .solend{display:flex;align-items:center;gap:8px;color:var(--faint)}
 .solend svg{width:19px;height:19px}
-.catgrid{display:grid;grid-template-columns:1fr;gap:12px}
-.app.wide .catgrid{grid-template-columns:1fr 1fr}
-.catcard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:15px;display:flex;flex-direction:column;gap:11px;box-shadow:var(--sh-sm)}
+.catgrid{display:grid;grid-template-columns:1fr;gap:9px}
+/* One tappable row, not a card with a full width button under it. Four of
+   those filled the screen with four buttons that all said the same thing, and
+   the card itself did nothing, which is the first thing anybody tries. */
+.catcard{width:100%;text-align:start;background:var(--surface);border:1px solid var(--line);
+  border-radius:15px;padding:12px;display:flex;align-items:flex-start;gap:12px;
+  box-shadow:var(--sh-sm);transition:border-color .15s,transform .06s}
+.catcard:active{transform:scale(.995)}
+.catcard:hover{border-color:var(--xur)}
+.catcard>.mark{flex:none}
 .cattop{display:flex;align-items:center;gap:12px}
-.catm{min-width:0}.catn{font-weight:650;font-size:1.02rem;letter-spacing:-.01em}
+.catm{min-width:0;flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:start}
+.catgo{flex:none;align-self:center;width:18px;height:18px;color:var(--faint);display:grid;place-items:center}
+.catcard .catgo svg{width:18px;height:18px}
+[dir="rtl"] .catgo svg{transform:scaleX(-1)}
+.app.wide .catgrid{grid-template-columns:1fr 1fr}
+
+
+.catn{font-weight:650;font-size:.98rem;letter-spacing:-.01em}
 .catmeta{color:var(--faint);font-size:.76rem;font-family:var(--mono)}
-.catd{color:var(--muted);font-size:.86rem;margin:0;flex:1;line-height:1.45}
+.catd{color:var(--muted);font-size:.83rem;margin:2px 0 0;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 
 /* solution detail */
 .back{display:inline-flex;align-items:center;gap:2px;background:transparent;border:0;color:var(--muted);font-weight:600;font-size:.88rem;padding:2px 0 2px;margin-bottom:2px}
@@ -262,17 +280,17 @@ input{font-family:inherit}
 
 /* ---------------- sign in ---------------- */
 .signin{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;
-  gap:15px;padding:30px 26px;max-width:400px;margin:0 auto;width:100%}
-.signin-mk{width:66px;height:66px;color:var(--xur);margin:0 auto}
+  gap:13px;padding:26px 24px;max-width:360px;margin:0 auto;width:100%}
+.signin-mk{width:54px;height:54px;color:var(--xur);margin:0 auto}
 .signin-mk svg{width:100%;height:100%}
-.signin h1{font-family:var(--serif);font-weight:600;font-size:1.85rem;margin:0;text-align:center;letter-spacing:-.01em}
-.signin-motto{font-family:var(--serif);font-style:italic;color:var(--faint);font-size:1.02rem;text-align:center;margin:-6px 0 6px;line-height:1.4}
+.signin h1{font-family:var(--serif);font-weight:600;font-size:1.6rem;margin:0;text-align:center;letter-spacing:-.01em}
+.signin-motto{font-family:var(--serif);font-style:italic;color:var(--faint);font-size:.95rem;text-align:center;margin:-5px 0 4px;line-height:1.4}
 .field{display:flex;flex-direction:column;gap:6px}
 .field label{font-size:.78rem;font-weight:600;color:var(--muted)}
 .field input{border:1px solid var(--line);background:var(--surface);color:var(--ink);
-  border-radius:12px;padding:11px 13px;
+  border-radius:11px;padding:9px 12px;
   /* 16px exactly: iOS zooms the whole page when a focused field is smaller */
-  font-size:16px;line-height:1.3}
+  font-size:16px;line-height:1.25}
 .signin-note{display:flex;align-items:center;justify-content:center;gap:7px;color:var(--faint);font-size:.78rem}
 .signin-note svg{width:16px;height:16px}
 
@@ -511,14 +529,18 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .signin-lead{display:flex;flex-direction:column;gap:4px;margin:2px 0 16px;text-align:center;max-width:34ch}
 .signin-lead b{font-size:1.02rem;font-weight:650;color:var(--ink)}
 .signin-lead span{color:var(--muted);font-size:.9rem;line-height:1.5}
-.signin-err{width:100%;max-width:340px;margin:0 0 12px;padding:10px 13px;border-radius:12px;
+.signin-err{width:100%;max-width:300px;margin:0 0 12px;padding:10px 13px;border-radius:12px;
   background:var(--sv-bg);color:var(--sv);font-size:.87rem;line-height:1.45;
   border:1px solid color-mix(in srgb,var(--sv) 30%,transparent);animation:cardin .25s ease both}
 .signin .btn .tic{display:grid;place-items:center}
 .signin .btn .tic svg{width:17px;height:17px}
 
 /* ---- one field for an email or a number ---- */
-.idfield{width:100%;max-width:340px}
+/* The field, the button under it and the message above it are one column and
+   the same width. It is 300 rather than the full screen because a thumb reaches
+   the middle of a phone, not its edges, and a line of text that runs the whole
+   width of the glass reads like a form. */
+.idfield{width:100%;max-width:300px}
 .idwrap{display:flex;align-items:stretch;gap:0;width:100%}
 .idwrap input{flex:1;min-width:0}
 .idwrap.phone input{border-start-start-radius:0;border-end-start-radius:0;border-inline-start:0}
@@ -555,13 +577,13 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 [dir="rtl"] .ccrow .ccdial,[dir="rtl"] .cc .ccdial{direction:ltr;unicode-bidi:embed}
 
 /* the head of the identifier field: a flag, or what sort of address this is */
-.idlead{display:grid;place-items:center;flex:none;width:44px;
+.idlead{display:grid;place-items:center;flex:none;width:40px;
   border:1px solid var(--line);border-inline-end:0;
   border-radius:12px;border-start-end-radius:0;border-end-end-radius:0;
   background:var(--sunken);color:var(--faint);transition:color .18s,background .18s}
 .idlead svg{width:18px;height:18px}
-.idlead.personal{color:var(--lo);background:var(--lo-bg)}
-.idlead.work{color:var(--me);background:var(--me-bg)}
+.idlead.lead-personal{color:var(--lo);background:var(--lo-bg)}
+.idlead.lead-work{color:var(--me);background:var(--me-bg)}
 .idwrap.mail input{border-start-start-radius:0;border-end-start-radius:0;border-inline-start:0}
 [dir="rtl"] .idlead{border-inline-end:1px solid var(--line);border-inline-start:0;
   border-start-start-radius:0;border-end-start-radius:0;border-start-end-radius:12px;border-end-end-radius:12px}
@@ -666,8 +688,8 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 /* ---- what is waiting, at a glance ---- */
 .sevbar{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;margin:-2px 0 2px}
 .sevbar::-webkit-scrollbar{display:none}
-.sevcount{display:inline-flex;align-items:baseline;gap:6px;flex:none;border:1px solid var(--line);
-  background:var(--surface);border-radius:12px;padding:7px 12px;font-size:.76rem;font-weight:600;
+.sevcount{display:inline-flex;align-items:baseline;gap:5px;flex:none;border:1px solid var(--line);
+  background:var(--surface);border-radius:999px;padding:5px 11px;font-size:.74rem;font-weight:600;
   color:var(--muted);transition:border-color .15s,background .15s}
 .sevcount b{font-size:1.02rem;font-weight:700;color:var(--c);font-variant-numeric:tabular-nums}
 .sevcount.on{border-color:var(--c);background:var(--b);color:var(--c)}
@@ -676,11 +698,11 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
    A row of chips that scrolls sideways is a bad answer on a phone, because the
    chip you want is always the one just off the edge. Two buttons that open a
    list of checkboxes fit any number of solutions without moving anything. */
-.fbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:relative;z-index:5}
+.fbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;position:relative;z-index:5;margin-bottom:10px}
 .fdrop{position:relative;flex:1 1 0;min-width:0}
-.fbtn{width:100%;display:flex;align-items:center;gap:7px;min-width:0;
+.fbtn{width:100%;display:flex;align-items:center;gap:6px;min-width:0;
   border:1px solid var(--line);background:var(--surface);color:var(--muted);
-  border-radius:12px;padding:9px 11px;font-size:.84rem;font-weight:600;
+  border-radius:999px;padding:6px 11px;font-size:.79rem;font-weight:600;
   transition:border-color .15s,background .15s,color .15s}
 .fbtn .flab{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start}
 .fbtn.on{border-color:var(--xur);background:var(--xur-soft);color:var(--xur-ink)}
@@ -723,14 +745,16 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .agrps{display:flex;flex-direction:column;gap:11px}
 .agrp{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface-2);
   border-inline-start:3px solid var(--sev);overflow:hidden}
-.ghead{display:flex;align-items:center;gap:10px;padding:11px 10px 0 12px}
+.ghead{display:flex;align-items:center;gap:9px;padding:10px 8px 10px 11px}
 .gav{flex:none}
 .gm{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
-.gtog{max-width:100%;min-width:0;display:flex;flex-direction:column;gap:0;align-items:flex-start;
+.gtog{flex:1;max-width:100%;min-width:0;display:flex;flex-direction:column;gap:1px;align-items:flex-start;
   background:transparent;border:0;padding:0;text-align:start;color:inherit}
-.gname{font-size:1rem;font-weight:650;color:var(--ink);overflow:hidden;
-  text-overflow:ellipsis;white-space:nowrap}
-.gcount{font-size:.77rem;color:var(--faint);font-weight:550}
+.gname{font-size:.97rem;font-weight:650;color:var(--ink);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+/* the count and where it came from, on one line: two facts, one row */
+.gcount{display:flex;align-items:center;gap:7px;font-size:.76rem;color:var(--faint);font-weight:550;
+  max-width:100%;min-width:0}
 .gchev{flex:none;width:32px;height:32px;border-radius:10px;border:1px solid transparent;
   background:transparent;display:grid;place-items:center;color:var(--faint);
   transform:rotate(90deg);transition:transform .2s ease,background .15s}
@@ -738,10 +762,13 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .gchev svg{width:18px;height:18px}
 .agrp.open .gchev{transform:rotate(-90deg)}
 /* the solution, said properly: its mark, its name, and a way into it */
-.gsol{flex:none;max-width:100%;display:inline-flex;align-items:center;gap:6px;min-width:0;
-  border:1px solid var(--line);background:var(--surface);border-radius:999px;
-  padding:4px 9px 4px 5px;color:var(--muted);font-size:.78rem;font-weight:600;
-  transition:border-color .15s,color .15s,background .15s}
+.gsol{flex:0 1 auto;min-width:0;display:inline-flex;align-items:center;gap:2px;
+  border:0;background:transparent;padding:0;color:var(--muted);font-size:.76rem;font-weight:600;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .15s}
+.gsol:hover{color:var(--xur-ink)}
+.gsol svg{width:13px;height:13px;flex:none;opacity:.7}
+.gcount .gsol::before{content:"";width:3px;height:3px;border-radius:99px;background:currentColor;
+  opacity:.5;margin-inline-end:5px;flex:none}
 .gsol:hover{border-color:var(--xur);color:var(--xur-ink);background:var(--xur-soft)}
 .gsoln{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
 .gsolgo{flex:none;width:13px;height:13px;display:grid;place-items:center;opacity:.6}
@@ -751,12 +778,34 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .gbar{display:flex;height:5px;border-radius:99px;overflow:hidden;background:var(--sunken)}
 .gbar i{background:var(--c);min-width:5px}
 .gtags{display:flex;gap:5px;flex-wrap:wrap}
-.gtag{display:inline-flex;align-items:baseline;gap:4px;border-radius:999px;
+
+/* ---- what you decided, in two seconds, and the way into the detail ---- */
+.asum{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface-2);
+  padding:12px 12px 11px;margin-bottom:12px;display:flex;flex-direction:column;gap:10px}
+.asum-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.asum-all{display:flex;align-items:baseline;gap:6px;border:0;background:transparent;padding:0;
+  color:var(--ink);border-radius:10px}
+.asum-all b{font-size:1.5rem;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.asum-all span{font-size:.8rem;color:var(--faint);font-weight:600}
+.asum-all.on b{color:var(--xur)}
+.asum-chips{display:flex;gap:6px;flex-wrap:wrap;margin-inline-start:auto}
+.asum-chip{display:inline-flex;align-items:baseline;gap:5px;border:1px solid var(--line);
+  background:var(--surface);border-radius:999px;padding:4px 10px;color:var(--muted);
+  font-size:.74rem;font-weight:600;transition:border-color .15s,color .15s,background .15s}
+.asum-chip b{font-variant-numeric:tabular-nums;font-size:.86rem;color:var(--ink)}
+.asum-chip.on{border-color:var(--xur);background:var(--xur-soft);color:var(--xur-ink)}
+.asum-chip.on b{color:var(--xur-ink)}
+.asum-facts{display:flex;gap:14px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:9px}
+.asum-fact{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--faint)}
+.asum-fact svg{width:14px;height:14px;flex:none}
+.asum-fact.heavy{color:var(--hi)}
+.gtag{flex:none;display:inline-flex;align-items:baseline;gap:4px;border-radius:999px;
   padding:3px 9px;font-size:.72rem;font-weight:600;color:var(--c);background:var(--b);
   border:1px solid color-mix(in oklab,var(--c) 30%,transparent)}
+.gtag i{font-style:normal;opacity:.65;font-size:.68rem}
 .gtag b{font-size:.82rem;font-weight:750;font-variant-numeric:tabular-nums}
 
-.gopen{padding:0 12px 12px;display:flex;flex-direction:column;gap:9px;
+.gopen{padding:0 11px 11px;display:flex;flex-direction:column;gap:8px;
   animation:cardin .22s ease both}
 .gbulk{display:flex;gap:6px;flex-wrap:wrap}
 .gb{flex:1 1 0;min-width:80px;border:1px solid var(--line);background:var(--surface);
@@ -868,13 +917,13 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 /* one column width for everything asked for, so the fields read as a set
    rather than a wide box with a narrow button under it */
 .signin .field,.signin .btn,.signin .recents,.signin .signin-err,
-.signin .signin-lead,.signin .hnote,.signin .idhint{max-width:320px;width:100%}
-.signin .idfield{max-width:320px}
+.signin .signin-lead,.signin .hnote,.signin .idhint{max-width:300px;width:100%}
+.signin .idfield{max-width:300px}
 
 /* The state of the world, stated on the sign in screen. A notice, not a wall:
    someone who has been here before can still get in. */
-.hnote{display:flex;gap:10px;align-items:flex-start;width:100%;max-width:320px;
-  padding:11px 13px;border-radius:14px;text-align:start;
+.hnote{display:flex;gap:9px;align-items:flex-start;width:100%;max-width:300px;
+  padding:10px 12px;border-radius:13px;text-align:start;font-size:.85rem;
   border:1px solid color-mix(in oklab,var(--warn) 38%,transparent);
   background:color-mix(in oklab,var(--warn) 12%,var(--card))}
 .hnote .tic{flex:none;width:18px;height:18px;color:var(--warn);margin-top:1px}

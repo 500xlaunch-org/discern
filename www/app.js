@@ -13,12 +13,14 @@
  */
 "use strict";
 
-const { t, tn, tAgo, tSpan, tWhen, tList, tCat, setCatNames, tSev, tWhy, isRTL, LANGS } = window.I18N;
+const { t, tn, tAgo, tSpan, tWhen, tList, tCat, setCatNames, tSev, tWhy, isRTL, LANGS, fmtNum } = window.I18N;
 const Net = window.Net;
 
 /* ---------------- icons ---------------- */
 const MK = `<svg class="mk" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><path class="wave" d="M 28 160 C 59.9 160, 54.1 96, 86 96 C 117.9 96, 112.1 160, 144 160 C 160 160, 166 156, 166 128"/><circle cx="200" cy="128" r="34"/></svg>`;
 const I = {
+  clock:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.4V12l3.4 2"/></svg>`,
+  alert:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5 20.5 19H3.5z"/><path d="M12 10v3.4M12 16.3h.01"/></svg>`,
   inbox:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h5l1.5 3h5L16 12h5"/><path d="M5 12l1.8-6.5A2 2 0 0 1 8.7 4h6.6a2 2 0 0 1 1.9 1.5L19 12v6a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/></svg>`,
   activity:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3.5l2 6 3.5-13 2.5 9 1.8-4H21"/></svg>`,
   solutions:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg>`,
@@ -165,6 +167,8 @@ function loadPrefs(){
     // which agent groups and which individual actions are unfolded
     open:{ g:{}, a:{} },
     summary:null, focus:null, confirm:null, envAsk:false, solAgent:null,
+    // which answer the activity screen is narrowed to, from its own summary
+    actState:null,
     // sign in walks: identifier, then a password or a name, never both at once
     signin:{ step:"id", id:"", busy:false, error:"",
              // the field decides for itself which of the two it is holding
@@ -821,7 +825,7 @@ function paintNet(){
 
 /* ---- skeletons: a shape that is about to be filled, not a spinner ---- */
 function skeletonHTML(){
-  return `<div class="scrhead"><span class="sk sk-eyebrow"></span><span class="sk sk-h1"></span><span class="sk sk-sub"></span></div>
+  return `<div class="scrhead"><span class="sk sk-h1"></span><span class="sk sk-sub"></span></div>
   <div class="cards">${[0,1,2].map(i=>`<article class="icard sk-card" style="--d:${i*90}ms">
     <div class="icard-top"><span class="sk sk-logo"></span><div class="iwho"><span class="sk sk-line w60"></span><span class="sk sk-line w40"></span></div></div>
     <span class="sk sk-line w80 tall"></span>
@@ -946,27 +950,37 @@ function breakdownHTML(counts){
   </div>`;
 }
 
+/** The severity mix of a group, as one small chip rather than a bar and a row
+ * of tags. The worst one is what decides whether somebody opens this now. */
+function compactCounts(counts){
+  const has = ["SEVERE", "HIGH", "MEDIUM", "LOW"].filter((lv) => counts[lv]);
+  if (!has.length) return "";
+  const worst = has[0];
+  const rest = has.slice(1).reduce((n, lv) => n + counts[lv], 0);
+  return `<span class="gtag" style="--c:${sevColor(worst)};--b:${sevBg(worst)}">
+    <b>${counts[worst]}</b>${esc(tSev(worst))}${rest ? `<i>+${rest}</i>` : ""}</span>`;
+}
+
 function groupHTML(g, i){
   const M = window.Marks, open = groupOpen(g, i), n = g.items.length;
-  const ids = g.items.map((x) => x.id);
+  // Who is asking, from where, and how serious, on one line each. This used to
+  // be an avatar, a name, a count, a solution button and a row of risk pills
+  // stacked five deep, which is two hundred pixels of preamble before the
+  // question underneath it.
   return `<section class="agrp ${open ? "open" : ""}" data-gkey="${esc(g.key)}"
       style="--sev:${sevColor(g.worst)};--sevb:${sevBg(g.worst)}">
     <div class="ghead">
-      <span class="gav">${M.agent(g.agent, 44)}</span>
-      <div class="gm">
-        <button class="gtog" data-gtog="${esc(g.key)}" aria-expanded="${open}">
-          <b class="gname">${esc(g.agent)}</b>
-          <small class="gcount">${esc(t("cl.waiting", { n }))}</small>
-        </button>
-        <button class="gsol" data-gosol="${esc(g.solution.uid || "")}" data-goag="${esc(g.agent)}">
-          ${M.solution(g.solution, 18)}<span class="gsoln">${esc(g.solution.name || "")}</span>
-          <span class="gsolgo">${I.chevron}</span>
-        </button>
-      </div>
+      <span class="gav">${M.agent(g.agent, 32)}</span>
+      <button class="gtog" data-gtog="${esc(g.key)}" aria-expanded="${open}">
+        <b class="gname">${esc(g.agent)}</b>
+        <small class="gcount">${esc(t("cl.waiting", { n }))}
+          <button type="button" class="gsol" data-gosol="${esc(g.solution.uid || "")}" data-goag="${esc(g.agent)}">
+            ${esc(g.solution.name || "")}${I.chevron}</button></small>
+      </button>
+      ${compactCounts(g.counts)}
       <button class="gchev" data-gtog="${esc(g.key)}" aria-expanded="${open}"
               aria-label="${esc(t(open ? "act.less" : "act.more"))}">${I.chevron}</button>
     </div>
-    ${breakdownHTML(g.counts)}
     ${open ? `<div class="gopen">
       ${n > 1 ? `<div class="gbulk">
         <button class="gb deny" data-gdec="deny" data-gkey="${esc(g.key)}">${esc(t("grp.denyAll"))}</button>
@@ -1062,10 +1076,29 @@ function askHTML(){
     </div></div>`;
 }
 
+
+/* ---- the head of a screen ----
+ *
+ * One line, and a second only when it is carrying the state of something.
+ *
+ * Every screen used to open with a monospace eyebrow, a 1.6rem title and a
+ * sentence under it: a hundred and fifty pixels of chrome before the first
+ * thing you could act on, on a device where the whole screen is eight hundred.
+ * On the inbox the title was the app's own name, which the bar directly above
+ * it already said. This is a phone somebody pulls out to answer one question,
+ * so the question gets the room.
+ */
+function scrHead(title, state, opts = {}){
+  return `<div class="scrhead ${opts.class || ""}">
+    <h1>${esc(title)}</h1>
+    ${state ? `<p class="sub">${state}</p>` : ""}
+    ${opts.right || ""}
+  </div>`;
+}
+
 function inboxHTML(){
   const n = S.inboxTotal || S.intents.length;
-  const head = `<div class="scrhead"><span class="eyebrow">${esc(t("inbox.eyebrow"))}</span><h1>${esc(t("inbox.title"))}</h1>
-    <p class="sub">${esc(n?tn("inbox.sub",n):t("inbox.caughtUp"))}</p></div>`;
+  const head = scrHead(n ? tn("inbox.sub", n) : t("inbox.caughtUp"), "", { class: "lead" });
   const filtering = !!(S.filter.solutions.length || S.filter.severities.length);
   if (!S.intents.length) {
     if (filtering) return head + filterBarHTML() + `<div class="empty"><div class="empty-mk">${I.solutions}</div>
@@ -1125,7 +1158,7 @@ function focusHTML(){
   const list = focusList();
   const it = list[S.focus.at];
   if (!it) {
-    return `<div class="scrhead"><span class="eyebrow">${esc(t("inbox.eyebrow"))}</span><h1>${esc(t("inbox.title"))}</h1></div>
+    return `<div class="scrhead lead"><h1>${esc(t("inbox.title"))}</h1></div>
       <div class="empty"><div class="empty-mk">${MK}</div>
       <div class="empty-t">${esc(t("cl.done"))}</div>
       <button class="btn btn-primary" data-focus-exit>${esc(t("cl.back"))}</button></div>`;
@@ -1169,31 +1202,80 @@ function waited(it){
 }
 
 function activityHTML(){
-  const head = `<div class="scrhead"><span class="eyebrow">${esc(t("activity.eyebrow"))}</span><h1>${esc(t("activity.title"))}</h1>
-    <p class="sub">${esc(t("activity.sub"))}</p></div>`;
   // answers only. Something that ran without asking was never a decision, and
   // something still waiting belongs to Discern, not to a record of what was said.
   const done = (S.timeline || []).filter((it) => ANSWERED.has(it.state));
+  const head = scrHead(t("activity.title"), esc(t("activity.sub")));
   if (!done.length) return head + `<div class="empty"><div class="empty-mk">${I.activity}</div>
     <div class="empty-t">${esc(t("activity.empty"))}</div></div>`;
-  return head + `<div class="agrps">${decidedGroups(done).map(tlGroupHTML).join("")}</div>` + moreHTML("activity");
+
+  // what the filter is narrowed to, if anything
+  const only = S.actState;
+  const shown = only ? done.filter((it) => it.state === only) : done;
+  return head + actSummaryHTML(done)
+    + (shown.length
+        ? `<div class="agrps">${decidedGroups(shown).map(tlGroupHTML).join("")}</div>`
+        : `<div class="empty"><div class="empty-t">${esc(t("flt.none"))}</div>
+            <button class="btn btn-ghost" data-astate="">${esc(t("flt.clear"))}</button></div>`)
+    + (only ? "" : moreHTML("activity"));
+}
+
+/** A counted phrase with the number taken out, because the number is already
+ * set in 24 point next to it. Falls back to the whole phrase in a language
+ * that does not put the number at the front. */
+function countWord(key, n){
+  const whole = tn(key, n), num = fmtNum(n);
+  const without = whole.replace(num, "").trim();
+  return without || whole;
+}
+
+/** The summary somebody reads in two seconds, and drills through.
+ *
+ * A record of every answer is the point of this screen, and a list of a hundred
+ * of them answers no question anybody actually has. The questions are: how many
+ * did I answer, how did I answer them, how serious were they, and how long did
+ * the agent wait on me. Each number here narrows the list under it, which is
+ * the drill: the summary is not a separate report, it is the way in. */
+function actSummaryHTML(done){
+  const by = { approved: 0, denied: 0, reflected: 0, edited: 0 };
+  let heavy = 0, waits = [];
+  for (const it of done) {
+    if (by[it.state] != null) by[it.state]++;
+    if (it.severity === "SEVERE" || it.severity === "HIGH") heavy++;
+    const a = iAnswered(it), b = iAt(it);
+    if (a && b && a >= b) waits.push(a - b);
+  }
+  waits.sort((x, y) => x - y);
+  const median = waits.length ? waits[Math.floor(waits.length / 2)] : null;
+  const chip = (state, n) => n
+    ? `<button class="asum-chip ${S.actState === state ? "on" : ""} st-${state}" data-astate="${state}">
+         <b>${n}</b><span>${esc(stateLabel(state))}</span></button>`
+    : "";
+  return `<section class="asum">
+    <div class="asum-top">
+      <button class="asum-all ${S.actState ? "" : "on"}" data-astate="">
+        <b>${fmtNum(done.length)}</b><span>${esc(countWord("act.answers", done.length))}</span>
+      </button>
+      <div class="asum-chips">${["approved", "edited", "reflected", "denied"].map((k) => chip(k, by[k])).join("")}</div>
+    </div>
+    <div class="asum-facts">
+      ${median != null ? `<span class="asum-fact">${I.clock}<span>${esc(t("act.speed", { span: tSpan(median) }))}</span></span>` : ""}
+      ${heavy ? `<span class="asum-fact heavy">${I.alert}<span>${esc(tn("act.heavy", heavy))}</span></span>` : ""}
+    </div>
+  </section>`;
 }
 
 function tlGroupHTML(g, i){
   const M = window.Marks, open = groupOpen(g, i);
   return `<section class="agrp tlgrp ${open ? "open" : ""}" data-gkey="${esc(g.key)}">
     <div class="ghead">
-      <span class="gav">${M.agent(g.agent, 40)}</span>
-      <div class="gm">
-        <button class="gtog" data-gtog="${esc(g.key)}" aria-expanded="${open}">
-          <b class="gname">${esc(g.agent)}</b>
-          <small class="gcount">${esc(tn("act.answers", g.items.length))}</small>
-        </button>
-        <button class="gsol" data-gosol="${esc(g.solution.uid || "")}" data-goag="${esc(g.agent)}">
-          ${M.solution(g.solution, 18)}<span class="gsoln">${esc(g.solution.name || "")}</span>
-          <span class="gsolgo">${I.chevron}</span>
-        </button>
-      </div>
+      <span class="gav">${M.agent(g.agent, 32)}</span>
+      <button class="gtog" data-gtog="${esc(g.key)}" aria-expanded="${open}">
+        <b class="gname">${esc(g.agent)}</b>
+        <small class="gcount">${esc(tn("act.answers", g.items.length))}
+          <button type="button" class="gsol" data-gosol="${esc(g.solution.uid || "")}" data-goag="${esc(g.agent)}">
+            ${esc(g.solution.name || "")}${I.chevron}</button></small>
+      </button>
       <button class="gchev" data-gtog="${esc(g.key)}" aria-expanded="${open}"
               aria-label="${esc(t(open ? "act.less" : "act.more"))}">${I.chevron}</button>
     </div>
@@ -1273,7 +1355,7 @@ const VKIND = {
 
 function vaultHTML(){
   const V = window.Vault, st = V ? V.state : { exists:false };
-  const head = `<div class="scrhead"><span class="eyebrow">${esc(t("v.eyebrow"))}</span><h1>${esc(t("nav.vault"))}</h1>
+  const head = `<div class="scrhead"><h1>${esc(t("nav.vault"))}</h1>
     <p class="sub">${esc(t("v.sub"))}</p></div>`;
   if (!st.exists) return head + vaultSetupHTML();
   if (!st.unlocked) return head + vaultLockedHTML();
@@ -1608,12 +1690,12 @@ function solutionsHTML(){
   if (S.review) return reviewHTML();
   if (S.selectedSol){ const s=S.solutions.find(x=>x.uid===S.selectedSol); if (s) return soldetailHTML(s); S.selectedSol=null; }
   const connected = S.solutions, cat = S.catalog;
-  let html = `<div class="scrhead"><span class="eyebrow">${esc(t("sol.eyebrow"))}</span><h1>${esc(t("sol.title"))}</h1><p class="sub">${esc(t("sol.sub"))}</p></div>`;
+  let html = scrHead(t("sol.title"), esc(t("sol.sub")));
   html += `<div class="secrow"><h2 class="sech">${esc(t("sol.connected"))}</h2><span class="secn">${connected.length}</span></div>`;
   if (!connected.length) html += `<div class="thin-empty">${esc(t("sol.none"))}</div>`;
   else html += `<div class="sollist">${connected.map(solrowHTML).join("")}</div>`;
   if (cat.length){
-    html += `<div class="secrow" style="margin-top:22px"><h2 class="sech">${esc(t("sol.catalog"))}</h2></div>`;
+    html += `<div class="secrow"><h2 class="sech">${esc(t("sol.catalog"))}</h2><span class="secn">${cat.length}</span></div>`;
     html += `<div class="catgrid">${cat.map(catcardHTML).join("")}</div>`;
   }
   return html;
@@ -1629,12 +1711,22 @@ function solrowHTML(s){
     <div class="solend"><span class="stpill st-${s.status}">${esc(linkLabel(s.status))}</span>${I.chevron}</div>
   </button>`;
 }
+/** One row per thing you could connect.
+ *
+ * The whole row is the way in, rather than a card with a full width button
+ * under it. Four of those filled a phone screen with four buttons that all said
+ * the same thing, and the card itself was not tappable, which is the first
+ * thing anybody tries. */
 function catcardHTML(c){
-  return `<div class="catcard">
-    <div class="cattop">${window.Marks.solution(c, 42)}<div class="catm"><div class="catn">${esc(c.name)}</div>${c.agents?`<div class="catmeta">${esc(tn("sol.agents",c.agents.length))}</div>`:''}</div></div>
-    <p class="catd">${esc(c.description||"")}</p>
-    <button class="btn btn-primary block" data-review="${c.uid}">${I.shield}<span>${esc(t("sol.seeWhat"))}</span></button>
-  </div>`;
+  return `<button class="catcard" data-review="${c.uid}">
+    ${window.Marks.solution(c, 38)}
+    <div class="catm">
+      <div class="catn">${esc(c.name)}</div>
+      ${c.agents ? `<div class="catmeta">${esc(tn("sol.agents", c.agents.length))}</div>` : ""}
+      <p class="catd">${esc(c.description || "")}</p>
+    </div>
+    <span class="catgo">${I.chevron}</span>
+  </button>`;
 }
 /** How the agents in a solution relate, drawn from what the developer declared.
  * Horizon records agents in the order they were declared and the abilities each
@@ -1762,7 +1854,7 @@ function settingsHTML(){
   const conn = S.mode==="connected" ? `${t("set.live")} at ${BASE.replace(/^https?:\/\//,"")}`
     : S.mode==="degraded" ? `${t("set.offline")}, ${t("net.synced",{ago:tAgo(S.net.lastSync)})}` : t("net.demo");
   const p = S.push;
-  return `<div class="scrhead"><span class="eyebrow">${esc(t("set.eyebrow"))}</span><h1>${esc(t("set.title"))}</h1></div>
+  return `<div class="scrhead"><h1>${esc(t("set.title"))}</h1></div>
   <section class="panel">
     <div class="kv"><span>${esc(t("set.signedIn"))}</span><b>${esc((S.user&&S.user.name)||t("set.you"))}</b></div>
     <div class="kv"><span>${esc(t("set.email"))}</span><b>${esc((S.user&&S.user.email)||"")}</b></div>
@@ -1986,7 +2078,11 @@ function idLeadHTML(){
   const kind = st.kind === "email" ? P.emailKind(st.id) : "empty";
   const icon = kind === "personal" ? I.person : kind === "work" ? I.work : I.at;
   const label = kind === "personal" ? t("signin.personal") : kind === "work" ? t("signin.work") : "";
-  return `<span class="idlead ${kind}" title="${esc(label)}" aria-label="${esc(label)}">${icon}</span>`;
+  // the modifier is prefixed on purpose: this used to emit class="idlead empty"
+  // for an address nobody had typed yet, which picked up the app's own .empty
+  // style and gave the field 48px of padding, so the box stood four times
+  // taller than it should on a phone.
+  return `<span class="idlead lead-${kind}" title="${esc(label)}" aria-label="${esc(label)}">${icon}</span>`;
 }
 
 /** Everything that changes what the head of the field looks like. Rendering is
@@ -2185,6 +2281,9 @@ function wire(){
     if(dp){ const w=dp.dataset.drop; S.drop = S.drop===w ? null : w; render(); return; }
     const fs = el.closest("[data-fsol]");
     if(fs){ toggleFilter("solutions", fs.dataset.fsol); return; }
+    const ast = el.closest("[data-astate]");
+    if (ast) { S.actState = ast.dataset.astate || null; render(); return; }
+
     const fv = el.closest("[data-fsev]");
     if(fv){ toggleFilter("severities", fv.dataset.fsev); return; }
     if(el.closest("[data-fclear]")){ S.filter={solutions:[],severities:[]}; S.drop=null; savePrefs(); applyFilter(); return; }
