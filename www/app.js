@@ -958,6 +958,16 @@ function breakdownHTML(counts){
   </div>`;
 }
 
+/** Everything a group is waiting on, as one shape: the worst score each
+ * category reached across all of it. */
+function groupRisk(items){
+  const out = {};
+  for (const it of items) for (const [k, v] of Object.entries(it.risk || {})) {
+    if (!out[k] || ORD[v] > ORD[out[k]]) out[k] = v;
+  }
+  return out;
+}
+
 /** The severity mix of a group, as one small chip rather than a bar and a row
  * of tags. The worst one is what decides whether somebody opens this now. */
 function compactCounts(counts){
@@ -1012,7 +1022,7 @@ function actionRowHTML(it){
       data-aid="${it.id}" style="--sev:${sevColor(it.severity)};--sevb:${sevBg(it.severity)}">
     <div class="atop">
       <button class="aopen" data-aask="${it.id}">
-        <span class="adot"></span>
+        <span class="aglyph">${riskGlyph(it.risk, 28, it.severity)}</span>
         <span class="am"><b class="aname">${isCredAsk(it)
             ? esc(t("cred.wants", { what: credWhat(it) }))
             : esc(pretty(it.capability))}</b>
@@ -1051,12 +1061,121 @@ function askBodyHTML(it){
     ${rows ? `<div class="idetails">${rows}</div>` : ""}`;
 }
 
+/* ---- deciding: effort in proportion to the risk ----
+ *
+ * Saying no is always one tap, and so is asking for another way: stopping an
+ * agent is never the dangerous direction, and a person on a street corner
+ * should not have to work to do it.
+ *
+ * Saying yes takes as long as the thing is serious. Something low is a tap.
+ * Something medium is a short hold, something high a longer one, and something
+ * severe is a hold and then a face or a fingerprint. While the finger is down
+ * the ring from the mark fills, and letting go early lets it go. The effort
+ * somebody spends is the risk they are accepting, which is the one thing a
+ * confirm dialog, the same for everything, cannot say.
+ */
+const HOLD_MS = { LOW: 0, MEDIUM: 450, HIGH: 900, SEVERE: 900 };
+
+function holdBtnHTML(it, settling){
+  const ms = HOLD_MS[it.severity] ?? 900;
+  const label = ms ? t("card.holdApprove") : t("card.approve");
+  return `<button class="btn btn-primary holdbtn" data-hold="approve" data-id="${it.id}" data-ms="${ms}"
+      ${settling ? "disabled" : ""} aria-label="${esc(label)}">
+    ${ms ? `<svg class="holdring" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" class="hr-bg"/>
+      <circle cx="12" cy="12" r="9" class="hr-fg" pathLength="100"/></svg>` : ""}
+    <span>${esc(label)}</span></button>`;
+}
+
 function decideRowHTML(it, settling){
-  return `<div class="iacts three">
+  // the two easy answers side by side, and the one that takes effort under
+  // them, full width, where a thumb finds it and a hold has room to fill
+  return `<div class="iacts decide">
     <button class="btn btn-deny" data-decide="deny" data-id="${it.id}" ${settling?"disabled":""}>${esc(t("card.deny"))}</button>
     <button class="btn btn-reflect" data-decide="reflect" data-id="${it.id}" ${settling?"disabled":""}>${I.reflect}<span>${esc(t("card.reflect"))}</span></button>
-    <button class="btn btn-primary" data-decide="approve" data-id="${it.id}" ${settling?"disabled":""}>${esc(t("card.approve"))}</button>
+    ${holdBtnHTML(it, settling)}
   </div>`;
+}
+
+/* ---- the risk glyph ----
+ *
+ * Seven spokes, one per category of the taxonomy, each as long as that
+ * category scored, inside the ring from the mark. Every request draws its own
+ * shape, so what kind of risk it is reads at a glance and before a word of it:
+ * a long spoke at two o'clock is money, a long one at the top is somebody's
+ * identity. Categories a platform added go round after the seven.
+ */
+const GLYPH_ORDER = ["identity", "financial", "location", "intellectual", "conversation", "data", "system"];
+const SEV_LEN = { LOW: .34, MEDIUM: .58, HIGH: .82, SEVERE: 1 };
+function riskGlyph(risk, px, worst){
+  const keys = GLYPH_ORDER.concat(Object.keys(risk || {}).filter((k) => !GLYPH_ORDER.includes(k)));
+  const n = keys.length, r0 = 2.2, R = 9.2;
+  const spokes = keys.map((k, i) => {
+    const sev = (risk || {})[k];
+    const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
+    const len = sev ? r0 + (R - r0) * SEV_LEN[sev] : r0 + .6;
+    const x = 12 + Math.cos(a) * len, y = 12 + Math.sin(a) * len;
+    return sev
+      ? `<line x1="12" y1="12" x2="${x.toFixed(2)}" y2="${y.toFixed(2)}" stroke="${sevColor(sev)}" stroke-width="2.1" stroke-linecap="round"><title>${esc(tCat(k))}: ${esc(tSev(sev))}</title></line>`
+      : `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r=".7" fill="var(--faint)" opacity=".55"/>`;
+  }).join("");
+  const label = Object.entries(risk || {}).map(([k, v]) => `${tCat(k)} ${tSev(v)}`).join(", ");
+  return `<svg class="rglyph" viewBox="0 0 24 24" width="${px}" height="${px}" role="img" aria-label="${esc(label)}">
+    <circle cx="12" cy="12" r="10.6" fill="none" stroke="${worst ? sevColor(worst) : "var(--line)"}" stroke-width="1" opacity=".55"/>
+    ${spokes}<circle cx="12" cy="12" r="1.5" fill="var(--ink)"/></svg>`;
+}
+
+/* the hold itself, listened for on the document because render() replaces the
+   tree under it; and the keyboard, so holding Space or Enter does the same */
+const HOLD = { el: null, t0: 0, raf: 0, done: false };
+function holdStart(btn){
+  if (btn.disabled) return;
+  const ms = Number(btn.dataset.ms) || 0;
+  if (!ms) { holdFinish(btn); return; }
+  HOLD.el = btn; HOLD.t0 = performance.now(); HOLD.done = false;
+  btn.classList.add("holding");
+  const step = (now) => {
+    if (HOLD.el !== btn) return;
+    const p = Math.min(1, (now - HOLD.t0) / ms);
+    btn.style.setProperty("--p", String(p));
+    if (p >= 1) { HOLD.done = true; holdFinish(btn); return; }
+    HOLD.raf = requestAnimationFrame(step);
+  };
+  HOLD.raf = requestAnimationFrame(step);
+}
+function holdCancel(){
+  const btn = HOLD.el; if (!btn) return;
+  cancelAnimationFrame(HOLD.raf);
+  HOLD.el = null;
+  if (!HOLD.done) {
+    btn.classList.remove("holding");
+    btn.style.setProperty("--p", "0");
+    // a hold let go early says how it works, once, rather than doing nothing
+    if (!S.holdTold) { S.holdTold = true; toast(`<div class="tm">${esc(t("card.holdHint"))}</div>`); }
+  }
+}
+function holdFinish(btn){
+  cancelAnimationFrame(HOLD.raf);
+  HOLD.el = null;
+  btn.classList.remove("holding"); btn.classList.add("held");
+  try { navigator.vibrate && navigator.vibrate(18); } catch {}
+  decide(btn.dataset.id, "approve");
+}
+function wireHold(){
+  document.addEventListener("pointerdown", (e) => {
+    const b = e.target.closest && e.target.closest("[data-hold]");
+    if (!b || e.button > 0) return;
+    e.preventDefault(); holdStart(b);
+  });
+  for (const ev of ["pointerup", "pointercancel"]) document.addEventListener(ev, holdCancel);
+  document.addEventListener("pointerleave", (e) => { if (e.target === HOLD.el) holdCancel(); }, true);
+  document.addEventListener("contextmenu", (e) => { if (e.target.closest && e.target.closest("[data-hold]")) e.preventDefault(); });
+  document.addEventListener("keydown", (e) => {
+    if ((e.key === " " || e.key === "Enter") && !e.repeat) {
+      const b = document.activeElement && document.activeElement.closest && document.activeElement.closest("[data-hold]");
+      if (b) { e.preventDefault(); holdStart(b); }
+    }
+  });
+  document.addEventListener("keyup", (e) => { if (e.key === " " || e.key === "Enter") holdCancel(); });
 }
 
 /** An action opened on its own, over everything else.
@@ -1144,7 +1263,7 @@ function cardHTML(it){
         <div class="isol">${esc(sol.name || iName(it))}</div>
         <div class="iagent">${M.agent(iAgent(it), 20)}<span>${esc(iAgent(it))}</span></div>
       </div>
-      <span class="sevtag">${esc(tSev(it.severity))}</span>
+      <span class="iglyph">${riskGlyph(it.risk, 46, it.severity)}<span class="sevtag">${esc(tSev(it.severity))}</span></span>
     </div>
     <div class="iact">${esc(pretty(it.capability))}</div>
     ${askBodyHTML(it)}
@@ -1244,6 +1363,35 @@ function countWord(key, n){
  * did I answer, how did I answer them, how serious were they, and how long did
  * the agent wait on me. Each number here narrows the list under it, which is
  * the drill: the summary is not a separate report, it is the way in. */
+/** The pulse: your recent answers, oldest to newest, as the wave from the mark.
+ *
+ * Each answer is a point. How high it sits is how serious it was; its colour is
+ * what you said. The line through them is the shape of your week: a calm one is
+ * flat, a week of agents pushing at the edges is not. Tapping a point opens it.
+ */
+const ANS_COLOR = { approved: "var(--xur)", edited: "var(--me)", reflected: "var(--hi)", denied: "var(--sv)" };
+function pulseHTML(done){
+  const pts = done.slice(0, 40).reverse();
+  if (pts.length < 2) return "";
+  const W = 320, H = 64, pad = 8;
+  const x = (i) => pad + (i * (W - pad * 2)) / (pts.length - 1);
+  const y = (it) => H - pad - ((ORD[it.severity] ?? 1) / 3) * (H - pad * 2.4);
+  // a smooth curve through the points, so it reads as a wave and not a chart
+  let d = `M${x(0).toFixed(1)} ${y(pts[0]).toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) {
+    const mx = (x(i - 1) + x(i)) / 2;
+    d += ` C${mx.toFixed(1)} ${y(pts[i - 1]).toFixed(1)}, ${mx.toFixed(1)} ${y(pts[i]).toFixed(1)}, ${x(i).toFixed(1)} ${y(pts[i]).toFixed(1)}`;
+  }
+  return `<svg class="pulse" viewBox="0 0 ${W} ${H}" role="img"
+      aria-label="${esc(tn("act.answers", pts.length))}">
+    <line x1="${pad}" x2="${W - pad}" y1="${H - pad}" y2="${H - pad}" class="pbase"/>
+    <path d="${d}" class="pwave"/>
+    ${pts.map((it, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(it).toFixed(1)}" r="3.4"
+        fill="${ANS_COLOR[it.state] || "var(--faint)"}" class="ppt" data-open="${it.id}">
+        <title>${esc(pretty(it.capability))}: ${esc(stateLabel(it.state))}</title></circle>`).join("")}
+  </svg>`;
+}
+
 function actSummaryHTML(done){
   const by = { approved: 0, denied: 0, reflected: 0, edited: 0 };
   let heavy = 0, waits = [];
@@ -1260,6 +1408,7 @@ function actSummaryHTML(done){
          <b>${n}</b><span>${esc(stateLabel(state))}</span></button>`
     : "";
   return `<section class="asum">
+    ${pulseHTML(done)}
     <div class="asum-top">
       <button class="asum-all ${S.actState ? "" : "on"}" data-astate="">
         <b>${fmtNum(done.length)}</b><span>${esc(countWord("act.answers", done.length))}</span>
@@ -1297,7 +1446,7 @@ function tlRowHTML(it){
       style="--sev:${sevColor(it.severity)};--sevb:${sevBg(it.severity)}">
     <div class="atop">
       <button class="aopen" data-open="${it.id}">
-        <span class="adot"></span>
+        <span class="aglyph">${riskGlyph(it.risk, 28, it.severity)}</span>
         <span class="am"><b class="aname">${esc(pretty(it.capability))}</b>
           <small class="awhen">${esc(t("act.asked"))} ${esc(tAgo(iAt(it)))}${
             w ? `, ${esc(t("act.answeredIn", { span: w }))}` : ""}</small></span>
@@ -2514,7 +2663,7 @@ function wirePull(){
 /* ---- events ---- */
 function wire(){
   const root=document.getElementById("root");
-  if (!PULL.wired) { PULL.wired = true; wirePull(); }
+  if (!PULL.wired) { PULL.wired = true; wirePull(); wireHold(); }
   root.onclick = async e=>{
     const el=e.target;
     // An open menu closes on a tap anywhere else, but that tap still counts:
@@ -2530,8 +2679,12 @@ function wire(){
     const th=el.closest("[data-theme-set]"); if(th){ S.theme=th.dataset.themeSet; savePrefs(); applyTheme(); render(); return; }
     const dec=el.closest("[data-decide]");
     if(dec){ const id=dec.dataset.id;
+      // stopping, or asking for another way, is never the dangerous direction:
+      // one tap, no second question. Approving is held, elsewhere.
+      if (dec.dataset.decide === "deny" || dec.dataset.decide === "reflect") { decide(id, dec.dataset.decide); return; }
       const it=(S.intents||[]).find(x=>x.id===id);
       askConfirm(dec.dataset.decide, { id, label: it ? pretty(it.capability) : "" }); return; }
+    if(el.closest("[data-hold]")) return;          // handled by the hold, not by a click
     const mr=el.closest("[data-more]"); if(mr){ loadMore(mr.dataset.more); return; }
     if(el.closest("[data-retry]")){ retryNow(); return; }
     if(el.closest("[data-enablepush]")){ enablePush(); return; }

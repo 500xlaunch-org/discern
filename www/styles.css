@@ -1071,3 +1071,33 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .signin .legal{max-width:300px;width:100%;text-align:center;font-size:.74rem;color:var(--faint);line-height:1.5}
 .signin .legal a,.legallinks a{color:var(--muted)}
 .legallinks{display:flex;gap:16px;flex-wrap:wrap;font-size:.86rem}
+
+/* ---- hold to approve: the ring from the mark fills while the finger is down ---- */
+.holdbtn{position:relative;gap:8px;touch-action:none;user-select:none;-webkit-user-select:none;
+  -webkit-touch-callout:none;overflow:hidden}
+.holdbtn::before{content:"";position:absolute;inset:0;background:rgba(255,255,255,.16);
+  transform:scaleX(var(--p,0));transform-origin:left;transition:transform .08s linear;pointer-events:none}
+[dir="rtl"] .holdbtn::before{transform-origin:right}
+.holdbtn:not(.holding)::before{transition:transform .25s ease}
+.holdring{width:20px;height:20px;flex:none;transform:rotate(-90deg)}
+.holdring circle{fill:none;stroke-width:2.6}
+.holdring .hr-bg{stroke:rgba(255,255,255,.28)}
+.holdring .hr-fg{stroke:#fff;stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:calc(100 - var(--p,0) * 100)}
+.holdbtn.held{animation:heldpop .28s ease}
+@keyframes heldpop{50%{transform:scale(.96)}}
+@media (prefers-reduced-motion: reduce){.holdbtn::before{transition:none}.holdbtn.held{animation:none}}
+
+/* ---- the risk glyph ---- */
+.rglyph{display:block;flex:none;overflow:visible}
+.iglyph{display:flex;flex-direction:column;align-items:center;gap:4px;flex:none}
+.aglyph{flex:none;display:grid;place-items:center;width:28px;height:28px}
+.gglyph{flex:none;display:grid;place-items:center}
+
+/* ---- the pulse: recent answers as the wave from the mark ---- */
+.pulse{width:100%;height:auto;max-height:84px;display:block;margin:-2px 0 2px}
+.pulse .pbase{stroke:var(--line);stroke-width:1;stroke-dasharray:2 4}
+.pulse .pwave{fill:none;stroke:var(--xur);stroke-width:1.6;opacity:.55;vector-effect:non-scaling-stroke}
+.pulse .ppt{cursor:pointer;stroke:var(--surface-2);stroke-width:1.5;vector-effect:non-scaling-stroke}
+
+.iacts.decide{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.iacts.decide .holdbtn{grid-column:1/-1;min-height:50px;font-size:1rem}

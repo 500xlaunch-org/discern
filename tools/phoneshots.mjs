@@ -41,6 +41,7 @@ const VIEWS = [
   ["vault", "what your agents may reach"],
   ["vaultadd", "adding a wifi password, shown"],
   ["credask", "an agent asking for the office wifi"],
+  ["holding", "approving something high, mid hold"],
   ["settings", "everything else"],
 ];
 
@@ -61,6 +62,14 @@ const harness = (view) => `<!doctype html><meta charset="utf-8">
           const ids = S.intents.map((x) => x.id), how = ["approve", "deny", "approve", "reflect"];
           for (let i = 0; i < ids.length; i++) await Backend.decide(ids[i], how[i % how.length]);
           await Backend.refresh();
+        }
+        if (want === "holding") {
+          // a real press on the real button, through the real listeners, caught mid hold
+          const g = agentGroups(S.intents)[0];
+          S.view = "inbox"; S.focus = g ? { key: g.key, at: 0 } : null; S.ready = true; render();
+          const b = document.querySelector("[data-hold]");
+          b.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 }));
+          return;
         }
         if (want === "credask") {
           // a request as Horizon sends it, through the real sheet; the vault is
