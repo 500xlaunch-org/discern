@@ -400,3 +400,27 @@ body,.app{font-family:var(--sans);letter-spacing:-.005em}
 .credopt .tic{display:grid;place-items:center;color:var(--muted)} .credopt .tic svg{width:18px;height:18px}
 .vfile{width:100%;padding:14px;border-radius:14px;border:1.5px dashed var(--hair);background:var(--chip);color:var(--ink)}
 .vfile::file-selector-button{border:0;border-radius:999px;background:var(--pill);color:var(--pill-ink);font-weight:650;padding:8px 14px;margin-inline-end:12px}
+
+/* ---------------- Discern at a desk, signed out ---------------- */
+.wl{position:fixed;inset:0;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(380px,.85fr);background:#000;color:#f5f5f7;overflow:auto}
+.wlhero{position:relative;padding:56px clamp(28px,5vw,80px);display:flex;flex-direction:column;justify-content:center;gap:18px;overflow:hidden;isolation:isolate}
+.wlhero::before{content:"";position:absolute;inset:-20%;z-index:-1;pointer-events:none;
+  background:radial-gradient(40% 45% at 70% 70%,rgba(91,140,201,.28),transparent 70%),radial-gradient(30% 35% at 15% 15%,rgba(229,72,77,.14),transparent 70%)}
+.wlmk{display:inline-flex;align-items:center;gap:10px;color:#9cc0ea}
+.wlmk svg{width:34px;height:34px} .wlmk b{color:#f5f5f7;font-family:var(--display);font-size:1.2rem;letter-spacing:-.02em}
+.wlhero h1{margin:0;font-family:var(--display);font-size:clamp(2.4rem,4.6vw,4rem);font-weight:850;letter-spacing:-.045em;line-height:1.02;max-width:14ch;text-wrap:balance}
+.wllead{margin:0;font-size:1.12rem;line-height:1.55;color:rgba(245,245,247,.72);max-width:48ch}
+.wlpoints{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:10px}
+.wlpoints li{display:flex;gap:12px;align-items:flex-start;color:rgba(245,245,247,.86)}
+.wlpoints svg{width:20px;height:20px;flex:none;color:#7fd6ae;margin-top:2px}
+.wlcard{position:relative;width:min(380px,100%);min-height:300px;margin-top:14px;border-radius:28px;overflow:hidden;isolation:isolate;
+  display:flex;align-items:flex-end;box-shadow:0 40px 80px -30px rgba(0,0,0,.9),0 0 0 1px rgba(255,255,255,.07) inset;transform:rotate(-1.5deg)}
+.wlcard .art{z-index:-1}
+.wlcard .art::after{background:linear-gradient(180deg,rgba(255,255,255,.1),transparent 30%),linear-gradient(0deg,rgba(0,0,0,.92) 10%,rgba(0,0,0,.4) 50%,transparent 75%)}
+.wlcard .hbody{padding:0 16px 18px}
+.wlcard .htitle{font-size:1.9rem;display:block}
+.wlcard .hpill{min-height:46px;font-size:.92rem}
+.wlcard .hround{width:44px;height:44px}
+.wlpanel{position:relative;background:var(--bg);color:var(--ink);display:flex;align-items:center;justify-content:center;border-inline-start:1px solid var(--line)}
+.wlpanel .signin{position:static;min-height:100%;width:100%;background:transparent}
+@media (max-width:960px){ .wl{grid-template-columns:1fr} .wlhero{padding:40px 24px} .wlcard{display:none} }

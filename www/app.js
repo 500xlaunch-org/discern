@@ -883,7 +883,7 @@ function render(){
   const app = document.getElementById("app-root");
   if (app) app.innerHTML = S.pinSetup ? pinSetupHTML()
                          : S.locked ? lockHTML()
-                         : !S.token ? signinHTML() : appHTML();
+                         : !S.token ? (WEB && !HANDHELD ? webLandingHTML() : signinHTML()) : appHTML();
   applyDevice(); wire(); paintNet(); watchForMore(); wireChrome();
   // a sheet that was already open stays put while what is inside it changes
   const ov = document.getElementById("overlay");
@@ -895,6 +895,35 @@ function render(){
   if (now) now.scrollTop = same ? (S.scrollTop || 0) : 0;
   if (!same) S.scrollTop = 0;
   lastScreen = here;
+}
+
+/** Discern at a desk, signed out: what it is, beside the way in. The card on
+ * the left is drawn with the app's own pieces (the art, the risk glyph, the
+ * hold button), so what somebody sees here is what they will use. */
+function webLandingHTML(){
+  const M = window.Marks;
+  const demo = { severity: "SEVERE", risk: { financial: "SEVERE", identity: "HIGH" } };
+  return `<div class="wl">
+    <section class="wlhero">
+      <span class="wlmk">${MK}<b>Discern</b></span>
+      <h1>${esc(t("web.land.title"))}</h1>
+      <p class="wllead">${esc(t("web.land.lead"))}</p>
+      <ul class="wlpoints">
+        <li>${I.shield}<span>${esc(t("web.land.p1"))}</span></li>
+        <li>${I.bell}<span>${esc(t("web.land.p2"))}</span></li>
+        <li>${I.check}<span>${esc(t("web.land.p3"))}</span></li>
+      </ul>
+      <div class="wlcard" aria-hidden="true">
+        ${M.art("discern-739", "coin", { sev: "SEVERE", cls: "hart" })}
+        <span class="hglyph">${riskGlyph(demo.risk, 46, "SEVERE")}</span>
+        <div class="hbody"><span class="hchip"><i style="--sev:var(--sv)"></i>${esc(tSev("SEVERE"))}<span>${esc(t("web.land.now"))}</span></span>
+          <b class="htitle">${esc(t("web.land.demoAct"))}</b>
+          <p class="hmeta">${M.agent("Courier", 20)}<span>Courier</span><b>&middot;</b><span>BattleMate</span></p>
+          <div class="hacts"><span class="hround">${I.x}</span><span class="hpill">${esc(t("card.holdApprove"))}</span><span class="hround">${I.reflect}</span></div></div>
+      </div>
+    </section>
+    <section class="wlpanel">${signinHTML()}</section>
+  </div>`;
 }
 
 /** On a phone's browser: what Discern is, and where to get it. The stores are
