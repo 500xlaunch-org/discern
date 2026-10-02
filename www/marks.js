@@ -69,6 +69,34 @@ function agent(name, size) {
     <span class="avtx">${initials(name)}</span></span>`;
 }
 
-window.Marks = { solution, agent, initials, GLYPH };
+/** Cover art, for a screen that has no posters.
+ *
+ * Every solution and every agent gets a picture of its own: two light sources
+ * in hues taken from its name, falling off into black, and its glyph drawn
+ * very large and very faint, cropped by the frame the way a title card crops
+ * its subject. Nothing is fetched, so it is there on a train, and the same
+ * agent looks the same on every device.
+ *
+ * `seed` decides the colour, `glyph` the shape. `sev` adds the one warm light
+ * that says how serious the thing on the card is.
+ */
+const SEV_LIGHT = { HIGH: "#E8913A", SEVERE: "#E5484D" };
+function art(seed, glyph, opts = {}) {
+  const h = hash(seed || "x");
+  const hue = h % 360, hue2 = (hue + 28 + (h >> 9) % 50) % 360;
+  const g = GLYPH[glyph] || GLYPH.bot;
+  const sev = SEV_LIGHT[opts.sev] || "";
+  // the glyph sits off centre, alternating sides, so a shelf of them does not
+  // read as a grid of the same picture
+  const flip = (h >> 4) & 1;
+  return `<span class="art ${opts.cls || ""}" style="--h:${hue};--h2:${hue2}${sev ? `;--sevl:${sev}` : ""}" aria-hidden="true">
+    <svg class="art-g ${flip ? "flip" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width=".9" stroke-linecap="round" stroke-linejoin="round">${g}</svg>
+    <svg class="art-w" viewBox="0 0 256 64" preserveAspectRatio="none"><path d="M0,52 C40,52 34,20 70,20 C106,20 100,52 136,52 C172,52 166,20 202,20 C238,20 232,52 256,52"
+      fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+  </span>`;
+}
+
+window.Marks = { solution, agent, initials, art, GLYPH };
 
 })();

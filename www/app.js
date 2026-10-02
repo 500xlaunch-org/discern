@@ -19,6 +19,7 @@ const Net = window.Net;
 /* ---------------- icons ---------------- */
 const MK = `<svg class="mk" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><path class="wave" d="M 28 160 C 59.9 160, 54.1 96, 86 96 C 117.9 96, 112.1 160, 144 160 C 160 160, 166 156, 166 128"/><circle cx="200" cy="128" r="34"/></svg>`;
 const I = {
+  x:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>`,
   clock:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.4V12l3.4 2"/></svg>`,
   alert:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5 20.5 19H3.5z"/><path d="M12 10v3.4M12 16.3h.01"/></svg>`,
   inbox:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h5l1.5 3h5L16 12h5"/><path d="M5 12l1.8-6.5A2 2 0 0 1 8.7 4h6.6a2 2 0 0 1 1.9 1.5L19 12v6a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/></svg>`,
@@ -810,7 +811,9 @@ async function testPush(){
 /* ==================== rendering ==================== */
 const NAV = ()=>[["inbox",t("nav.inbox"),I.inbox],["activity",t("nav.activity"),I.activity],
   ["vault",t("nav.vault"),I.shield],
-  ["solutions",t("nav.solutions"),I.solutions],["settings",t("nav.settings"),I.settings]];
+  ["solutions",t("nav.solutions"),I.solutions]];
+const TITLES = () => ({ inbox:t("inbox.title"), activity:t("activity.title"), vault:t("nav.vault"),
+  solutions:t("nav.solutions"), settings:t("set.title") });
 
 /** Where the reader was, kept across a redraw.
  *
@@ -834,12 +837,30 @@ function render(){
   if (app) app.innerHTML = S.pinSetup ? pinSetupHTML()
                          : S.locked ? lockHTML()
                          : !S.token ? signinHTML() : appHTML();
-  applyDevice(); wire(); paintNet(); watchForMore();
+  applyDevice(); wire(); paintNet(); watchForMore(); wireChrome();
 
   const now = document.querySelector(".screen-wrap");
   if (now) now.scrollTop = same ? (S.scrollTop || 0) : 0;
   if (!same) S.scrollTop = 0;
   lastScreen = here;
+}
+
+/** The large title scrolls away and the small one takes its place, on glass,
+ * which is how a screen says that there is more of it above. */
+function wireChrome(){
+  const sc = document.querySelector(".screen-wrap"), app = document.getElementById("app-root");
+  if (sc && app) {
+    const on = () => app.classList.toggle("scrolled", sc.scrollTop > 34);
+    sc.addEventListener("scroll", on, { passive: true }); on();
+  }
+  const tr = document.querySelector("[data-hero]");
+  if (tr) {
+    const dots = [...document.querySelectorAll(".hero-dots i")];
+    tr.addEventListener("scroll", () => {
+      const i = Math.round(Math.abs(tr.scrollLeft) / Math.max(1, tr.clientWidth * .86));
+      dots.forEach((d, k) => d.classList.toggle("on", k === i));
+    }, { passive: true });
+  }
 }
 
 function shellHTML(){
@@ -866,17 +887,20 @@ function appHTML(){
   const pending = S.intents.length;
   const nav = NAV();
   return `
-  <header class="topbar">${MK}<span class="title">${esc(t("app.short"))}</span>
+  <header class="topbar">
+    <span class="tb-title">${esc(TITLES()[S.view] || t("app.short"))}</span>
     ${S.env !== "live" && canSwitchEnv() ? `<button class="envchip ${S.env}" data-toggle-env aria-label="${esc(t("set.env"))}">${esc(ENVS[S.env].label())}</button>` : ""}
     <span class="spacer"></span>
-    ${wide ? `<button class="iconbtn" data-refresh aria-label="${esc(t("pull.refresh"))}">${I.sync}</button>` : ""}
+    ${wide ? `<button class="iconbtn glass" data-refresh aria-label="${esc(t("pull.refresh"))}">${I.sync}</button>` : ""}
+    <button class="avbtn ${S.view==="settings"?"on":""}" data-nav="settings" aria-label="${esc(t("nav.settings"))}">${
+      window.Marks.agent((S.user && (S.user.name || S.user.email)) || "you", 34)}</button>
   </header>
   <div id="netbar"></div>
   <div class="body">
-    ${wide?`<nav class="rail">${nav.map(([v,l,ic])=>`<a href="#" data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${esc(l)}</span>${v==="inbox"&&pending?`<span class="railcount">${pending}</span>`:''}</a>`).join("")}<span class="railgrow"></span><div class="railuser">${esc((S.user&&S.user.name)||t("set.you"))}</div></nav>`:''}
+    ${wide?`<nav class="rail">${nav.concat([["settings",t("nav.settings"),I.settings]]).map(([v,l,ic])=>`<a href="#" data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${esc(l)}</span>${v==="inbox"&&pending?`<span class="railcount">${pending}</span>`:''}</a>`).join("")}<span class="railgrow"></span><div class="railuser">${esc((S.user&&S.user.name)||t("set.you"))}</div></nav>`:''}
     <main class="screen-wrap"><div class="wrap">${!S.ready?skeletonHTML():screenHTML()}</div></main>
   </div>
-  ${wide?'':`<nav class="tabbar">${nav.map(([v,l,ic])=>`<button data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${esc(l)}</span>${v==="inbox"&&pending?`<span class="tabcount" aria-label="${esc(tn("inbox.sub",pending))}">${pending>99?"99+":pending}</span>`:''}</button>`).join("")}</nav>`}
+  ${wide?'':`<nav class="tabbar"><div class="tabcap">${nav.map(([v,l,ic])=>`<button data-nav="${v}" ${S.view===v?'aria-current="page"':''}>${ic}<span>${esc(l)}</span>${v==="inbox"&&pending?`<span class="tabcount" aria-label="${esc(tn("inbox.sub",pending))}">${pending>99?"99+":pending}</span>`:''}</button>`).join("")}</div></nav>`}
   <div id="overlay">${S.envAsk ? envAskHTML() : S.confirm ? confirmHTML()
     : S.detail ? detailHTML() : S.ask ? askHTML() : ""}</div>`;
 }
@@ -1061,7 +1085,8 @@ function groupHTML(g, i){
   return `<section class="agrp ${open ? "open" : ""}" data-gkey="${esc(g.key)}"
       style="--sev:${sevColor(g.worst)};--sevb:${sevBg(g.worst)}">
     <div class="ghead">
-      <span class="gav">${M.agent(g.agent, 32)}</span>
+      <span class="gav gart">${M.art(`${g.solution.uid || g.solution.name}:${g.agent}`, g.solution.icon || g.solution.slug, { sev: g.worst })}
+        <span class="gini">${esc(M.initials(g.agent))}</span></span>
       <button class="gtog" data-gtog="${esc(g.key)}" aria-expanded="${open}">
         <b class="gname">${esc(g.agent)}</b>
         <small class="gcount">${esc(t("cl.waiting", { n }))}
@@ -1296,9 +1321,53 @@ function scrHead(title, state, opts = {}){
   </div>`;
 }
 
+/* ---- the hero ----
+ *
+ * Whatever needs you most, as the first thing on the screen and the biggest:
+ * the worst risk first, and among equals the one that has waited longest. Up
+ * to five, side by side, so a thumb can go through them without opening
+ * anything. Each one can be answered where it stands: no on the left, another
+ * way on the right, and yes held in the middle for as long as it is serious.
+ */
+function heroList(){
+  return [...(S.intents || [])]
+    .sort((a, b) => (ORD[b.severity] - ORD[a.severity]) || ((iAt(a) || 0) - (iAt(b) || 0)))
+    .slice(0, 5);
+}
+function heroHTML(){
+  const list = heroList();
+  if (!list.length) return "";
+  return `<section class="hero" aria-roledescription="carousel">
+    <div class="hero-track" data-hero>${list.map(heroSlideHTML).join("")}</div>
+    ${list.length > 1 ? `<div class="hero-dots" aria-hidden="true">${list.map((_, i) =>
+      `<i class="${i ? "" : "on"}"></i>`).join("")}</div>` : ""}
+  </section>`;
+}
+function heroSlideHTML(it){
+  const M = window.Marks, sol = it.solution || { name: iName(it) };
+  const settling = S.settled[it.id], queued = Net.queuedFor(it.id), cred = isCredAsk(it);
+  return `<article class="hslide ${settling ? "settling " + settling : ""}" data-aid="${it.id}"
+      style="--sev:${sevColor(it.severity)};--sevb:${sevBg(it.severity)}">
+    ${M.art(`${sol.uid || sol.name}:${iAgent(it)}`, sol.icon || sol.slug, { sev: it.severity, cls: "hart" })}
+    <span class="hglyph">${riskGlyph(it.risk, 58, it.severity)}</span>
+    <div class="hbody">
+      <span class="hchip"><i></i>${esc(tSev(it.severity))}<span>${esc(tAgo(iAt(it)))}</span></span>
+      <button class="htitle" data-aask="${it.id}">${cred ? esc(t("cred.wants", { what: credWhat(it) })) : esc(pretty(it.capability))}</button>
+      <p class="hmeta">${M.agent(iAgent(it), 20)}<span>${esc(iAgent(it))}</span><b>&middot;</b><span>${esc(sol.name || "")}</span></p>
+      ${queued ? `<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`
+        : cred ? `<div class="hacts"><button class="hpill" data-aask="${it.id}">${I.shield}<span>${esc(t("hero.open"))}</span></button></div>`
+        : `<div class="hacts">
+          <button class="hround deny" data-decide="deny" data-id="${it.id}" ${settling ? "disabled" : ""} aria-label="${esc(t("card.deny"))}">${I.x}</button>
+          ${holdBtnHTML(it, settling).replace('class="btn btn-primary holdbtn"', 'class="hpill holdbtn"')}
+          <button class="hround" data-decide="reflect" data-id="${it.id}" ${settling ? "disabled" : ""} aria-label="${esc(t("card.reflect"))}">${I.reflect}</button>
+        </div>`}
+    </div>
+  </article>`;
+}
+
 function inboxHTML(){
   const n = S.inboxTotal || S.intents.length;
-  const head = scrHead(n ? tn("inbox.sub", n) : t("inbox.caughtUp"), "", { class: "lead" });
+  const head = scrHead(t("inbox.title"), esc(n ? tn("inbox.sub", n) : t("inbox.caughtUp")), { class: "lead" });
   const filtering = !!(S.filter.solutions.length || S.filter.severities.length);
   if (!S.intents.length) {
     if (filtering) return head + filterBarHTML() + `<div class="empty"><div class="empty-mk">${I.solutions}</div>
@@ -1308,8 +1377,10 @@ function inboxHTML(){
       <div class="empty-t">${esc(t("inbox.empty.title"))}</div><p>${esc(t("inbox.empty.body"))}</p>
       <button class="btn btn-primary" data-nav="solutions">${esc(t("inbox.browse"))}</button></div>`;
   }
-  return head + summaryHTML() + filterBarHTML()
-    + `<div class="agrps">${agentGroups(S.intents).map(groupHTML).join("")}</div>`
+  const groups = agentGroups(S.intents);
+  return head + (filtering ? "" : heroHTML()) + filterBarHTML()
+    + `<div class="shelfhd"><h2>${esc(t("shelf.agents"))}</h2><span>${groups.length}</span></div>`
+    + `<div class="agrps">${groups.map(groupHTML).join("")}</div>`
     + moreHTML("inbox");
 }
 
@@ -1363,9 +1434,13 @@ function focusHTML(){
       <div class="empty-t">${esc(t("cl.done"))}</div>
       <button class="btn btn-primary" data-focus-exit>${esc(t("cl.back"))}</button></div>`;
   }
-  return `<div class="focusbar">
-      <button class="fx" data-focus-exit>${I.back}<span>${esc(t("cl.back"))}</span></button>
-      <span class="fxpos">${esc(t("cl.of",{ i: S.focus.at + 1, n: list.length }))}</span>
+  const sol = it.solution || { name: iName(it) };
+  return `<div class="fcover">
+      ${window.Marks.art(`${sol.uid || sol.name}:${iAgent(it)}`, sol.icon || sol.slug, { sev: it.severity, cls: "fart" })}
+      <div class="focusbar">
+        <button class="fx glass" data-focus-exit aria-label="${esc(t("cl.back"))}">${I.back}</button>
+        <span class="fxpos glass">${esc(t("cl.of",{ i: S.focus.at + 1, n: list.length }))}</span>
+      </div>
     </div>
     <div class="cards focusone">${cardHTML(it)}</div>`;
 }
@@ -1499,7 +1574,8 @@ function tlGroupHTML(g, i){
   const M = window.Marks, open = groupOpen(g, i);
   return `<section class="agrp tlgrp ${open ? "open" : ""}" data-gkey="${esc(g.key)}">
     <div class="ghead">
-      <span class="gav">${M.agent(g.agent, 32)}</span>
+      <span class="gav gart">${M.art(`${g.solution.uid || g.solution.name}:${g.agent}`, g.solution.icon || g.solution.slug)}
+        <span class="gini">${esc(M.initials(g.agent))}</span></span>
       <button class="gtog" data-gtog="${esc(g.key)}" aria-expanded="${open}">
         <b class="gname">${esc(g.agent)}</b>
         <small class="gcount">${esc(tn("act.answers", g.items.length))}
@@ -2136,13 +2212,14 @@ function solutionsHTML(){
   else html += `<div class="sollist">${connected.map(solrowHTML).join("")}</div>`;
   if (cat.length){
     html += `<div class="secrow"><h2 class="sech">${esc(t("sol.catalog"))}</h2><span class="secn">${cat.length}</span></div>`;
-    html += `<div class="catgrid">${cat.map(catcardHTML).join("")}</div>`;
+    html += `<div class="catgrid shelf">${cat.map(catcardHTML).join("")}</div>`;
   }
   return html;
 }
 function solrowHTML(s){
   const surf = surfaces(s), nab = (s.agents||[]).reduce((n,a)=>n+(a.abilities||[]).length,0);
   return `<button class="solrow" data-sol="${s.uid}">
+    ${window.Marks.art(s.uid || s.name, s.icon || s.slug, { cls: "solart" })}
     ${window.Marks.solution(s, 42)}
     <div class="solm"><div class="soln">${esc(s.name)}</div>
       <div class="solmeta">${esc(tn("sol.agents",(s.agents||[]).length))}, ${esc(tn("sol.abilities",nab))}</div>
@@ -2159,6 +2236,7 @@ function solrowHTML(s){
  * thing anybody tries. */
 function catcardHTML(c){
   return `<button class="catcard" data-review="${c.uid}">
+    ${window.Marks.art(c.uid || c.name, c.icon || c.slug, { cls: "catart" })}
     ${window.Marks.solution(c, 38)}
     <div class="catm">
       <div class="catn">${esc(c.name)}</div>
