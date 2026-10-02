@@ -111,6 +111,11 @@ const DEVICES = {
  * bundle (https://localhost), so it has to be told the real host. ?api= beats
  * both, which is how a build gets pointed at a different Horizon. */
 const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+/* Inside the phone app, push comes through Firebase Cloud Messaging (which hands
+ * iPhone messages on to Apple). A browser has no Firebase here: it uses standard
+ * Web Push from Horizon, through the service worker. */
+const FCM = NATIVE ? (window.Capacitor.Plugins || {}).FirebaseMessaging : null;
+const PLATFORM = NATIVE && window.Capacitor.getPlatform ? window.Capacitor.getPlatform() : "web";
 /** Both axes travel as comma separated lists. An empty list is not sent at
  * all, because asking for nothing in particular means asking for everything. */
 const filterQuery = () => {
@@ -153,7 +158,7 @@ function loadPrefs(){
     intents:[], timeline:[], solutions:[], catalog:[],
     inboxNext:null, inboxTotal:0, tlNext:null, tlTotal:0, loadingMore:false,
     selectedSol:null, review:null, reviewData:null,
-    push:{ supported:"serviceWorker" in navigator && "PushManager" in window, permission:
+    push:{ supported: !!FCM || ("serviceWorker" in navigator && "PushManager" in window), permission:
       (typeof Notification!=="undefined" ? Notification.permission : "default"), on:false, busy:false },
     // the lock is cleared once per launch, so reopening the app asks again
     // while moving between screens does not
@@ -283,12 +288,14 @@ const Backend = {
     const out = await Net.request("POST","/v1/user/login",{identifier,password,region:region()},{auth:false});
     S.token = out.token; S.user = out.user; savePrefs();
     await Vault.keep(identifier, password);
+    afterSignIn();
   },
   async register(identifier, name){
     if (S.mode==="demo") return Local.login(identifier,name);
     const out = await Net.request("POST","/v1/user/register",{identifier,name,region:region()},{auth:false});
     S.token = out.token; S.user = out.user; savePrefs();
     await Vault.keep(identifier, null);
+    afterSignIn();
   },
   /** First page of everything. Falls back to the cached view, then to demo. */
   async refresh(){
@@ -507,7 +514,8 @@ async function boot(){
   // deep links: ?review= the permission label before connecting, ?solution= a
   // connected solution's settings. Both are how a notification tap lands you on
   // the right screen rather than the inbox.
-  if (q.get("review")) openReview(q.get("review"));
+  if (q.get("intent")) openIntent(q.get("intent"));
+  else if (q.get("review")) openReview(q.get("review"));
   else if (q.get("solution")) { S.view = "solutions"; S.selectedSol = q.get("solution"); render(); }
   registerSW();
 }
@@ -682,13 +690,73 @@ function armLockOnResume(){
 }
 
 /* ---------------- push ---------------- */
+/** A notification was tapped: open that request on its own, in the one-at-a-
+ * time view, so the person answers the thing they were told about. If it has
+ * already been answered elsewhere (another device), the inbox is what is left. */
+async function openIntent(intentId){
+  S.view = "inbox"; S.review = null; S.reviewData = null; S.selectedSol = null; S.focus = null;
+  render();
+  if (!intentId || !S.token) return;
+  try { await Backend.refresh(); } catch {}
+  for (const g of agentGroups(S.intents || [])) {
+    const at = g.items.findIndex((x) => x.id === intentId);
+    if (at >= 0) { S.focus = { key: g.key, at }; break; }
+  }
+  render();
+}
+
+/* The phone app's push. Two Android channels, so a person can let urgent
+ * requests ring through Do Not Disturb without letting everything else. */
+let fcmWired = false;
+async function nativePush(ask){
+  if (!FCM) return;
+  try {
+    if (!fcmWired) {
+      fcmWired = true;
+      if (PLATFORM === "android") {
+        await FCM.createChannel({ id:"discern", name:t("push.chan"), description:t("push.chanSub"),
+          importance:4, visibility:0, vibration:true }).catch(() => {});
+        await FCM.createChannel({ id:"discern-urgent", name:t("push.chanUrgent"), description:t("push.chanUrgentSub"),
+          importance:5, visibility:0, vibration:true, lights:true, lightColor:"#E5484D" }).catch(() => {});
+      }
+      FCM.addListener("tokenReceived", ({ token }) => { if (S.token) sendNativeToken(token); });
+      FCM.addListener("notificationActionPerformed", (e) => {
+        const d = (e && e.notification && e.notification.data) || {};
+        openIntent(d.intentId);
+      });
+      // in the foreground the system shows nothing: refresh so the badge and
+      // the inbox move, which is the notification while the app is open
+      FCM.addListener("notificationReceived", () => silentRefresh());
+    }
+    let perm = (await FCM.checkPermissions()).receive;
+    if (perm !== "granted" && ask) perm = (await FCM.requestPermissions()).receive;
+    S.push.permission = perm === "granted" ? "granted" : perm === "denied" ? "denied" : "default";
+    if (perm !== "granted") { if (ask) throw new Error(t("set.notifyBlocked")); return; }
+    const { token } = await FCM.getToken();
+    if (S.token && S.mode === "connected") await sendNativeToken(token);
+    S.push.on = true;
+    return true;
+  } catch (e) { if (ask) throw e; }
+}
+/** On the phone the app exists to be interrupted, so it asks for notifications
+ * as soon as somebody signs in, rather than leaving it to be found in settings.
+ * In a browser the person turns them on, since browsers punish asking unasked. */
+function afterSignIn(){
+  if (FCM) nativePush(true).then(() => render()).catch(() => render());
+}
+async function sendNativeToken(token){
+  try { await Net.request("POST","/v1/user/devices",{ platform: PLATFORM, provider:"fcm", vault:true, token,
+    label: PLATFORM === "ios" ? "iPhone" : "Android" }); } catch {}
+}
+
 async function registerSW(){
+  if (FCM) { await nativePush(false); paintNet(); }
   if (!("serviceWorker" in navigator)) return;
   try {
     const reg = await navigator.serviceWorker.register("sw.js", { scope: "./" });
     navigator.serviceWorker.addEventListener("message", (e)=>{
       const d=e.data||{};
-      if (d.type==="open-intent"){ S.view="inbox"; silentRefresh(); }
+      if (d.type==="open-intent") openIntent(d.intentId);
       if (d.type==="resubscribe") enablePush(true);
     });
     // the worker renders notifications outside the app, so it needs to be told
@@ -707,13 +775,18 @@ function tellWorkerLang(){
 const b64ToU8 = (s)=>{ const pad="=".repeat((4-s.length%4)%4); const b=atob((s+pad).replace(/-/g,"+").replace(/_/g,"/"));
   return Uint8Array.from([...b].map(c=>c.charCodeAt(0))); };
 async function sendSubscription(sub){
-  try { await Net.request("POST","/v1/user/devices",{ platform:"web", token:JSON.stringify(sub),
+  try { await Net.request("POST","/v1/user/devices",{ platform:"web", provider:"webpush", vault:false, token:JSON.stringify(sub),
     label: navigator.userAgent.match(/Chrome|Firefox|Safari|Edg/)?.[0] || "Browser" }); } catch {}
 }
 async function enablePush(silent){
   if (!S.push.supported) return;
   S.push.busy = true; render();
   try {
+    if (FCM) {
+      await nativePush(true);
+      if (!silent) toast(`<span class="tic">${I.bell}</span><div class="tm">${esc(t("t.pushOn"))}</div>`,"ok");
+      return;
+    }
     const perm = await Notification.requestPermission();
     S.push.permission = perm;
     if (perm !== "granted") throw new Error(t("set.notifyBlocked"));

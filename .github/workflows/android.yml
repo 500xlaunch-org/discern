@@ -85,6 +85,13 @@ jobs:
           python3 -m pip install --quiet pillow
           python3 tools/brand.py --only android
 
+      # push: the Firebase client config (a repo secret, never committed), the
+      # status bar icon and the default channel
+      - name: Make the app able to receive push
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: python3 tools/native.py --android
+
       - name: Target the API level Play requires
         run: |
           sed -i -E "s/(compileSdkVersion|targetSdkVersion) = [0-9]+/\1 = ${ANDROID_TARGET_SDK}/" \
@@ -128,6 +135,13 @@ jobs:
         run: |
           python3 -m pip install --quiet pillow
           python3 tools/brand.py --only android
+
+      # push: the Firebase client config (a repo secret, never committed), the
+      # status bar icon and the default channel
+      - name: Make the app able to receive push
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: python3 tools/native.py --android
 
       - name: Target the API level Play requires
         run: |
