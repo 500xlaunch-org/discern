@@ -13,7 +13,7 @@
 /* eslint-env serviceworker */
 "use strict";
 
-const VERSION = "discern-v18";
+const VERSION = "discern-v19";
 const SHELL = ["./", "./index.html", "./styles.css", "./cinema.css", "./i18n.js", "./phone.js", "./marks.js", "./net.js", "./vault.js", "./app.js", "./manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {

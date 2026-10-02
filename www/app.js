@@ -202,7 +202,22 @@ function savePrefs(){ try{ localStorage.setItem("discern.prefs", JSON.stringify(
   token:S.token,user:S.user,envAcked:S.envAcked,lockMode:S.lockMode,lockCred:S.lockCred,
   pinSalt:S.pinSalt,pinHash:S.pinHash,recent:S.recent,filter:S.filter})); }catch{} }
 function applyTheme(){ const q=new URLSearchParams(location.search).get("theme"); const th=q||S.theme;
-  if (th==="light"||th==="dark") document.documentElement.dataset.theme=th; else delete document.documentElement.dataset.theme; }
+  if (th==="light"||th==="dark") document.documentElement.dataset.theme=th; else delete document.documentElement.dataset.theme;
+  paintStatusBar(); }
+/* The phone's own status bar: light text on the dark theme, dark text on the
+ * light one, or the clock vanishes into the background. "Dark" in the plugin's
+ * terms is the style for dark backgrounds, which is light text. */
+const darkNow = () => {
+  const th = document.documentElement.dataset.theme;
+  return th ? th === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+};
+function paintStatusBar(){
+  try {
+    const SB = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar;
+    if (SB && NATIVE) SB.setStyle({ style: darkNow() ? "DARK" : "LIGHT" }).catch(() => {});
+  } catch {}
+}
+try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", paintStatusBar); } catch {}
 
 /** The country this phone is in, and nothing finer.
  *
