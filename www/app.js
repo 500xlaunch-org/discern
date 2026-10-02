@@ -117,6 +117,19 @@ const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && windo
  * Web Push from Horizon, through the service worker. */
 const FCM = NATIVE ? (window.Capacitor.Plugins || {}).FirebaseMessaging : null;
 const PLATFORM = NATIVE && window.Capacitor.getPlatform ? window.Capacitor.getPlatform() : "web";
+/* Discern on the web, at discern.500xlaunch.com (or any page with ?web).
+ *
+ * At a desk it is the app, full width, without what only a phone can hold:
+ * the vault lives encrypted on the phone and nowhere else, and the screen lock
+ * is the phone's. A request for something in the vault still shows here, so
+ * nobody at a desk misses it, and it says it is answered on the phone.
+ *
+ * On a phone's browser it is not the app at all: it is the way to the app,
+ * because a phone that can run the real one should. */
+const WEB = !NATIVE && (/^discern\./.test(location.hostname) || new URLSearchParams(location.search).has("web"));
+const HANDHELD = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+  || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+const STORES = { android: null, ios: null };   // filled in the day each listing is public
 /** Both axes travel as comma separated lists. An empty list is not sent at
  * all, because asking for nothing in particular means asking for everything. */
 const filterQuery = () => {
@@ -137,6 +150,7 @@ const ENVS = { test:{ label:()=>t("env.beta") }, live:{ label:()=>t("set.live") 
 const PAGE = 25;
 
 let S = loadPrefs();
+if (WEB) { S.fullscreen = true; S.lockMode = "off"; }
 function loadPrefs(){
   let p; try{ p = JSON.parse(localStorage.getItem("discern.prefs")||"null"); }catch{ p=null; }
   // live is what a person gets; test is opt in from Settings and shows a chip
@@ -811,7 +825,7 @@ async function testPush(){
 /* ==================== rendering ==================== */
 const NAV = ()=>[["inbox",t("nav.inbox"),I.inbox],["activity",t("nav.activity"),I.activity],
   ["vault",t("nav.vault"),I.shield],
-  ["solutions",t("nav.solutions"),I.solutions]];
+  ["solutions",t("nav.solutions"),I.solutions]].filter(([v]) => !(WEB && v === "vault"));
 const TITLES = () => ({ inbox:t("inbox.title"), activity:t("activity.title"), vault:t("nav.vault"),
   solutions:t("nav.solutions"), settings:t("set.title") });
 
@@ -832,6 +846,7 @@ function render(){
   if (was && same) S.scrollTop = was.scrollTop;
 
   const root = document.getElementById("root");
+  if (WEB && HANDHELD) { root.innerHTML = getAppHTML(); wireGetApp(); return; }
   root.innerHTML = shellHTML();
   const app = document.getElementById("app-root");
   if (app) app.innerHTML = S.pinSetup ? pinSetupHTML()
@@ -843,6 +858,46 @@ function render(){
   if (now) now.scrollTop = same ? (S.scrollTop || 0) : 0;
   if (!same) S.scrollTop = 0;
   lastScreen = here;
+}
+
+/** On a phone's browser: what Discern is, and where to get it. The stores are
+ * shown as coming until their listings are public; until then the page takes
+ * an address and writes once, when it is out. */
+function getAppHTML(){
+  const store = (k, label, icon) => STORES[k]
+    ? `<a class="gstore" href="${STORES[k]}">${icon}<span><small>${esc(t("web.get.on"))}</small>${label}</span></a>`
+    : `<span class="gstore soon">${icon}<span><small>${esc(t("web.get.soon"))}</small>${label}</span></span>`;
+  const done = S.getDone;
+  return `<div class="getapp">
+    ${window.Marks.art("discern-739", "shield", { sev: "HIGH", cls: "getart" })}
+    <div class="getbody">
+      <span class="gmk">${MK}</span>
+      <h1>${esc(t("web.get.title"))}</h1>
+      <p>${esc(t("web.get.body"))}</p>
+      <div class="gstores">
+        ${store("ios", "App Store", `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.5 2.1-3.7 2.2-3.8-1.2-1.7-3-2-3.7-2-1.6-.2-3 .9-3.8.9-.8 0-2-.9-3.3-.9-1.7 0-3.3 1-4.2 2.5-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8 1.6 0 2 .8 3.4.8 1.4 0 2.3-1.2 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.7-1-2.9-4.1zM13.9 5.1c.7-.9 1.2-2 1-3.1-1 0-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3 1.1.1 2.2-.6 2.9-1.4z"/></svg>`)}
+        ${store("android", "Google Play", `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.6 2.3 13.3 12l-9.7 9.7c-.4-.2-.6-.6-.6-1.1V3.4c0-.5.2-.9.6-1.1zm10.4 10.4 2.6 2.6-11.4 6.5 8.8-9.1zm3.5-3.5 3 1.7c.8.5.8 1.6 0 2.1l-3 1.7-2.8-2.8 2.8-2.7zM5.2 2.2l11.4 6.5L14 11.3 5.2 2.2z"/></svg>`)}
+      </div>
+      ${STORES.android && STORES.ios ? "" : done
+        ? `<p class="gdone">${I.check}<span>${esc(t("web.get.thanks"))}</span></p>`
+        : `<form class="gform" data-getform>
+            <input id="getmail" type="email" required autocomplete="email" placeholder="${esc(t("web.get.email"))}" aria-label="${esc(t("web.get.email"))}"/>
+            <button class="btn btn-primary" type="submit">${esc(t("web.get.notify"))}</button></form>`}
+      <p class="gdesk">${esc(t("web.get.desk"))}</p>
+      <p class="glegal"><a href="/terms">${esc(t("legal.terms"))}</a><a href="/privacy">${esc(t("legal.privacy"))}</a></p>
+    </div>
+  </div>`;
+}
+function wireGetApp(){
+  const f = document.querySelector("[data-getform]");
+  if (!f) return;
+  f.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("getmail").value.trim();
+    try { await fetch("/v1/early-access", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, source: "discern-web-mobile" }) }); } catch {}
+    S.getDone = true; render();
+  });
 }
 
 /** The large title scrolls away and the small one takes its place, on glass,
@@ -905,6 +960,7 @@ function appHTML(){
     : S.detail ? detailHTML() : S.ask ? askHTML() : ""}</div>`;
 }
 function screenHTML(){ if (S.focus && S.view === "inbox") return focusHTML();
+  if (WEB && S.view === "vault") S.view = "inbox";
   return ({inbox:inboxHTML,activity:activityHTML,vault:vaultHTML,
            solutions:solutionsHTML,settings:settingsHTML}[S.view]||inboxHTML)(); }
 
@@ -2020,6 +2076,13 @@ function credWhat(it){
 
 function credBodyHTML(it){
   const c = it.credential || {};
+  if (WEB) {
+    const kind = VKIND[c.type] || VKIND.note;
+    return `<div class="credask"><span class="vic">${kind.icon()}</span>
+      <div><b>${esc(t("cred.wants", { what: credWhat(it) }))}</b></div></div>
+      ${c.reason ? `<p class="whysum">${esc(c.reason)}</p>` : ""}
+      <div class="onphone">${I.shield}<span>${esc(t("cred.onPhone"))}</span></div>`;
+  }
   const V = window.Vault, st = V ? V.state : { exists:false };
   const cr = S.cred;
   const matching = (S.vault.items || []).filter((x) => x.kind === c.type);
@@ -2077,6 +2140,8 @@ function credBodyHTML(it){
 }
 
 function credActionsHTML(it){
+  // refusing needs no vault, so it can be done from anywhere
+  if (WEB) return `<div class="iacts"><button class="btn btn-deny" data-decide="deny" data-id="${it.id}">${esc(t("cred.refuse"))}</button></div>`;
   const cr = S.cred, ready = !!cr.chosen && window.Vault && window.Vault.state.unlocked;
   return `<div class="iacts">
     <button class="btn btn-deny" data-decide="deny" data-id="${it.id}">${esc(t("cred.refuse"))}</button>
@@ -2284,7 +2349,7 @@ function agentGraphHTML(sol, appetite){
     return `<div class="gnode ${now ? "live" : asks ? "asks" : ""}" data-agent="${esc(a.name)}"
         style="--c:${sevColor(worst)}">
       ${i ? `<span class="gedge" aria-hidden="true"></span>` : ""}
-      <div class="gbody">
+      <div class="getbody">
         ${M.agent(a.name, 30)}
         <div class="gmeta"><b>${esc(a.name)}</b>
           <small>${esc(tn("sol.abilities", abs.length))}</small></div>
@@ -2385,7 +2450,7 @@ function settingsHTML(){
                <button class="btn btn-ghost block" data-testpush>${esc(t("set.notifyTest"))}</button>`
       : `<button class="btn btn-primary block" data-enablepush ${p.busy?"disabled":""}>${p.busy?`<span class="tic spin">${I.sync}</span>`:I.bell}<span>${esc(t("set.notifyOn"))}</span></button>`}
   </section>
-  <section class="panel"><div class="panelhd"><h3>${esc(t("set.lock"))}</h3><p>${esc(t("set.lockSub"))}</p></div>
+  ${WEB ? `<section class="panel"><div class="thin-empty">${esc(t("set.webNote"))}</div></section>` : `<section class="panel"><div class="panelhd"><h3>${esc(t("set.lock"))}</h3><p>${esc(t("set.lockSub"))}</p></div>
     ${isReviewer() ? `<div class="thin-empty">${esc(t("set.lockReview"))}</div>`
       : S.env !== "live" ? `<div class="thin-empty">${esc(t("set.lockBeta"))}</div>` : `
     <div class="lockopts">
@@ -2396,7 +2461,7 @@ function settingsHTML(){
       <button class="lockopt ${S.lockMode==="pin"?"on":""}" data-lockmode="pin" ${S.lockBusy?"disabled":""}>
         <b>${esc(t("set.lockPin"))}</b><small>${esc(t("set.lockPinSub"))}</small></button>
     </div>`}
-  </section>
+  </section>`}
   <section class="panel"><div class="panelhd"><h3>${esc(t("set.language"))}</h3></div>
     <div class="langgrid">${LANGS.map(l=>`<button class="langb ${window.I18N.lang===l.code?'on':''}" data-lang="${l.code}">
       <b>${l.native}</b><small>${l.name}</small></button>`).join("")}</div></section>
