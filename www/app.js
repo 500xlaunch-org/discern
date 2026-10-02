@@ -150,6 +150,13 @@ const ENVS = { test:{ label:()=>t("env.beta") }, live:{ label:()=>t("set.live") 
 const PAGE = 25;
 
 let S = loadPrefs();
+/* One-shot entrances. The whole screen is repainted on every tap and every
+ * refresh, so an entrance animation tied to a class would replay constantly.
+ * A key is marked when the thing it names has just changed, and the next paint
+ * consumes it: it plays once, where the change happened, and never again. */
+const FRESH = new Set();
+const justNow = (k) => { FRESH.add(k); };
+const fresh = (k) => (FRESH.delete(k) ? " fresh" : "");
 if (WEB) { S.fullscreen = true; S.lockMode = "off"; }
 function loadPrefs(){
   let p; try{ p = JSON.parse(localStorage.getItem("discern.prefs")||"null"); }catch{ p=null; }
@@ -856,6 +863,14 @@ const screenKey = () => `${S.view}:${S.selectedSol || ""}:${S.review || ""}:${S.
 
 function render(){
   const here = screenKey();
+  // a different screen cross-fades in where the browser can; the same screen
+  // repaints in place, so typing and scrolling are never interrupted
+  if (lastScreen && lastScreen !== here && document.startViewTransition && !render.inVT
+      && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    render.inVT = true;
+    try { document.startViewTransition(() => { try { render(); } finally { render.inVT = false; } }); return; }
+    catch { render.inVT = false; }
+  }
   const same = lastScreen === here;
   const was = document.querySelector(".screen-wrap");
   if (was && same) S.scrollTop = was.scrollTop;
@@ -868,6 +883,11 @@ function render(){
                          : S.locked ? lockHTML()
                          : !S.token ? signinHTML() : appHTML();
   applyDevice(); wire(); paintNet(); watchForMore(); wireChrome();
+  // a sheet that was already open stays put while what is inside it changes
+  const ov = document.getElementById("overlay");
+  const ovKey = S.envAsk ? "env" : S.confirm ? "confirm" : S.detail ? "detail:" + (S.detail.id || "") : S.ask ? "ask:" + S.ask : "";
+  if (ov) ov.classList.toggle("steady", !!ovKey && ovKey === render.lastOverlay);
+  render.lastOverlay = ovKey;
 
   const now = document.querySelector(".screen-wrap");
   if (now) now.scrollTop = same ? (S.scrollTop || 0) : 0;
@@ -1168,7 +1188,7 @@ function groupHTML(g, i){
       <button class="gchev" data-gtog="${esc(g.key)}" aria-expanded="${open}"
               aria-label="${esc(t(open ? "act.less" : "act.more"))}">${I.chevron}</button>
     </div>
-    ${open ? `<div class="gopen">
+    ${open ? `<div class="gopen${fresh("g:" + g.key)}">
       ${n > 1 ? `<div class="gbulk">
         <button class="gb deny" data-gdec="deny" data-gkey="${esc(g.key)}">${esc(t("grp.denyAll"))}</button>
         <button class="gb reflect" data-gdec="reflect" data-gkey="${esc(g.key)}">${esc(t("grp.reflectAll"))}</button>
@@ -1409,7 +1429,7 @@ function heroHTML(){
   const list = heroList();
   if (!list.length) return "";
   return `<section class="hero" aria-roledescription="carousel">
-    <div class="hero-track" data-hero>${list.map(heroSlideHTML).join("")}</div>
+    <div class="hero-track${fresh("hero")}" data-hero>${list.map(heroSlideHTML).join("")}</div>
     ${list.length > 1 ? `<div class="hero-dots" aria-hidden="true">${list.map((_, i) =>
       `<i class="${i ? "" : "on"}"></i>`).join("")}</div>` : ""}
   </section>`;
@@ -1895,9 +1915,13 @@ function vaultOpenHTML(){
     </section>
     <section class="panel vpanel">
       <div class="panelhd"><h3>${esc(t("v.add.title"))}</h3><p>${esc(t("v.add.body"))}</p></div>
-      <div class="vkinds">${kinds.map((k) => `<button class="vkind ${add.kind === k ? "on" : ""}" data-vkind="${k}">
-        <span class="tic">${VKIND[k].icon()}</span><span>${esc(VKIND[k].label())}</span></button>`).join("")}</div>
-      ${add.kind ? vaultFormHTML(add.kind) : ""}
+      ${add.kind
+        // chosen: the grid folds to one line, and the form takes its place
+        ? `<div class="vchosen${fresh("vkind") ? " fold" : ""}"><span class="tic">${VKIND[add.kind].icon()}</span><b>${esc(VKIND[add.kind].label())}</b>
+            <button class="foldchange" data-vkind="${add.kind}">${esc(t("v.change"))}</button></div>
+           <div class="${FRESH.has("vkind2") ? (FRESH.delete("vkind2"), "unfold") : ""}">${vaultFormHTML(add.kind)}</div>`
+        : `<div class="vkinds${fresh("vkinds")}">${kinds.map((k, i) => `<button class="vkind" style="--i:${i}" data-vkind="${k}">
+            <span class="tic">${VKIND[k].icon()}</span><span>${esc(VKIND[k].label())}</span></button>`).join("")}</div>`}
     </section>
     ${vaultMoveHTML()}`;
 }
@@ -2120,7 +2144,11 @@ function credBodyHTML(it){
     <button class="btn btn-ghost block" data-cunlock ${cr.busy ? "disabled" : ""}>
       ${cr.busy ? `<span class="tic spin">${I.sync}</span>` : ""}<span>${esc(t("cred.unlock"))}</span></button>`;
 
-  const picker = matching.length ? `<div class="credpick">${matching.map((m) => `
+  const pickedOne = cr.chosen && matching.find((m) => m.id === cr.chosen);
+  const picker = pickedOne ? `<div class="vchosen${fresh("cpick") ? " fold" : ""}"><span class="fbox on">${I.check}</span>
+      <span class="credm"><b>${esc(pickedOne.label)}</b>${pickedOne.hint ? `<small>${esc(pickedOne.hint)}</small>` : ""}</span>
+      <button class="foldchange" data-cpick="${pickedOne.id}">${esc(t("v.change"))}</button></div>`
+    : matching.length ? `<div class="credpick">${matching.map((m) => `
       <button class="credopt ${cr.chosen === m.id ? "on" : ""}" data-cpick="${m.id}">
         <span class="fbox ${cr.chosen === m.id ? "on" : ""}">${cr.chosen === m.id ? I.check : ""}</span>
         <span class="credm"><b>${esc(m.label)}</b>${m.hint ? `<small>${esc(m.hint)}</small>` : ""}</span>
@@ -2139,7 +2167,7 @@ function credBodyHTML(it){
 
   // what "the same purpose" means, said before anybody chooses it
   const purpose = c.purpose && !/^credential\./.test(c.purpose) ? c.purpose : "";
-  return head + picker + creating
+  return head + picker + (pickedOne ? "" : creating)
     + `<div class="credscope">
         <b>${esc(t("cred.scope"))}</b>
         <button class="scopeopt ${cr.scope !== "purpose" ? "on" : ""}" data-cscope="once">
@@ -2962,7 +2990,7 @@ function wire(){
     if(el.closest("[data-picker-close]") && !el.closest(".ccsheet")){ S.signin.picker = false; render(); return; }
     // -- agent groups: fold, unfold, answer as one, or walk them one by one --
     const gt = el.closest("[data-gtog]");
-    if(gt){ const k=gt.dataset.gtog; S.open.g[k] = !groupOpenNow(k); render(); return; }
+    if(gt){ const k=gt.dataset.gtog; S.open.g[k] = !groupOpenNow(k); if (S.open.g[k]) justNow("g:" + k); render(); return; }
     const gs = el.closest("[data-gosol]");
     if(gs){ openSolutionFor(gs.dataset.gosol, gs.dataset.goag); return; }
     const ga = el.closest("[data-agasks]");
@@ -3026,7 +3054,7 @@ function wire(){
     if(el.closest("[data-cnew]")){ S.cred.creating = true; render(); return; }
     if(el.closest("[data-cmake]")){ credMake(); return; }
     const cp = el.closest("[data-cpick]");
-    if(cp){ S.cred.chosen = S.cred.chosen === cp.dataset.cpick ? null : cp.dataset.cpick; render(); return; }
+    if(cp){ S.cred.chosen = S.cred.chosen === cp.dataset.cpick ? null : cp.dataset.cpick; if (S.cred.chosen) justNow("cpick"); render(); return; }
     const csc = el.closest("[data-cscope]");
     if(csc){ S.cred.scope = csc.dataset.cscope; render(); return; }
     const crl = el.closest("[data-crelease]");
@@ -3036,7 +3064,9 @@ function wire(){
     if(el.closest("[data-vlock]")){ window.Vault.lock(); S.vault.shown={}; vaultRefresh(); return; }
     if(el.closest("[data-vsave]")){ vaultSave(); return; }
     const vk = el.closest("[data-vkind]");
-    if(vk){ S.vault.adding = { kind: S.vault.adding.kind === vk.dataset.vkind ? null : vk.dataset.vkind }; render(); return; }
+    if(vk){ S.vault.adding = { kind: S.vault.adding.kind === vk.dataset.vkind ? null : vk.dataset.vkind };
+      if (S.vault.adding.kind) { justNow("vkind"); justNow("vkind2"); } else justNow("vkinds");
+      render(); return; }
     const vs = el.closest("[data-vshow]");
     if(vs){ vaultShow(vs.dataset.vshow); return; }
     const vd = el.closest("[data-vdelete]");
@@ -3289,7 +3319,8 @@ async function decide(id, decision){
 
   const go=async ()=>{
     S.settled[id]=decision; render();                       // the card starts leaving
-    await new Promise(r=>setTimeout(r,180));
+    // long enough to see which way it went, short enough not to wait for
+    await new Promise(r=>setTimeout(r, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 420));
     const snapshot = S.intents.slice();
     S.intents = S.intents.filter(x=>x.id!==id);
     S.inboxTotal = Math.max(0, S.inboxTotal-1);
@@ -3297,7 +3328,7 @@ async function decide(id, decision){
       decision==="deny" ? "denied" : decision==="reflect" ? "reflected"
       : (Object.keys(edits).length ? "edited" : "approved"), decidedAt: Date.now() });
     S.timeline = [done].concat(S.timeline); S.tlTotal++;
-    delete S.settled[id];
+    delete S.settled[id]; justNow("hero");
     if (S.focus) {
       const left = S.intents.filter((i) => !S.focus.uid || (i.solution && i.solution.uid) === S.focus.uid);
       if (S.focus.at >= left.length) S.focus.at = Math.max(0, left.length - 1);

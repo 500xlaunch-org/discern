@@ -343,3 +343,53 @@ body,.app{font-family:var(--sans);letter-spacing:-.005em}
 /* at a desk: a vault request says where it is answered */
 .onphone{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:16px;background:var(--me-bg);color:var(--ink);font-size:.9rem;line-height:1.45}
 .onphone svg{width:18px;height:18px;flex:none;color:var(--me);margin-top:1px}
+
+/* ---------------- living: things answer, fold and come forward ---------------- */
+:root{--spring:cubic-bezier(.2,.9,.25,1.12);--easeo:cubic-bezier(.2,.8,.2,1)}
+/* an answered request leaves the way it was answered */
+.hslide.settling{transition:none;opacity:1;transform:none;pointer-events:none}
+.hslide.settling.approve{animation:hlift .42s var(--easeo) both}
+.hslide.settling.deny{animation:hdeny .42s var(--easeo) both}
+.hslide.settling.reflect{animation:hturn .42s var(--easeo) both}
+@keyframes hlift{0%{transform:none}35%{transform:scale(1.02)}100%{opacity:0;transform:translateY(-40px) scale(.92)}}
+@keyframes hdeny{0%{transform:none}100%{opacity:0;transform:translateX(-60px) rotate(-4deg) scale(.94)}}
+@keyframes hturn{0%{transform:none}100%{opacity:0;transform:perspective(900px) rotateY(28deg) scale(.94)}}
+.hslide.settling::after{position:absolute;inset:0;display:grid;place-items:center;font-size:5rem;font-weight:800;color:#fff;
+  z-index:3;animation:stamp .42s var(--spring) both;text-shadow:0 6px 30px rgba(0,0,0,.5)}
+.hslide.settling.approve::after{content:"\2713";background:radial-gradient(circle,rgba(48,190,110,.45),transparent 65%)}
+.hslide.settling.deny::after{content:"\2715";background:radial-gradient(circle,rgba(229,72,77,.45),transparent 65%)}
+.hslide.settling.reflect::after{content:"\21BB";background:radial-gradient(circle,rgba(80,140,240,.45),transparent 65%)}
+@keyframes stamp{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+/* what is left comes forward */
+.hero-track.fresh .hslide{animation:forward .45s var(--easeo) both}
+@keyframes forward{from{opacity:.4;transform:scale(.96)}to{opacity:1;transform:none}}
+/* a group unfolds rather than appears */
+.agrp.open .gopen.fresh{animation:unfoldin .38s var(--easeo) both}
+@keyframes unfoldin{from{opacity:0;transform:translateY(-6px);clip-path:inset(0 0 100% 0)}to{opacity:1;transform:none;clip-path:inset(0 0 0 0)}}
+/* a choice folds to one line, with Change, and the next thing opens */
+.vchosen{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:16px;background:var(--chip)}
+.vchosen .tic,.vchosen .fbox{flex:none;display:grid;place-items:center}
+.vchosen .tic svg{width:20px;height:20px}
+.vchosen b{font-weight:700}
+.vchosen .credm{flex:1;min-width:0}
+.foldchange{margin-inline-start:auto;border:0;border-radius:999px;background:var(--surface);color:var(--ink);font-weight:650;font-size:.8rem;padding:6px 12px}
+.fold{animation:foldin .34s var(--easeo) both}
+@keyframes foldin{from{opacity:.4;transform:scale(.97)}to{opacity:1;transform:none}}
+.unfold{animation:unfoldin .42s var(--easeo) .05s both}
+.vkinds.fresh .vkind{animation:risein .3s var(--easeo) both;animation-delay:calc(var(--i,0) * 22ms)}
+@keyframes risein{from{opacity:.001;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* sheets arrive with a little spring; taps answer where they land */
+.scrim{animation:fadein .2s ease both}
+.sheet{animation:sheetup .44s var(--spring) both}
+@keyframes fadein{from{opacity:0}}
+@keyframes sheetup{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+.btn,.hround,.hpill,.fbtn,.gchev,.foldchange,.tabbar button,.vkind,.solrow,.catcard{transition:transform .16s var(--spring),background .2s,color .2s,opacity .2s}
+.btn:active,.fbtn:active,.gchev:active,.foldchange:active,.tabbar button:active,.vkind:active{transform:scale(.95)}
+.solrow:active,.catcard:active{transform:scale(.985)}
+::view-transition-old(root){animation:.16s ease both vtout}
+::view-transition-new(root){animation:.26s var(--easeo) both vtin}
+@keyframes vtout{to{opacity:0}} @keyframes vtin{from{opacity:0;transform:scale(.99)}}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}
+}
+#overlay.steady .scrim,#overlay.steady .sheet{animation:none}
