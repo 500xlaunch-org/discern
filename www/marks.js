@@ -15,6 +15,7 @@
 /* Hand drawn glyphs, one per icon keyword a solution can declare. Anything
  * unrecognised falls back to a neutral mark rather than a broken image. */
 const GLYPH = {
+  pulse:`<path d="M3 13h5l2.2-5.5 3.4 11 2.6-7 1.6 3.5H21"/>`,
   chart:`<path d="M4 19V9M9.3 19V4.6M14.7 19v-8.2M20 19v-5.4"/>`,
   briefcase:`<rect x="3" y="7.6" width="18" height="12" rx="2.2"/><path d="M8.4 7.6V5.8a2 2 0 0 1 2-2h3.2a2 2 0 0 1 2 2v1.8"/><path d="M3 12.6h18"/>`,
   code:`<path d="M8.6 7.4 4 12l4.6 4.6M15.4 7.4 20 12l-4.6 4.6M13.4 4.4l-2.8 15.2"/>`,
