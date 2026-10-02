@@ -208,7 +208,12 @@ const KINDS = {
   passkey:  { fields: ["label", "handle"], secret: ["handle"] },
   card:     { fields: ["label", "number", "expiry", "holder"], secret: ["number"] },
   note:     { fields: ["label", "text"], secret: ["text"] },
+  // a file: a deed, a will, a scan of a passport. Kept as a data URL inside
+  // the same encrypted record as everything else, so it never sits anywhere
+  // in the clear, and capped so a vault stays something a phone can carry
+  document: { fields: ["label", "file"], secret: ["file"] },
 };
+const DOCUMENT_MAX_BYTES = 4 * 1024 * 1024;
 
 
 /* ---- allowances ---- */
@@ -616,6 +621,79 @@ const Vault = {
     };
   },
 
+  /** Several things at once, sealed as one envelope to the Solution that asked.
+   * Same construction as a single release; the payload is a list. */
+  async releaseMany(ids, { solutionUid, publicKey }) {
+    if (!DEK) throw new Error("locked");
+    if (!publicKey) throw new Error("no-release-key");
+    const items = [];
+    for (const id of ids) {
+      const rec = await tx(STORE_ITEMS, "readonly", (s) => s.get(id));
+      if (!rec) continue;
+      items.push({ kind: rec.kind, label: rec.label, hint: rec.hint, value: await openItem(DEK, rec) });
+      rec.usedAt = Date.now();
+      await tx(STORE_ITEMS, "readwrite", (s) => s.put(rec));
+    }
+    if (!items.length) throw new Error("nothing-chosen");
+    const theirs = await crypto.subtle.importKey("raw", unb64(publicKey), { name: "ECDH", namedCurve: "P-256" }, false, []);
+    const mine = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+    const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: theirs }, mine.privateKey, 256));
+    const salt = rand(16);
+    const material = await crypto.subtle.importKey("raw", shared, "HKDF", false, ["deriveKey"]);
+    const key = await crypto.subtle.deriveKey(
+      { name: "HKDF", hash: "SHA-256", salt, info: enc.encode("xurface.vault.release") },
+      material, { name: "AES-GCM", length: 256 }, false, ["encrypt"]);
+    const iv = rand(12);
+    const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(JSON.stringify({ v: 1, items })));
+    armAutoLock();
+    return {
+      count: items.length,
+      alg: "ecdh-p256-hkdf-sha256-aes256gcm",
+      ephemeral: b64(await crypto.subtle.exportKey("raw", mine.publicKey)),
+      salt: b64(salt), iv: b64(iv), ct: b64(ct), solution: solutionUid,
+    };
+  },
+
+  /** The key other people seal deliveries to.
+   *
+   * Made once per vault. The public half is published; the private half is
+   * kept inside the vault, encrypted with the vault's own key like any item, so
+   * it is exactly as safe as everything else in here and opens only when the
+   * vault does. */
+  async receiveKey() {
+    if (!DEK) throw new Error("locked");
+    let rec = await metaGet("receiveKey");
+    if (!rec) {
+      const kp = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+      const pub = b64(new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey)));
+      const jwk = await crypto.subtle.exportKey("jwk", kp.privateKey);
+      rec = { pub, sealed: await sealItem(DEK, "receive-key", "ecdh", jwk), at: Date.now() };
+      await metaPut("receiveKey", rec);
+    }
+    return { publicKey: rec.pub, fingerprint: await Vault.fingerprint(rec.pub) };
+  },
+
+  /** Open something delivered to this vault. Throws if it was sealed to
+   * another key, so nothing half-read is ever kept. */
+  async openDelivery(env) {
+    if (!DEK) throw new Error("locked");
+    const rec = await metaGet("receiveKey");
+    if (!rec) throw new Error("no-receive-key");
+    const jwk = await openItem(DEK, { id: "receive-key", kind: "ecdh", iv: rec.sealed.iv, ct: rec.sealed.ct });
+    const priv = await crypto.subtle.importKey("jwk", jwk, { name: "ECDH", namedCurve: "P-256" }, false, ["deriveBits"]);
+    const eph = await crypto.subtle.importKey("raw", unb64(env.ephemeral), { name: "ECDH", namedCurve: "P-256" }, false, []);
+    const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: eph }, priv, 256));
+    const mat = await crypto.subtle.importKey("raw", shared, "HKDF", false, ["deriveKey"]);
+    const key = await crypto.subtle.deriveKey(
+      { name: "HKDF", hash: "SHA-256", salt: unb64(env.salt), info: enc.encode("xurface.vault.deliver") },
+      mat, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+    const clear = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(env.iv) }, key, unb64(env.ct));
+    const parsed = JSON.parse(new TextDecoder().decode(clear));
+    if (!parsed || parsed.v !== 1 || !Array.isArray(parsed.items)) throw new Error("not-a-delivery");
+    armAutoLock();
+    return parsed.items;
+  },
+
   /** Take it all away. Used when somebody signs out of a shared device, and
    * when a person decides they are done with the feature. */
   async destroy() {
@@ -633,6 +711,10 @@ function hintFor(kind, value) {
   if (kind === "card" && value.number) return "ending " + String(value.number).replace(/\D/g, "").slice(-4);
   if (kind === "login" && value.username) return String(value.username);
   if (kind === "wifi" && value.network) return String(value.network);
+  if (kind === "document" && value.name) {
+    const kb = Math.max(1, Math.round((Number(value.size) || 0) / 1024));
+    return String(value.name).slice(0, 60) + " · " + (kb > 1024 ? (kb / 1024).toFixed(1) + " MB" : kb + " KB");
+  }
   return "";
 }
 

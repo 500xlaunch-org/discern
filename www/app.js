@@ -19,6 +19,8 @@ const Net = window.Net;
 /* ---------------- icons ---------------- */
 const MK = `<svg class="mk" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><path class="wave" d="M 28 160 C 59.9 160, 54.1 96, 86 96 C 117.9 96, 112.1 160, 144 160 C 160 160, 166 156, 166 128"/><circle cx="200" cy="128" r="34"/></svg>`;
 const I = {
+  doc:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>`,
+  gift:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="8" width="17" height="4" rx="1.2"/><path d="M5 12v8h14v-8M12 8v12M12 8c-2.5 0-4.5-1-4.5-2.6S9.6 3.5 12 8zM12 8c2.5 0 4.5-1 4.5-2.6S14.4 3.5 12 8z"/></svg>`,
   x:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>`,
   clock:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.4V12l3.4 2"/></svg>`,
   alert:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5 20.5 19H3.5z"/><path d="M12 10v3.4M12 16.3h.01"/></svg>`,
@@ -1212,8 +1214,8 @@ function actionRowHTML(it){
     <div class="atop">
       <button class="aopen" data-aask="${it.id}">
         <span class="aglyph">${riskGlyph(it.risk, 28, it.severity)}</span>
-        <span class="am"><b class="aname">${isCredAsk(it)
-            ? esc(t("cred.wants", { what: credWhat(it) }))
+        <span class="am"><b class="aname">${isVaultAsk(it)
+            ? esc(vaultAskTitle(it))
             : esc(pretty(it.capability))}</b>
           <small class="awhen">${esc(tAgo(iAt(it)))}</small></span>
       </button>
@@ -1221,9 +1223,9 @@ function actionRowHTML(it){
       <button class="achev" data-atog="${it.id}" aria-expanded="${open}"
               aria-label="${esc(t(open ? "act.less" : "act.more"))}">${I.chevron}</button>
     </div>
-    ${open ? `<div class="abody">${isCredAsk(it) ? credBodyHTML(it) : askBodyHTML(it)}
+    ${open ? `<div class="abody">${isVaultAsk(it) ? credBodyHTML(it) : askBodyHTML(it)}
       ${queued ? `<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`
-        : isCredAsk(it) ? credActionsHTML(it) : decideRowHTML(it, settling)}</div>` : ""}
+        : isVaultAsk(it) ? credActionsHTML(it) : decideRowHTML(it, settling)}</div>` : ""}
   </article>`;
 }
 
@@ -1384,10 +1386,10 @@ function askHTML(){
             ${M.solution(sol, 16)}<span>${esc(sol.name || "")}</span></button></div>
         <span class="sevtag">${esc(tSev(it.severity))}</span>
       </div>
-      <h3 class="askact">${isCredAsk(it) ? esc(t("cred.title")) : esc(pretty(it.capability))}</h3>
-      <div class="askscroll">${isCredAsk(it) ? credBodyHTML(it) : askBodyHTML(it)}</div>
+      <h3 class="askact">${isDelivery(it) ? esc(t("del.head")) : isCredAsk(it) ? esc(t("cred.title")) : esc(pretty(it.capability))}</h3>
+      <div class="askscroll">${isVaultAsk(it) ? credBodyHTML(it) : askBodyHTML(it)}</div>
       ${Net.queuedFor(it.id) ? `<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`
-        : isCredAsk(it) ? credActionsHTML(it) : decideRowHTML(it, S.settled[it.id])}
+        : isVaultAsk(it) ? credActionsHTML(it) : decideRowHTML(it, S.settled[it.id])}
       <button class="btn btn-ghost block" data-ask-close>${esc(t("act.close"))}</button>
     </div></div>`;
 }
@@ -1436,14 +1438,14 @@ function heroHTML(){
 }
 function heroSlideHTML(it){
   const M = window.Marks, sol = it.solution || { name: iName(it) };
-  const settling = S.settled[it.id], queued = Net.queuedFor(it.id), cred = isCredAsk(it);
+  const settling = S.settled[it.id], queued = Net.queuedFor(it.id), cred = isVaultAsk(it);
   return `<article class="hslide ${settling ? "settling " + settling : ""}" data-aid="${it.id}"
       style="--sev:${sevColor(it.severity)};--sevb:${sevBg(it.severity)}">
     ${M.art(`${sol.uid || sol.name}:${iAgent(it)}`, sol.icon || sol.slug, { sev: it.severity, cls: "hart" })}
     <span class="hglyph">${riskGlyph(it.risk, 58, it.severity)}</span>
     <div class="hbody">
       <span class="hchip"><i></i>${esc(tSev(it.severity))}<span>${esc(tAgo(iAt(it)))}</span></span>
-      <button class="htitle" data-aask="${it.id}">${cred ? esc(t("cred.wants", { what: credWhat(it) })) : esc(pretty(it.capability))}</button>
+      <button class="htitle" data-aask="${it.id}">${cred ? esc(vaultAskTitle(it)) : esc(pretty(it.capability))}</button>
       <p class="hmeta">${M.agent(iAgent(it), 20)}<span>${esc(iAgent(it))}</span><b>&middot;</b><span>${esc(sol.name || "")}</span></p>
       ${queued ? `<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`
         : cred ? `<div class="hacts"><button class="hpill" data-aask="${it.id}">${I.shield}<span>${esc(t("hero.open"))}</span></button></div>`
@@ -1748,6 +1750,7 @@ const VKIND = {
   passkey: { icon: () => I.face,    label: () => t("v.kind.passkey") },
   card:    { icon: () => I.work,    label: () => t("v.kind.card") },
   note:    { icon: () => I.inbox,   label: () => t("v.kind.note") },
+  document:{ icon: () => I.doc,     label: () => t("v.kind.document") },
 };
 
 function vaultHTML(){
@@ -1926,23 +1929,25 @@ function vaultOpenHTML(){
     ${vaultMoveHTML()}`;
 }
 
-function vaultFormHTML(kind){
+function vaultFormHTML(kind, prefix = "vf_", saveAttr = "data-vsave"){
   const spec = window.Vault.KINDS[kind];
   return `<div class="vform">
     ${spec.fields.map((f) => {
+      if (f === "file") return `<div class="field"><label for="${prefix}file">${esc(t("v.f.file"))}</label>
+        <input id="${prefix}file" type="file" class="vfile"/><p class="vnote">${esc(t("v.doc.tooBig"))}</p></div>`;
       const secret = spec.secret.includes(f);
-      const input = `<input id="vf_${f}" type="${secret ? "password" : "text"}" autocomplete="off"
+      const input = `<input id="${prefix}${f}" type="${secret ? "password" : "text"}" autocomplete="off"
                inputmode="${f === "number" ? "numeric" : "text"}" spellcheck="false" autocapitalize="none"/>`;
       // A secret is typed hidden, and can be looked at before it is saved: a
       // wifi password mistyped into a vault is a password that never works, and
       // there is no way to read it back out to find the typo afterwards.
-      return `<div class="field"><label for="vf_${f}">${esc(t("v.f." + f))}</label>
+      return `<div class="field"><label for="${prefix}${f}">${esc(t("v.f." + f))}</label>
         ${secret ? `<div class="pwwrap">${input}
-          <button type="button" class="pweye" data-veye="vf_${f}" aria-controls="vf_${f}"
+          <button type="button" class="pweye" data-veye="${prefix}${f}" aria-controls="${prefix}${f}"
                   aria-label="${esc(t("signin.showPw"))}" aria-pressed="false">${I.eye}</button></div>` : input}</div>`;
     }).join("")}
     ${kind === "card" ? `<p class="vnote">${esc(t("v.card.noCvv"))}</p>` : ""}
-    <button class="btn btn-primary block" data-vsave>${esc(t("v.add.save"))}</button>
+    <button class="btn btn-primary block" ${saveAttr}>${esc(t("v.add.save"))}</button>
   </div>`;
 }
 
@@ -1958,7 +1963,10 @@ function vitemHTML(it){
       <button class="vshow" data-vshow="${it.id}">${esc(t(shown ? "v.hide" : "v.show"))}</button>
     </div>
     ${shown ? `<div class="vbody">
-      ${Object.entries(shown).map(([k, v]) => `<div class="drow"><span class="dk">${esc(t("v.f." + k))}</span>
+      ${it.kind === "document"
+        ? `<div class="drow"><span class="dk">${esc(t("v.f.file"))}</span><span class="dv">${esc(shown.name || it.label)}</span>
+            <a class="btn btn-ghost sm" download="${esc(shown.name || "document")}" href="${esc(shown.file || "#")}">${esc(t("v.doc.open"))}</a></div>`
+        : Object.entries(shown).map(([k, v]) => `<div class="drow"><span class="dk">${esc(t("v.f." + k))}</span>
         <span class="dv mono">${esc(v)}</span></div>`).join("")}
       ${(it.grants || []).length ? `<div class="vgrantlist"><b class="vglab">${esc(t("v.grants.title"))}</b>${(it.grants || []).map((g) => {
         const sol = (S.solutions || []).find((x) => x.uid === g.solution) || { uid: g.solution, name: g.solution };
@@ -2023,6 +2031,7 @@ async function vaultRefresh(){
   setTimeout(credStanding, 0);
   S.vault.items = window.Vault.state.unlocked ? await window.Vault.list() : [];
   render();
+  publishReceiveKey();
 }
 
 async function vaultCreate(){
@@ -2068,13 +2077,10 @@ async function vaultUnlock(){
 
 async function vaultSave(){
   const kind = S.vault.adding.kind;
-  const spec = window.Vault.KINDS[kind];
-  const value = {};
-  for (const f of spec.fields) {
-    const el = document.getElementById("vf_" + f);
-    if (el && el.value.trim()) value[f] = el.value.trim();
-  }
-  if (!Object.keys(value).length) return;
+  let value;
+  try { value = await readVaultForm(kind, "vf_"); }
+  catch (e) { toast(`<div class="tm">${esc(e.message)}</div>`, "warn"); return; }
+  if (!value) return;
   try {
     await window.Vault.put({ kind, value });
     S.vault.adding = { kind: null };
@@ -2101,6 +2107,15 @@ async function vaultShow(id){
  * Nothing is released until an item is chosen, and nothing is sealed until the
  * vault is open. */
 const isCredAsk = (it) => it && it.kind === "credential_request";
+/* Something a Solution is handing over to keep, sealed to this vault alone. */
+const isDelivery = (it) => it && it.kind === "delivery";
+const isVaultAsk = (it) => isCredAsk(it) || isDelivery(it);
+const isBundle = (it) => isCredAsk(it) && (it.credential || {}).type === "bundle";
+function vaultAskTitle(it){
+  if (isDelivery(it)) { const d = it.delivery || {};
+    return d.from ? t("del.title", { from: d.from }) : (d.title || t("del.head")); }
+  return t("cred.wants", { what: credWhat(it) });
+}
 /** What the agent is after, named the way the person would name it.
  *
  * The developer's own words when they gave any, because "your work mailbox"
@@ -2109,11 +2124,53 @@ const isCredAsk = (it) => it && it.kind === "credential_request";
 function credWhat(it){
   const c = it.credential || {};
   if (c.name) return c.name;
+  if (c.type === "bundle") return t("cred.bundleWhat");
   const k = VKIND[c.type];
   return t("cred.yourKind", { kind: (k ? k.label() : t("v.kind.note")).toLowerCase() });
 }
 
+/* A delivery: who it is from, how much, why, and the one place it can go. */
+function deliveryBodyHTML(it){
+  const d = it.delivery || {}, V = window.Vault, st = V ? V.state : { exists: false };
+  const head = `<div class="credask"><span class="vic">${I.gift}</span>
+      <div><b>${esc(vaultAskTitle(it))}</b><span>${esc(tn("del.count", d.count || 1))}</span></div></div>
+    ${it.voice && it.voice.summary ? `<p class="whysum">${esc(it.voice.summary)}</p>` : ""}
+    <p class="vnote">${esc(t("del.body"))}</p>`;
+  if (WEB) return head + `<div class="onphone">${I.shield}<span>${esc(t("cred.onPhone"))}</span></div>`;
+  if (!st.exists) return head + `<div class="vwarn">${esc(t("del.noVault"))}</div>
+    <button class="btn btn-ghost block" data-nav="vault">${esc(t("cred.goVault"))}</button>`;
+  if (!st.unlocked) return head + `<div class="field"><label for="cpin">${esc(t("v.locked.pin"))}</label>
+      <input id="cpin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="******"/></div>
+    ${S.cred.error ? `<div class="signin-err">${esc(S.cred.error)}</div>` : ""}
+    <button class="btn btn-ghost block" data-cunlock ${S.cred.busy ? "disabled" : ""}><span>${esc(t("cred.unlock"))}</span></button>`;
+  return head + (S.cred.error ? `<div class="signin-err">${esc(S.cred.error)}</div>` : "");
+}
+
+/* A bundle: the person chooses as many things as they want from their vault,
+   and can add what is missing without leaving the question. What they chose
+   folds to a count; what they are adding folds away once kept. */
+function bundlePickHTML(it){
+  const cr = S.cred, items = S.vault.items || [], many = cr.many || [];
+  const rows = items.length ? `<div class="credpick">${items.map((m) => {
+      const on = many.includes(m.id), k = VKIND[m.kind] || VKIND.note;
+      return `<button class="credopt ${on ? "on" : ""}" data-cmany="${m.id}">
+        <span class="fbox ${on ? "on" : ""}">${on ? I.check : ""}</span><span class="tic">${k.icon()}</span>
+        <span class="credm"><b>${esc(m.label)}</b><small>${esc(k.label())}${m.hint ? " \u00b7 " + esc(m.hint) : ""}</small></span></button>`;
+    }).join("")}</div>`
+    : `<div class="thin-empty">${esc(t("cred.bundleNone"))}</div>`;
+  const kinds = Object.keys(VKIND);
+  const add = cr.addKind
+    ? `<div class="vchosen${fresh("baddk") ? " fold" : ""}"><span class="tic">${VKIND[cr.addKind].icon()}</span><b>${esc(VKIND[cr.addKind].label())}</b>
+         <button class="foldchange" data-cbkind="${cr.addKind}">${esc(t("v.change"))}</button></div>
+       <div class="unfold">${vaultFormHTML(cr.addKind, "bf_", "data-cbsave")}</div>`
+    : `<p class="bundlelab">${esc(t("cred.bundleAdd"))}</p><div class="vkinds">${kinds.map((k) =>
+        `<button class="vkind" data-cbkind="${k}"><span class="tic">${VKIND[k].icon()}</span><span>${esc(VKIND[k].label())}</span></button>`).join("")}</div>`;
+  return `<p class="bundlelab">${esc(t("cred.bundlePick"))}${many.length ? ` <b>${esc(tn("cred.chosenN", many.length))}</b>` : ""}</p>`
+    + rows + add + credScopeHTML(it) + (cr.error ? `<div class="signin-err">${esc(cr.error)}</div>` : "");
+}
+
 function credBodyHTML(it){
+  if (isDelivery(it)) return deliveryBodyHTML(it);
   const c = it.credential || {};
   if (WEB) {
     const kind = VKIND[c.type] || VKIND.note;
@@ -2144,6 +2201,7 @@ function credBodyHTML(it){
     <button class="btn btn-ghost block" data-cunlock ${cr.busy ? "disabled" : ""}>
       ${cr.busy ? `<span class="tic spin">${I.sync}</span>` : ""}<span>${esc(t("cred.unlock"))}</span></button>`;
 
+  if (c.type === "bundle") return head + bundlePickHTML(it);
   const pickedOne = cr.chosen && matching.find((m) => m.id === cr.chosen);
   const picker = pickedOne ? `<div class="vchosen${fresh("cpick") ? " fold" : ""}"><span class="fbox on">${I.check}</span>
       <span class="credm"><b>${esc(pickedOne.label)}</b>${pickedOne.hint ? `<small>${esc(pickedOne.hint)}</small>` : ""}</span>
@@ -2165,10 +2223,14 @@ function credBodyHTML(it){
     </div>`
     : `<button class="btn btn-ghost block" data-cnew>${esc(t("cred.newOne"))}</button>`;
 
+  return head + picker + (pickedOne ? "" : creating) + credScopeHTML(it)
+    + (cr.error ? `<div class="signin-err">${esc(cr.error)}</div>` : "");
+}
+function credScopeHTML(it){
+  const c = it.credential || {}, cr = S.cred;
   // what "the same purpose" means, said before anybody chooses it
   const purpose = c.purpose && !/^credential\./.test(c.purpose) ? c.purpose : "";
-  return head + picker + (pickedOne ? "" : creating)
-    + `<div class="credscope">
+  return `<div class="credscope">
         <b>${esc(t("cred.scope"))}</b>
         <button class="scopeopt ${cr.scope !== "purpose" ? "on" : ""}" data-cscope="once">
           <span class="fbox ${cr.scope !== "purpose" ? "on" : ""}">${cr.scope !== "purpose" ? I.check : ""}</span>
@@ -2178,11 +2240,25 @@ function credBodyHTML(it){
           <span class="credm"><b>${esc(t("cred.forPurpose"))}</b>
             <small>${esc(purpose ? t("cred.forPurposeSub", { purpose }) : t("cred.forPurposeAny"))}</small></span></button>
         <p class="vnote">${esc(t("cred.changeRevokes"))}</p>
-      </div>`
-    + (cr.error ? `<div class="signin-err">${esc(cr.error)}</div>` : "");
+      </div>`;
 }
 
 function credActionsHTML(it){
+  if (isDelivery(it)) {
+    const ready = !WEB && window.Vault && window.Vault.state.unlocked;
+    return `<div class="iacts decide">
+      <button class="btn btn-deny" data-decide="deny" data-id="${it.id}">${esc(t("card.deny"))}</button>
+      ${ready ? holdBtnHTML(it, S.cred.busy).replace(/<span>[^<]*<\/span><\/button>$/, `<span>${esc(t("del.keep"))}</span></button>`) : ""}
+    </div>`;
+  }
+  if (isBundle(it) && !WEB) {
+    const n = (S.cred.many || []).length, ready = n && window.Vault && window.Vault.state.unlocked;
+    return `<div class="iacts">
+      <button class="btn btn-deny" data-decide="deny" data-id="${it.id}">${esc(t("cred.refuse"))}</button>
+      <button class="btn btn-primary" data-crelease="${it.id}" ${ready && !S.cred.busy ? "" : "disabled"}>
+        ${S.cred.busy ? `<span class="tic spin">${I.sync}</span>` : ""}<span>${esc(n ? tn("cred.releaseN", n) : t("cred.release"))}</span></button>
+    </div>`;
+  }
   // refusing needs no vault, so it can be done from anywhere
   if (WEB) return `<div class="iacts"><button class="btn btn-deny" data-decide="deny" data-id="${it.id}">${esc(t("cred.refuse"))}</button></div>`;
   const cr = S.cred, ready = !!cr.chosen && window.Vault && window.Vault.state.unlocked;
@@ -2196,9 +2272,16 @@ function credActionsHTML(it){
 /** Opening one starts clean, except that something already granted to this
  * Solution is offered first. A grant saves the finding, never the asking. */
 function openCredAsk(id){
-  S.cred = { chosen:null, creating:false, scope:"once", busy:false, error:"" };
+  S.cred = { chosen:null, many:[], addKind:null, creating:false, scope:"once", busy:false, error:"" };
   const it = (S.intents || []).find((x) => x.id === id);
   if (!isCredAsk(it)) return;
+  if (isBundle(it)) {
+    const w = credWho(it);
+    S.cred.many = (S.vault.items || []).filter((m) => (m.grants || []).some((g) =>
+      g.solution === w.solution && g.agent === w.agent && g.purpose === w.purpose)).map((m) => m.id);
+    if (S.cred.many.length) S.cred.scope = "purpose";
+    return;
+  }
   // something allowed before for this exact purpose is offered first; anything
   // allowed for a different purpose, or before the value changed, is not
   const want = credWho(it);
@@ -2225,7 +2308,7 @@ function credWho(it){
  * the inbox like any other. */
 async function credStanding(){
   if (!window.Vault || !window.Vault.state.unlocked) return;
-  const asks = (S.intents || []).filter((it) => isCredAsk(it) && it.release_key);
+  const asks = (S.intents || []).filter((it) => isCredAsk(it) && !isBundle(it) && it.release_key);
   let done = 0;
   for (const it of asks) {
     const who = credWho(it);
@@ -2263,6 +2346,21 @@ async function credUnlock(){
   }
 }
 
+/* Something missing, added from inside the question, and chosen at once. */
+async function bundleAdd(){
+  const kind = S.cred.addKind; if (!kind) return;
+  let value;
+  try { value = await readVaultForm(kind, "bf_"); }
+  catch (e) { S.cred.error = e.message; render(); return; }
+  if (!value) return;
+  try {
+    const { id } = await window.Vault.put({ kind, value });
+    S.cred.addKind = null; S.cred.error = "";
+    (S.cred.many || (S.cred.many = [])).push(id);
+    await vaultRefresh();
+  } catch (e) { S.cred.error = t("v.err.save"); render(); }
+}
+
 async function credMake(){
   const it = (S.intents || []).find((x) => x.id === S.ask);
   if (!it) return;
@@ -2285,6 +2383,7 @@ async function credMake(){
  * person chose to remember. The plaintext never leaves this function. */
 async function credRelease(intentId){
   const it = (S.intents || []).find((x) => x.id === intentId);
+  if (it && isBundle(it)) return bundleRelease(it);
   if (!it || !S.cred.chosen) return;
   const c = it.credential || {};
   S.cred.busy = true; S.cred.error = ""; render();
@@ -2307,6 +2406,83 @@ async function credRelease(intentId){
     S.cred.error = e.message === "no-release-key" ? t("cred.err.noKey") : (e.message || t("net.failed"));
     render();
   }
+}
+
+async function bundleRelease(it){
+  const ids = S.cred.many || [];
+  if (!ids.length) return;
+  S.cred.busy = true; S.cred.error = ""; render();
+  try {
+    const sealed = await window.Vault.releaseMany(ids, { solutionUid: (it.solution && it.solution.uid) || it.solutionUid, publicKey: it.release_key });
+    await Backend.release(it.id, sealed);
+    if (S.cred.scope === "purpose") for (const id of ids) await window.Vault.grant(id, credWho(it));
+    S.intents = S.intents.filter((x) => x.id !== it.id);
+    S.inboxTotal = Math.max(0, S.inboxTotal - 1);
+    S.timeline = [Object.assign({}, it, { state: "approved", decision: { decision: "approve", at: Date.now() } })].concat(S.timeline);
+    S.ask = null; S.cred = { chosen: null, many: [], creating: false, scope: "once", busy: false, error: "" };
+    await vaultRefresh();
+    toast(`<span class="tic">${I.shield}</span><div class="tm">${esc(tn("cred.t.releasedN", ids.length))}</div>`, "ok");
+    silentRefresh();
+  } catch (e) {
+    S.cred.busy = false;
+    S.cred.error = e.message === "no-release-key" ? t("cred.err.noKey") : (e.message || t("net.failed"));
+    render();
+  }
+}
+
+/* Keep what was delivered: fetch the sealed parcel, open it with this vault's
+   own key, put it in, and only then say yes, so a yes always means kept. */
+async function acceptDelivery(id){
+  const it = (S.intents || []).find((x) => x.id === id);
+  const V = window.Vault;
+  if (!it) return;
+  if (!V || !V.state.exists || !V.state.unlocked) { S.ask = id; render(); return; }
+  S.cred.busy = true; S.cred.error = ""; render();
+  try {
+    const env = await Net.request("GET", `/v1/user/intents/${encodeURIComponent(id)}/delivery`);
+    const items = await V.openDelivery(env);
+    const r = await V.importItems(items);
+    await Net.request("POST", `/v1/user/intents/${encodeURIComponent(id)}/delivery/accept`, {});
+    S.intents = S.intents.filter((x) => x.id !== id);
+    S.inboxTotal = Math.max(0, S.inboxTotal - 1);
+    S.timeline = [Object.assign({}, it, { state: "approved", decision: { decision: "approve", at: Date.now() } })].concat(S.timeline);
+    S.ask = null; S.cred = { chosen: null, many: [], creating: false, scope: "once", busy: false, error: "" };
+    await vaultRefresh();
+    toast(`<span class="tic">${I.gift}</span><div class="tm">${esc(tn("del.t.kept", r.added || items.length))}</div>`, "ok");
+    silentRefresh();
+  } catch (e) {
+    S.cred.busy = false;
+    S.cred.error = /no-receive-key|OperationError|not-a-delivery/.test(String(e && (e.name + e.message))) ? t("del.err.key") : (e.message || t("net.failed"));
+    S.ask = id; render();
+  }
+}
+
+/* The vault says where deliveries can be sealed to, once it is open. */
+async function publishReceiveKey(){
+  if (WEB || S.rkSent || !S.token || S.mode !== "connected" || !window.Vault || !window.Vault.state.unlocked) return;
+  try {
+    const k = await window.Vault.receiveKey();
+    await Net.request("POST", "/v1/user/receive-key", { key: k.publicKey });
+    S.rkSent = true;
+  } catch { /* asked again the next time the vault opens */ }
+}
+
+/* Read a vault form into a value, a file included. */
+async function readVaultForm(kind, prefix){
+  const spec = window.Vault.KINDS[kind], value = {};
+  for (const f of spec.fields) {
+    const el = document.getElementById(prefix + f);
+    if (!el) continue;
+    if (el.type === "file") {
+      const file = el.files && el.files[0];
+      if (!file) continue;
+      if (file.size > 4 * 1024 * 1024) throw new Error(t("v.doc.tooBig"));
+      value.file = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(r.error); r.readAsDataURL(file); });
+      value.name = file.name; value.size = file.size; value.type = file.type || "application/octet-stream";
+      if (!value.label) value.label = file.name.replace(/\.[^.]+$/, "");
+    } else if (el.value.trim()) value[f] = el.value.trim();
+  }
+  return Object.keys(value).length ? value : null;
 }
 
 /* ---- solutions ---- */
@@ -3052,6 +3228,12 @@ function wire(){
     // -- vault --
     if(el.closest("[data-cunlock]")){ credUnlock(); return; }
     if(el.closest("[data-cnew]")){ S.cred.creating = true; render(); return; }
+    const cm = el.closest("[data-cmany]");
+    if(cm){ const id = cm.dataset.cmany, l = S.cred.many || (S.cred.many = []);
+      const i = l.indexOf(id); if (i >= 0) l.splice(i, 1); else l.push(id); render(); return; }
+    const cbk = el.closest("[data-cbkind]");
+    if(cbk){ S.cred.addKind = S.cred.addKind === cbk.dataset.cbkind ? null : cbk.dataset.cbkind; if (S.cred.addKind) justNow("baddk"); render(); return; }
+    if(el.closest("[data-cbsave]")){ bundleAdd(); return; }
     if(el.closest("[data-cmake]")){ credMake(); return; }
     const cp = el.closest("[data-cpick]");
     if(cp){ S.cred.chosen = S.cred.chosen === cp.dataset.cpick ? null : cp.dataset.cpick; if (S.cred.chosen) justNow("cpick"); render(); return; }
@@ -3311,6 +3493,7 @@ async function loadMore(which){
 async function decide(id, decision){
   const idx=S.intents.findIndex(x=>x.id===id); if(idx<0)return;
   const it=S.intents[idx];
+  if (isDelivery(it) && decision === "approve") return acceptDelivery(id);
   const edits={};
   document.querySelectorAll(`[data-edit="${id}"]`).forEach(inp=>{
     const o=it.details?it.details[inp.dataset.key]:undefined; let v=inp.value;

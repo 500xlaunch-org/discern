@@ -368,3 +368,74 @@ test("a key with the wrong fingerprint is refused before anything is sealed", as
   const ok = await sender.sealFor(real.publicKey, real.fingerprint.toLowerCase().replace(/(....)/, "$1 "));
   assert.equal(ok.count, 1);
 });
+
+/* ---------- next of kin: several things out, and things delivered in ---------- */
+const b64u = (b) => Buffer.from(b).toString("base64url");
+const unb64u = (s) => new Uint8Array(Buffer.from(s, "base64url"));
+async function sealTo(pubB64, payload, info) {
+  const theirs = await webcrypto.subtle.importKey("raw", unb64u(pubB64), { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const mine = await webcrypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const shared = new Uint8Array(await webcrypto.subtle.deriveBits({ name: "ECDH", public: theirs }, mine.privateKey, 256));
+  const salt = webcrypto.getRandomValues(new Uint8Array(16)), iv = webcrypto.getRandomValues(new Uint8Array(12));
+  const mat = await webcrypto.subtle.importKey("raw", shared, "HKDF", false, ["deriveKey"]);
+  const key = await webcrypto.subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt, info: new TextEncoder().encode(info) },
+    mat, { name: "AES-GCM", length: 256 }, false, ["encrypt"]);
+  const ct = await webcrypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(payload)));
+  return { alg: "ecdh-p256-hkdf-sha256-aes256gcm", ephemeral: b64u(await webcrypto.subtle.exportKey("raw", mine.publicKey)),
+           salt: b64u(salt), iv: b64u(iv), ct: b64u(ct) };
+}
+async function openWith(priv, env, info) {
+  const eph = await webcrypto.subtle.importKey("raw", unb64u(env.ephemeral), { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const shared = new Uint8Array(await webcrypto.subtle.deriveBits({ name: "ECDH", public: eph }, priv, 256));
+  const mat = await webcrypto.subtle.importKey("raw", shared, "HKDF", false, ["deriveKey"]);
+  const key = await webcrypto.subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: unb64u(env.salt), info: new TextEncoder().encode(info) },
+    mat, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  return JSON.parse(new TextDecoder().decode(await webcrypto.subtle.decrypt({ name: "AES-GCM", iv: unb64u(env.iv) }, key, unb64u(env.ct))));
+}
+
+test("a document is kept like anything else, with a hint that names it", async () => {
+  const { V } = loadVault();
+  await V.create(PIN, { useDeviceLock: false });
+  const file = "data:application/pdf;base64," + Buffer.from("%PDF the deed to the house").toString("base64");
+  const { id } = await V.put({ kind: "document", value: { label: "House deed", file, name: "deed.pdf", size: 2048, type: "application/pdf" } });
+  const row = (await V.list()).find((x) => x.id === id);
+  assert.equal(row.kind, "document");
+  assert.equal(row.label, "House deed");
+  assert.match(row.hint, /deed\.pdf/);
+  assert.ok(!JSON.stringify(row).includes("PDF the deed"), "a listing never carries the file");
+  assert.equal((await V.reveal(id)).file, file);
+});
+
+test("several things leave as one envelope, readable only by the Solution that asked", async () => {
+  const { V } = loadVault();
+  await V.create(PIN, { useDeviceLock: false });
+  const a = await V.put({ kind: "login", value: { site: "mail.example", username: "ada", password: "p4ss" } });
+  const b = await V.put({ kind: "note", value: { label: "Bank", text: "Account 1234 at Northbank" } });
+  const sol = await webcrypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const pub = b64u(await webcrypto.subtle.exportKey("raw", sol.publicKey));
+  const sealed = await V.releaseMany([a.id, b.id], { solutionUid: "sol_line", publicKey: pub });
+  assert.equal(sealed.count, 2);
+  assert.ok(!JSON.stringify(sealed).includes("p4ss"));
+  const clear = await openWith(sol.privateKey, sealed, "xurface.vault.release");
+  assert.deepEqual(clear.items.map((x) => x.label).sort(), ["Bank", "mail.example"]);
+  assert.equal(clear.items.find((x) => x.kind === "login").value.password, "p4ss");
+});
+
+test("a delivery opens in the vault it was sealed to, and nowhere else", async () => {
+  const kin = loadVault().V, stranger = loadVault().V;
+  await kin.create(PIN, { useDeviceLock: false });
+  await stranger.create(PIN, { useDeviceLock: false });
+  const k1 = await kin.receiveKey();
+  assert.equal((await kin.receiveKey()).publicKey, k1.publicKey, "made once, then the same");
+  await stranger.receiveKey();
+  const items = [{ kind: "login", label: "mail.example", value: { site: "mail.example", username: "ada", password: "p4ss" } },
+                 { kind: "document", label: "Will", value: { label: "Will", file: "data:text/plain;base64,aGk=", name: "will.txt", size: 2 } }];
+  const env = await sealTo(k1.publicKey, { v: 1, items }, "xurface.vault.deliver");
+  await assert.rejects(() => stranger.openDelivery(env));
+  const opened = await kin.openDelivery(env);
+  assert.equal(JSON.stringify(await kin.importItems(opened)), JSON.stringify({ added: 2, skipped: 0 }));
+  assert.ok((await kin.list()).some((x) => x.kind === "document" && x.label === "Will"));
+  // the private half stays inside the vault: locked, it opens nothing
+  await kin.lock();
+  await assert.rejects(() => kin.openDelivery(env), /locked/);
+});

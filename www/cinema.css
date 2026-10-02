@@ -393,3 +393,10 @@ body,.app{font-family:var(--sans);letter-spacing:-.005em}
   *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}
 }
 #overlay.steady .scrim,#overlay.steady .sheet{animation:none}
+
+/* ---------------- choosing several things, and files ---------------- */
+.bundlelab{margin:10px 0 6px;font-weight:650;font-size:.9rem;color:var(--muted)}
+.bundlelab b{color:var(--ink);margin-inline-start:6px}
+.credopt .tic{display:grid;place-items:center;color:var(--muted)} .credopt .tic svg{width:18px;height:18px}
+.vfile{width:100%;padding:14px;border-radius:14px;border:1.5px dashed var(--hair);background:var(--chip);color:var(--ink)}
+.vfile::file-selector-button{border:0;border-radius:999px;background:var(--pill);color:var(--pill-ink);font-weight:650;padding:8px 14px;margin-inline-end:12px}
