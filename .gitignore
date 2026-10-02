@@ -13,3 +13,5 @@ android/.gradle/
 android/upload.p12
 play/upload/
 play/xurface-discern-store-assets.zip
+tools/.venv/
+ios/build/

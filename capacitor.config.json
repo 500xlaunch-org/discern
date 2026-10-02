@@ -2,14 +2,14 @@
   "appId": "com.xurface.discern.app",
   "appName": "Discern",
   "webDir": "www",
-  "backgroundColor": "#0E1116",
+  "backgroundColor": "#000000",
   "server": {
     "androidScheme": "https"
   },
   "plugins": {
     "SplashScreen": {
       "launchShowDuration": 700,
-      "backgroundColor": "#0E1116",
+      "backgroundColor": "#000000",
       "androidSplashResourceName": "splash",
       "androidScaleType": "CENTER_CROP",
       "showSpinner": false,
@@ -17,11 +17,22 @@
     },
     "StatusBar": {
       "style": "DARK",
-      "backgroundColor": "#0E1116"
+      "backgroundColor": "#000000"
+    },
+    "FirebaseMessaging": {
+      "presentationOptions": [
+        "alert",
+        "badge",
+        "sound"
+      ]
     }
   },
   "android": {
     "allowMixedContent": false,
-    "backgroundColor": "#0E1116"
+    "backgroundColor": "#000000"
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#000000"
   }
 }

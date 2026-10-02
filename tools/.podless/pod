@@ -1,0 +1,4 @@
+#!/bin/sh
+# stand-in for the CocoaPods check in `cap add ios`: this project uses Swift
+# Package Manager, so pod is never actually needed
+exit 0

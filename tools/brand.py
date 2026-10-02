@@ -9,6 +9,7 @@ Covers:
   www/icons/                              the PWA / web app icons
   android/app/src/main/res/mipmap-*/      launcher icons, legacy and adaptive
   android/app/src/main/res/drawable-*/    splash screens, portrait and landscape
+  ios/App/App/Assets.xcassets/            app icon and splash
   play/                                   store icon and feature graphic
 
 Fonts are IBM Plex Sans and Fraunces (both OFL). They are fetched from Google
@@ -193,6 +194,21 @@ def android_splash():
     out(im, res/"drawable/splash.png", rgb=True)
 
 
+def ios_assets():
+    """iOS draws its own rounded mask and refuses an icon with transparency, so
+    the icon is a full square, opaque. The splash is the black the app opens
+    on, with the mark small in the middle, three times because the asset
+    catalog asks for 1x, 2x and 3x at the same 2732 size."""
+    xc = ROOT/"ios/App/App/Assets.xcassets"
+    if not xc.exists():
+        print("  (no ios/ yet: run npx cap add ios first)"); return
+    out(tile(1024, BLUE, bg2=BLUE_D, radius=0, frac=0.6), xc/"AppIcon.appiconset/AppIcon-512@2x.png", rgb=True)
+    for name in ("splash-2732x2732.png", "splash-2732x2732-1.png", "splash-2732x2732-2.png"):
+        im = Image.new("RGBA", (2732, 2732), (0, 0, 0, 255))
+        place(im, glyph(2732, PAPER), 0.16)
+        out(im, xc/"Splash.imageset"/name, rgb=True)
+
+
 def play_assets():
     play = ROOT/"play"
     # store icon: 512x512, no transparency in the final upload
@@ -225,7 +241,7 @@ def play_assets():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="fail if any output is missing")
-    ap.add_argument("--only", choices=["all", "android", "web", "play"], default="all",
+    ap.add_argument("--only", choices=["all", "android", "ios", "web", "play"], default="all",
                     help="android skips the store graphics, which are the only outputs needing fonts")
     args = ap.parse_args()
 
@@ -233,6 +249,8 @@ def main():
         web_icons()
     if args.only in ("all", "android"):
         android_icons(); android_splash()
+    if args.only in ("all", "ios"):
+        ios_assets()
     if args.only in ("all", "play"):
         play_assets()
 

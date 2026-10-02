@@ -22,9 +22,12 @@ iOS
   GoogleService-Info.plist   into ios/App/App, and added to the Xcode target
   App.entitlements           aps-environment, which push needs
   Info.plist                 remote-notification background mode
+  AppDelegate.swift          hands the APNs token and incoming pushes to the
+                             Firebase plugin, which cannot see them otherwise
 
 Running it twice changes nothing the second time.
 """
+from __future__ import annotations
 import argparse, base64, json, os, re, sys
 from pathlib import Path
 
@@ -134,6 +137,32 @@ def ios(env: str):
         s = s.replace("<dict>", "<dict>\n\t<key>UIBackgroundModes</key>\n\t<array>\n\t\t<string>remote-notification</string>\n\t</array>", 1)
         info.write_text(s)
     print("  Info.plist: remote-notification background mode")
+
+    # APNs talks to the app delegate, not to plugins: pass both on
+    ad = appdir / "AppDelegate.swift"
+    a = ad.read_text()
+    if "capacitorDidRegisterForRemoteNotifications" not in a:
+        hooks = """
+    // push: APNs reports to the app delegate, so the token and incoming
+    // messages are handed to the Firebase plugin from here (tools/native.py)
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+    }
+
+    func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+                     fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        NotificationCenter.default.post(name: Notification.Name.init("didReceiveRemoteNotification"),
+                                        object: completionHandler, userInfo: userInfo)
+    }
+"""
+        i = a.rindex("}")
+        a = a[:i].rstrip() + "\n" + hooks + "}\n"
+        ad.write_text(a)
+    print("  AppDelegate.swift: APNs token and pushes handed to the plugin")
 
     # the project file has to know about both files, or Xcode ignores them
     pbx = ROOT / "ios" / "App" / "App.xcodeproj" / "project.pbxproj"
