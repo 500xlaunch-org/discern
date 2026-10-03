@@ -476,3 +476,139 @@ body,.app{font-family:var(--sans);letter-spacing:-.005em}
 .signin .lgblock .field{max-width:none;width:100%}
 .signin .btn-primary[disabled]{opacity:.38;cursor:not-allowed;box-shadow:none}
 .signin .btn-primary[disabled]:has(.spin){opacity:.75;cursor:progress}
+
+/* ================= Solutions, a Solution, an agent =================
+ * Built like a store's product page: a title card, the facts in one strip,
+ * the agents as their own rows that open into their own page, and the
+ * technical truth (keys, scores, SDK) one tap down rather than on top. */
+.mark.logo{width:var(--px);height:var(--px);border-radius:calc(var(--px) * .26);overflow:hidden;background:#0d0d0d;
+  box-shadow:0 0 0 1px rgba(255,255,255,.08) inset, 0 10px 24px -12px rgba(0,0,0,.7);flex:none;display:inline-grid}
+.mark.logo img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* the list: one title card per Solution */
+.solfeat{display:block;width:100%;text-align:left;padding:0;border:1px solid var(--glass-line);border-radius:26px;overflow:hidden;
+  background:var(--surface);color:var(--ink);cursor:pointer;transition:transform .25s var(--ease, ease), box-shadow .25s}
+.solfeat:hover{transform:translateY(-2px);box-shadow:0 24px 50px -30px rgba(0,0,0,.8)}
+.solfeat:active{transform:scale(.99)}
+.solfeat:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.sfcover{position:relative;isolation:isolate;height:132px;display:flex;align-items:flex-end;padding:16px}
+.sfcover .art{z-index:-1}
+.sfcover::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,transparent 30%,rgba(0,0,0,.55))}
+.sfhead{display:flex;align-items:center;gap:12px;width:100%;color:#fff}
+.sfid{flex:1;min-width:0}
+.sfname{font-family:var(--display);font-size:1.45rem;font-weight:780;letter-spacing:-.02em;line-height:1.1}
+.sfpub{font-size:.8rem;opacity:.8;margin-top:2px}
+.sfhead .stpill{background:rgba(0,0,0,.35);color:#fff;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.sfbody{padding:14px 16px 14px;display:grid;gap:12px}
+.sfdesc{margin:0;color:var(--muted);font-size:.92rem;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sfagents{display:flex;flex-wrap:wrap;gap:8px}
+.sfag{display:inline-flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border-radius:999px;background:var(--chip);font-size:.85rem}
+.sfag b{font-weight:650}
+.sfag.more{padding:6px 12px;color:var(--muted)}
+.sffoot{display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid var(--line);color:var(--muted)}
+.sffoot>svg{width:18px;height:18px;opacity:.6}
+.sfwait{display:inline-flex;align-items:center;gap:8px;font-size:.88rem;font-weight:600}
+.sfwait svg{width:16px;height:16px}
+.sfwait.live{color:var(--ink)}
+.sfwait.live svg{color:var(--sv)}
+.solmore{display:flex;gap:14px;align-items:flex-start;margin-top:14px;padding:16px 18px;border-radius:20px;border:1px dashed var(--line-2);color:var(--muted)}
+.solmore>svg{width:22px;height:22px;flex:none;margin-top:2px}
+.solmore div{display:grid;gap:3px}
+.solmore b{color:var(--ink);font-weight:650}
+.solmore span{font-size:.88rem;line-height:1.45}
+
+/* one Solution, or one agent: the title card */
+.sdhero{position:relative;isolation:isolate;margin:8px 0 0;border-radius:28px;overflow:hidden;min-height:190px;display:flex;align-items:flex-end;padding:20px}
+.sdhero .art{z-index:-1}
+.sdhero::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(0,0,0,.05) 20%,rgba(0,0,0,.65))}
+.sdtop{display:flex;align-items:flex-end;gap:16px;width:100%;color:#fff}
+.sdid{flex:1;min-width:0}
+.sdname{font-family:var(--display);font-size:2rem;font-weight:800;letter-spacing:-.03em;line-height:1.05;margin:0;color:#fff;text-wrap:balance}
+.sdpub{font-size:.86rem;opacity:.82;margin-top:4px}
+.sdtop .stpill{background:rgba(0,0,0,.35);color:#fff;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);margin-bottom:4px}
+.sddesc{margin:16px 2px 0;font-size:1rem;line-height:1.55;color:var(--ink);max-width:62ch}
+.sdsub{margin:2px 2px 10px;color:var(--muted);font-size:.88rem;line-height:1.5}
+
+/* the facts, in one strip */
+.sdstats{display:grid;grid-template-columns:repeat(4,1fr);margin:18px 0 4px;padding:12px 0;border-block:1px solid var(--line)}
+.sdstat{display:grid;justify-items:center;gap:2px;text-align:center;padding:0 4px}
+.sdstat+.sdstat{border-left:1px solid var(--line)}
+.sdstat b{font-family:var(--display);font-size:1.35rem;font-weight:760;font-variant-numeric:tabular-nums;color:var(--ink)}
+.sdstat span{font-size:.72rem;color:var(--muted);letter-spacing:.02em}
+.sdstat.live b{color:var(--sv)}
+.sdsec{margin-top:22px}
+
+/* agents: each its own row, its own page */
+.aglist{display:grid;gap:10px}
+.agrow{display:flex;align-items:flex-start;gap:14px;width:100%;text-align:left;padding:14px;border-radius:20px;border:1px solid var(--line);
+  background:var(--surface);color:var(--ink);cursor:pointer;transition:border-color .2s, transform .2s}
+.agrow:hover{border-color:var(--line-2)}
+.agrow:active{transform:scale(.99)}
+.agrow:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.agm{flex:1;min-width:0;display:grid;gap:5px}
+.agn{display:flex;align-items:center;gap:8px}
+.agn b{font-size:1.05rem;font-weight:700}
+.agnow{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:var(--sv-bg);color:var(--sv);font-size:.75rem;font-weight:700}
+.agnow svg{width:12px;height:12px}
+.agd{color:var(--muted);font-size:.88rem;line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.agchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.agchips span{font-size:.74rem;padding:3px 9px;border-radius:999px;background:var(--chip);color:var(--muted);font-weight:600}
+.agchips .agsev{color:var(--c);background:color-mix(in srgb, var(--c) 14%, transparent)}
+.agchev{align-self:center;color:var(--faint)}
+.agchev svg{width:18px;height:18px}
+
+/* what it may do on its own, folded to a line */
+.apsum{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;border-radius:18px;border:1px solid var(--line);
+  background:var(--surface);color:var(--ink);text-align:left;cursor:pointer}
+.apchips{flex:1;display:flex;flex-wrap:wrap;gap:6px}
+.apchip{display:inline-flex;align-items:center;gap:6px;font-size:.76rem;padding:4px 10px;border-radius:999px;background:var(--chip);color:var(--muted)}
+.apchip i{width:7px;height:7px;border-radius:50%;background:var(--c)}
+.apchip b{color:var(--ink);font-weight:650}
+.apchange{font-size:.82rem;font-weight:650;color:var(--ink);white-space:nowrap}
+.apwrap.fold-open{animation:rise .35s var(--ease, ease) both;margin-bottom:10px}
+
+/* about: plain rows, like a settings list */
+.sdrows{border-radius:18px;border:1px solid var(--line);background:var(--surface);overflow:hidden}
+.sdrow{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 16px;font-size:.9rem}
+.sdrow+.sdrow{border-top:1px solid var(--line)}
+.sdrow>span{color:var(--muted);flex:none}
+.sdrow>b,.sdrow>a{font-weight:600;text-align:right;min-width:0;overflow-wrap:anywhere}
+.sdrow>a{color:var(--ink);text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+.sdrow>a svg{width:14px;height:14px;opacity:.5}
+.bw em{font-style:normal;color:var(--muted);font-weight:500;font-variant-numeric:tabular-nums}
+.bwl{font-style:normal;margin-left:6px;font-size:.68rem;padding:2px 7px;border-radius:999px;background:var(--lo-bg);color:var(--lo);font-weight:700;vertical-align:1px}
+.sdkill{padding:16px;border-radius:20px;border:1px solid var(--line)}
+.sdkill p{margin:0 0 12px;color:var(--muted);font-size:.88rem}
+
+/* one agent: what it can do, each opening to the truth behind it */
+.agwait{display:flex;align-items:center;gap:10px;width:100%;margin-top:16px;padding:14px 16px;border-radius:18px;border:1px solid color-mix(in srgb, var(--sv) 40%, var(--line));
+  background:var(--sv-bg);color:var(--ink);font-weight:650;cursor:pointer;text-align:left}
+.agwait span{flex:1}
+.agwait svg{width:18px;height:18px}
+.agwait svg:first-child{color:var(--sv)}
+.ablist{display:grid;gap:8px}
+.abcard{border-radius:18px;border:1px solid var(--line);background:var(--surface);overflow:hidden;transition:border-color .2s}
+.abcard.open{border-color:color-mix(in srgb, var(--c) 45%, var(--line))}
+.abhead{display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;border:0;background:transparent;color:var(--ink);text-align:left;cursor:pointer}
+.abic{flex:none;width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:color-mix(in srgb, var(--c) 14%, transparent);color:var(--c)}
+.abic svg{width:19px;height:19px}
+.abx{flex:1;min-width:0;display:grid;gap:3px}
+.abtl{font-size:.95rem;font-weight:620;line-height:1.35}
+.absub{font-size:.78rem;color:var(--muted)}
+.absub i{font-style:normal;margin:0 6px;opacity:.6}
+.abmore{padding:0 14px 14px 62px;display:grid;gap:10px;animation:rise .3s var(--ease, ease) both}
+.abrisk{display:grid;gap:7px}
+.rk{display:grid;grid-template-columns:minmax(80px,auto) 1fr auto;align-items:center;gap:10px;font-size:.8rem}
+.rk>span{color:var(--muted)}
+.rkbar{height:6px;border-radius:99px;background:var(--chip);overflow:hidden;display:block}
+.rkbar>i{display:block;height:100%;border-radius:99px}
+.rk>b{font-size:.74rem;font-weight:700;min-width:52px;text-align:right}
+.abreason{margin:0;font-size:.86rem;line-height:1.45;color:var(--ink)}
+.abtech{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:.74rem;color:var(--faint)}
+.abtech code{font-family:var(--mono);font-size:.74rem;padding:2px 7px;border-radius:6px;background:var(--chip);color:var(--muted)}
+@media (max-width:380px){ .sdstats{grid-template-columns:repeat(2,1fr);row-gap:12px} .sdstat:nth-child(3){border-left:0} .abmore{padding-left:14px} }
+@media (prefers-reduced-motion: reduce){ .solfeat,.agrow,.apwrap.fold-open,.abmore{transition:none;animation:none} }
+.aphd{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.aplink{border:0;background:transparent;color:var(--ink);font:inherit;font-size:.9rem;font-weight:650;padding:6px 2px;cursor:pointer}
+.aplink:hover{text-decoration:underline;text-underline-offset:3px}
+.sdsec .secrow{margin-top:0}

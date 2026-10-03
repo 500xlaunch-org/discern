@@ -91,7 +91,8 @@ function score(key, desc, dev){
   const text = `${key} ${desc||""}`, esc = ESC.test(text), risk={};
   for (const [re,c,s] of RULES) if (re.test(text)) risk[c]=maxSev(risk[c]||"LOW", esc?bump(s):s);
   if (!Object.keys(risk).length) risk.data="LOW";
-  if (dev) for (const c of Object.keys(dev)) risk[c]=maxSev(risk[c]||"LOW", dev[c]);
+  if (typeof dev === "string") { for (const c of Object.keys(risk)) risk[c]=maxSev(risk[c], dev); }
+  else if (dev) for (const c of Object.keys(dev)) risk[c]=maxSev(risk[c]||"LOW", dev[c]);
   return {risk, severity:Object.values(risk).reduce((m,s)=>maxSev(m,s),"LOW")};
 }
 function reconcile(risk, severity, appetite, policy){
@@ -431,12 +432,16 @@ const Backend = {
 const Local = (()=>{
   // Demo mode shows the real thing: Line, the first Solution on Xurface, with
   // the same agent and the same four abilities it declares to Horizon.
+  const LINE_LOGO = "data:image/svg+xml;base64," + btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="b" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2A1610"/><stop offset="1" stop-color="#120B08"/></linearGradient><linearGradient id="g" x1="8" y1="0" x2="56" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FF7A59"/><stop offset="1" stop-color="#FFC46B"/></linearGradient></defs><rect width="64" height="64" rx="16" fill="url(#b)"/><path d="M9 35 H22 L26 22 L31.5 44 L35.5 29 L38 35 H47" fill="none" stroke="url(#g)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="52.5" cy="35" r="3.6" fill="#FFC46B"/></svg>`);
   const CATALOG = [
-    {uid:"line",slug:"line",name:"Line",icon:"pulse",description:"When you can't, Line does. Checks on you every evening, and if a week passes in silence, hands what you chose to the people you named.",
+    {uid:"line",slug:"line",name:"Line",icon:"pulse",logo:LINE_LOGO,description:"When you can't, Line does. Checks on you every evening, and if a week passes in silence, hands what you chose to the people you named.",
+     publisher:"500xLaunch", homepage:"https://line.500xlaunch.com", source:"https://github.com/500xlaunch-org/line", license:"Apache-2.0",
+     built_with:[{name:"Horizon SDK for TypeScript and JavaScript",kind:"sdk",version:"1.1.0",latest:true}],
      agents:[["line","Line",[["heartbeat.confirm","Ask you, once an evening, whether you are well",null,"always"],
-       ["vault.keep","Ask which things from your vault Line should keep for the people you named","SEVERE","always"],
-       ["kin.prepare","Tell a person you named that something is waiting for them","LOW","always"],
-       ["vault.deliver","Hand what you chose to the person you named, sealed to their own vault","SEVERE","always"]]]]},
+       ["vault.keep","Ask which things from your vault Line should keep for the people you named",{identity:"SEVERE",financial:"SEVERE",data:"SEVERE"},"always"],
+       ["kin.prepare","Tell a person you named that something is waiting for them, and ask them to set up their vault",null,"always"],
+       ["vault.deliver","Hand what you chose to the person you named, sealed to their own vault",{identity:"SEVERE",financial:"SEVERE",data:"SEVERE"},"always"]],
+       "Checks on you every evening. If a week goes by in silence, hands what you chose to the people you named, one at a time.", LINE_LOGO]]},
   ];
   const st = { seeded:false, links:{}, intents:[], timeline:[], seq:0 };
   const id=p=>`${p}_${(st.seq++).toString(36)}${Math.random().toString(36).slice(2,6)}`;
@@ -451,7 +456,13 @@ const Local = (()=>{
     if(/drop|delete/.test(k))return{target:"invoices"};
     if(/heartbeat/.test(k))return{evening:1}; return{}; };
   function catOf(uid){ return CATALOG.find(c=>c.uid===uid); }
-  function sol(uid){ const c=catOf(uid); const agents=c.agents.map(([id2,name,abs])=>({id:id2,name,abilities:abs.map(([key,desc,dev,disc])=>({key,kind:"capability",description:desc,discernment:disc||"auto",...score(key,desc,dev)}))})); return {uid,name:c.name,description:c.description,agents}; }
+  function sol(uid){ const c=catOf(uid);
+    const agents=c.agents.map(([id2,name,abs,description,logo])=>({id:id2,name,description,logo,abilities:abs.map(([key,desc,dev,disc])=>({key,kind:"capability",description:desc,discernment:disc||"auto",...score(key,desc,dev),risk_source:dev?"blended":"horizon"}))}));
+    return {uid,slug:c.slug,name:c.name,icon:c.icon,logo:c.logo,description:c.description,publisher:c.publisher,homepage:c.homepage,source:c.source,license:c.license,built_with:c.built_with,agents}; }
+  /** A Solution as Horizon gives it to a person: every agent in full, and
+   * what each action means under their own appetite. */
+  function forPerson(uid, appetite){ const s=sol(uid);
+    return {...s, agents:s.agents.map(a=>({...a, abilities:a.abilities.map(ab=>{ const v=reconcile(ab.risk,ab.severity,appetite,ab.discernment); return {...ab, asks:!v.allow, why:v.reasons}; })}))}; }
   return {
     /** Demo mode used to open on an empty app, which reads as broken rather
      * than as a demo. Two solutions are connected up front so the first screen
@@ -466,8 +477,8 @@ const Local = (()=>{
         (!f.severities.length || f.severities.includes(i.severity)));
       S.intents = keep.slice(0,PAGE); S.inboxNext=null; S.inboxTotal=keep.length;
       S.timeline = st.timeline.slice(0,PAGE); S.tlNext=null; S.tlTotal=st.timeline.length;
-      S.solutions = Object.keys(st.links).map(uid=>{ const s=sol(uid); const l=st.links[uid]; return {uid,name:s.name,description:s.description,link:l.link,status:l.status,appetite:l.appetite,matched_by:"connect",
-        agents:s.agents.map(a=>({name:a.name,description:"",abilities:a.abilities.map(ab=>({key:ab.key,kind:ab.kind,severity:ab.severity,risk:ab.risk}))}))}; });
+      S.solutions = Object.keys(st.links).map(uid=>{ const l=st.links[uid];
+        return {...forPerson(uid,l.appetite),link:l.link,status:l.status,appetite:l.appetite,matched_by:"connect",connected_at:l.at}; });
       S.catalog = CATALOG.filter(c=>!st.links[c.uid]).map(c=>({uid:c.uid,name:c.name,description:c.description,agents:c.agents.map(a=>({name:a[1]}))}));
     },
     async profile(uid){ const s=sol(uid); const l=st.links[uid];
@@ -478,9 +489,10 @@ const Local = (()=>{
         const e={agent:a.name,key:ab.key,kind:ab.kind,description:ab.description,severity:ab.severity,risk:ab.risk,discernment:ab.discernment,why:v.reasons};
         (v.allow?runs:asks).push(e);
       }
-      return {solution:{uid,name:s.name,description:s.description},connected:!!l,appetite,asks,runs,
+      const full=forPerson(uid,appetite);
+      return {solution:{...full,agents:undefined},agents:full.agents,connected:!!l,appetite,asks,runs,
         counts:{agents:s.agents.length,abilities:asks.length+runs.length,asks:asks.length,runs:runs.length}}; },
-    async connect(uid){ const s=sol(uid); const link=id("lnk"); st.links[uid]={link,status:"active",appetite:{...DEFAULT_APPETITE}};
+    async connect(uid){ const s=sol(uid); const link=id("lnk"); st.links[uid]={link,status:"active",appetite:{...DEFAULT_APPETITE},at:Date.now()};
       let pending=0, nth=0; for (const a of s.agents) for (const ab of a.abilities){ const v=reconcile(ab.risk,ab.severity,st.links[uid].appetite,ab.discernment); const rec={id:id("int"),solName:s.name,solution:{uid,name:s.name,slug:catOf(uid).slug},agent:a.name,capability:ab.key,details:sample(ab.key),risk:ab.risk,severity:ab.severity,reasons:v.reasons,discernment:ab.discernment,appetite:st.links[uid].appetite,at:Date.now()-(nth++)*17*60000,hash:hash(),sol:uid,link}; if (v.allow){ rec.state="allowed"; st.timeline.unshift(rec);} else { rec.state="pending"; st.intents.unshift(rec); pending++; } }
       return {ok:true,pending}; },
     async release(id2){ const i=st.intents.findIndex(x=>x.id===id2); if(i<0)return; const it=st.intents.splice(i,1)[0];
@@ -879,7 +891,7 @@ const TITLES = () => ({ inbox:t("inbox.title"), activity:t("activity.title"), va
  * list can do. The position is kept per screen, so moving between screens
  * still starts where a new screen should. */
 let lastScreen = null;
-const screenKey = () => `${S.view}:${S.selectedSol || ""}:${S.review || ""}:${S.focus ? "1" : ""}`;
+const screenKey = () => `${S.view}:${S.selectedSol || ""}:${S.selectedAgent || ""}:${S.review || ""}:${S.focus ? "1" : ""}`;
 
 function render(){
   const here = screenKey();
@@ -2546,20 +2558,10 @@ function solutionsHTML(){
   if (cat.length){
     html += `<div class="secrow"><h2 class="sech">${esc(t("sol.catalog"))}</h2><span class="secn">${cat.length}</span></div>`;
     html += `<div class="catgrid shelf">${cat.map(catcardHTML).join("")}</div>`;
+  } else if (connected.length) {
+    html += `<div class="solmore">${I.globe}<div><b>${esc(t("sol.moreTitle"))}</b><span>${esc(t("sol.moreBody"))}</span></div></div>`;
   }
   return html;
-}
-function solrowHTML(s){
-  const surf = surfaces(s), nab = (s.agents||[]).reduce((n,a)=>n+(a.abilities||[]).length,0);
-  return `<button class="solrow" data-sol="${s.uid}">
-    ${window.Marks.art(s.uid || s.name, s.icon || s.slug, { cls: "solart" })}
-    ${window.Marks.solution(s, 42)}
-    <div class="solm"><div class="soln">${esc(s.name)}</div>
-      <div class="solmeta">${esc(tn("sol.agents",(s.agents||[]).length))}, ${esc(tn("sol.abilities",nab))}</div>
-      ${surf.length?`<div class="solasks">${esc(t("sol.asksAbout",{list:tList(surf.slice(0,3).map(tCat))}))}</div>`:`<div class="solasks quiet">${esc(t("sol.runsRoutine"))}</div>`}
-    </div>
-    <div class="solend"><span class="stpill st-${s.status}">${esc(linkLabel(s.status))}</span>${I.chevron}</div>
-  </button>`;
 }
 /** One row per thing you could connect.
  *
@@ -2629,21 +2631,171 @@ function agentGraphHTML(sol, appetite){
     <div class="graph">${nodes}</div></section>`;
 }
 
-function soldetailHTML(s){
-  const nab = (s.agents||[]).reduce((n,a)=>n+(a.abilities||[]).length,0);
-  return `<button class="back" data-back>${I.chevron}<span>${esc(t("sol.back"))}</span></button>
-  <div class="soldhead">${window.Marks.solution(s, 52)}<div><div class="soldn">${esc(s.name)}</div>
-    <div class="soldsub">${esc(tn("sol.agents",(s.agents||[]).length))}, ${esc(tn("sol.abilities",nab))}</div></div>
-    <span class="stpill st-${s.status}">${esc(linkLabel(s.status))}</span></div>
-  ${s.description?`<p class="soldesc">${esc(s.description)}</p>`:''}
-  ${agentGraphHTML(s, s.appetite)}
-  <section class="panel"><div class="panelhd"><h3>${esc(t("sol.appetite"))}</h3><p>${esc(t("sol.appetiteSub"))}</p></div>
-    <div class="apwrap">${catKeys().map(c=>appetiteRow(s,c)).join("")}</div></section>
-  <section class="panel"><div class="panelhd"><h3>${esc(t("sol.kill"))}</h3><p>${esc(t("sol.killSub"))}</p></div>
-    <button class="btn ${s.status==='active'?'btn-warn':'btn-primary'} block" data-status="${s.link}" data-to="${s.status==='active'?'paused':'active'}">${esc(s.status==='active'?t("sol.pause"):t("sol.resume"))}</button></section>
-  <section class="panel"><div class="panelhd"><h3>${esc(t("sol.agentsTitle"))}</h3></div>
-    ${(s.agents||[]).map(a=>`<div class="agentblock"><div class="agentn">${esc(a.name)}</div><div class="abchips">${(a.abilities||[]).map(ab=>`<span class="abchip" style="--c:${sevColor(ab.severity)}"><span class="abk">${esc(ab.key)}</span><span class="absev" style="color:${sevColor(ab.severity)}">${esc(tSev(ab.severity))}</span></span>`).join("")}</div></div>`).join("")}</section>`;
+/* ---- faces: an agent's or a Solution's own mark, or one drawn for it ----
+ * A logo arrives with the Solution's own data (a small picture, kept with the
+ * rest of the cache, so it is there on a train). Without one, or if it will
+ * not load, the drawn mark stands in, so nothing is ever a broken image. */
+function logoHTML(src, size, fallback){
+  if (!src || !/^(data:image\/(svg\+xml|png|webp);base64,|https:\/\/)/.test(src)) return fallback;
+  return `<span class="mark logo" style="--px:${size}px" data-fb="${esc(fallback)}" aria-hidden="true"><img src="${esc(src)}" alt="" decoding="async"/></span>`;
 }
+// a logo that will not load gives way to the drawn mark it carries
+document.addEventListener("error", (e) => {
+  const img = e.target;
+  if (img && img.tagName === "IMG" && img.parentNode && img.parentNode.matches && img.parentNode.matches(".mark.logo"))
+    img.parentNode.outerHTML = img.parentNode.dataset.fb || "";
+}, true);
+const agentFace = (a, size) => logoHTML(a && a.logo, size, window.Marks.agent((a && a.name) || "", size));
+const solFace = (s, size) => logoHTML(s && s.logo, size, window.Marks.solution(s, size));
+
+/** How many things this Solution, or one of its agents, has waiting now. */
+function waitingFor(uid, agentName){
+  let n = 0;
+  for (const it of (S.intents || [])) {
+    const u = (it.solution && it.solution.uid) || it.solutionUid;
+    if (u === uid && (!agentName || iAgent(it) === agentName)) n++;
+  }
+  return n;
+}
+/** Whether an action stops for the person, in words. */
+function askWord(ab){
+  if (ab.discernment === "always") return t("ag.always");
+  const asks = ab.asks !== undefined ? ab.asks : !reconcile(ab.risk || {}, ab.severity || "LOW", DEFAULT_APPETITE, ab.discernment || "auto").allow;
+  return asks ? t("ag.asks") : t("ag.runs");
+}
+const asksOf = (ab) => ab.discernment === "always" || (ab.asks !== undefined ? ab.asks
+  : !reconcile(ab.risk || {}, ab.severity || "LOW", DEFAULT_APPETITE, ab.discernment || "auto").allow);
+const kindWord = (k) => t(`ag.kind.${k === "tool" || k === "skill" ? k : "capability"}`);
+const KIND_ICON = { capability: "shield", tool: "code", skill: "pen" };
+const kindIcon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${window.Marks.GLYPH[KIND_ICON[k] || "shield"]}</svg>`;
+const shortUrl = (u) => String(u || "").replace(/^https:\/\//, "").replace(/\/$/, "");
+
+/* ---- the Solutions screen: each one a title card, its agents on it ---- */
+function solrowHTML(s){
+  const agents = s.agents || [], now = waitingFor(s.uid);
+  const pub = s.publisher ? `<div class="sfpub">${esc(t("sol.by", { name: s.publisher }))}</div>` : "";
+  return `<button class="solfeat" data-sol="${s.uid}">
+    <div class="sfcover">${window.Marks.art(s.uid || s.name, s.icon || s.slug, { cls: "solart" })}
+      <div class="sfhead">${solFace(s, 54)}<div class="sfid"><div class="sfname">${esc(s.name)}</div>${pub}</div>
+        <span class="stpill st-${s.status}">${esc(linkLabel(s.status))}</span></div></div>
+    <div class="sfbody">
+      ${s.description ? `<p class="sfdesc">${esc(s.description)}</p>` : ""}
+      <div class="sfagents">${agents.slice(0, 5).map((a) => `<span class="sfag">${agentFace(a, 26)}<b>${esc(a.name)}</b></span>`).join("")}
+        ${agents.length > 5 ? `<span class="sfag more">+${agents.length - 5}</span>` : ""}</div>
+      <div class="sffoot"><span class="sfwait ${now ? "live" : ""}">${now ? I.bell : I.check}<span>${esc(now ? tn("sol.waitingN", now) : t("sol.nothingWaiting"))}</span></span>${I.chevron}</div>
+    </div>
+  </button>`;
+}
+
+/* ---- one Solution: who made it, its agents, what it may do, what it is built on ---- */
+function soldetailHTML(s){
+  if (S.selectedAgent) {
+    const a = (s.agents || []).find((x) => x.name === S.selectedAgent || x.id === S.selectedAgent);
+    if (a) return agentPageHTML(s, a);
+    S.selectedAgent = null;
+  }
+  const agents = s.agents || [];
+  const abs = agents.flatMap((a) => a.abilities || []);
+  const asks = abs.filter(asksOf).length, now = waitingFor(s.uid);
+  const stat = (n, label, live) => `<div class="sdstat ${live ? "live" : ""}"><b>${n}</b><span>${esc(label)}</span></div>`;
+  const chain = agents.some((a) => (a.hands_to || []).length);
+  return `<button class="back" data-back>${I.chevron}<span>${esc(t("sol.back"))}</span></button>
+  <header class="sdhero">${window.Marks.art(s.uid || s.name, s.icon || s.slug, { cls: "sdart" })}
+    <div class="sdtop">${solFace(s, 76)}
+      <div class="sdid"><h1 class="sdname">${esc(s.name)}</h1>
+        ${s.publisher ? `<div class="sdpub">${esc(t("sol.by", { name: s.publisher }))}</div>` : ""}</div>
+      <span class="stpill st-${s.status}">${esc(linkLabel(s.status))}</span></div></header>
+  ${s.description ? `<p class="sddesc">${esc(s.description)}</p>` : ""}
+  <div class="sdstats">${stat(agents.length, tn("sol.statAgents", agents.length))}${stat(abs.length, tn("sol.statActs", abs.length))}${stat(asks, t("sol.statAsks"))}${stat(now, t("sol.statWaiting"), now > 0)}</div>
+
+  <section class="sdsec"><div class="secrow"><h2 class="sech">${esc(t("sol.agentsH"))}</h2><span class="secn">${agents.length}</span></div>
+    <div class="aglist">${agents.map((a) => agentRowHTML(s, a)).join("")}</div>
+    ${chain ? agentGraphHTML(s, s.appetite) : ""}</section>
+
+  <section class="sdsec">${appetiteFoldHTML(s)}</section>
+
+  <section class="sdsec"><div class="secrow"><h2 class="sech">${esc(t("sol.about"))}</h2></div>
+    <div class="sdrows">${aboutRowsHTML(s)}</div></section>
+
+  <section class="sdsec sdkill"><p>${esc(t("sol.killSub"))}</p>
+    <button class="btn ${s.status === "active" ? "btn-warn" : "btn-primary"} block" data-status="${s.link}" data-to="${s.status === "active" ? "paused" : "active"}">${esc(s.status === "active" ? t("sol.pause") : t("sol.resume"))}</button></section>`;
+}
+
+function agentRowHTML(s, a){
+  const abs = a.abilities || [], asks = abs.filter(asksOf).length, now = waitingFor(s.uid, a.name);
+  const worst = abs.reduce((m, ab) => maxSev(m, ab.severity || "LOW"), "LOW");
+  const askChip = asks === abs.length ? t("ag.allAsk") : asks ? tn("ag.someAsk", asks) : t("ag.noneAsk");
+  return `<button class="agrow" data-agentpage="${esc(a.name)}" data-agent="${esc(a.name)}">
+    ${agentFace(a, 52)}
+    <div class="agm"><div class="agn"><b>${esc(a.name)}</b>${now ? `<span class="agnow">${I.bell}${now}</span>` : ""}</div>
+      ${a.description ? `<div class="agd">${esc(a.description)}</div>` : ""}
+      <div class="agchips"><span>${esc(tn("sol.statActions", abs.length))}</span><span>${esc(askChip)}</span>
+        <span class="agsev" style="--c:${sevColor(worst)}">${esc(t("ag.upTo", { sev: tSev(worst) }))}</span></div></div>
+    <span class="agchev">${I.chevron}</span></button>`;
+}
+
+/** What may happen without asking, folded to one line until it is to be changed. */
+function appetiteFoldHTML(s){
+  const open = !!(S.apOpen && S.apOpen[s.uid]);
+  const ap = s.appetite || DEFAULT_APPETITE;
+  const sum = catKeys().map((c) => `<span class="apchip" style="--c:${sevColor(ap[c] || DEFAULT_APPETITE[c])}"><i></i>${esc(tCat(c))}<b>${esc(tSev(ap[c] || DEFAULT_APPETITE[c]))}</b></span>`).join("");
+  return `<div class="secrow aphd"><h2 class="sech">${esc(t("sol.appetite"))}</h2>
+      <button class="aplink" data-apfold="${s.uid}">${esc(open ? t("sol.done") : t("v.change"))}</button></div>
+    <p class="sdsub">${esc(t("sol.appetiteSub"))}</p>
+    ${open ? `<div class="apwrap fold-open">${catKeys().map((c) => appetiteRow(s, c)).join("")}</div>`
+      : `<button class="apsum" data-apfold="${s.uid}"><span class="apchips">${sum}</span></button>`}`;
+}
+
+function aboutRowsHTML(s){
+  const rows = [];
+  const row = (label, value, href) => rows.push(`<div class="sdrow"><span>${esc(label)}</span>${href
+    ? `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(value)}${I.chevron}</a>` : `<b>${esc(value)}</b>`}</div>`);
+  if (s.publisher) row(t("sol.madeBy"), s.publisher);
+  if (s.homepage) row(t("sol.website"), shortUrl(s.homepage), s.homepage);
+  if (s.source) row(t("sol.source"), shortUrl(s.source).replace(/^github\.com\//, ""), s.source);
+  if (s.license) row(t("sol.license"), s.license);
+  for (const b of (s.built_with || [])) rows.push(`<div class="sdrow"><span>${esc(t("sol.builtWith"))}</span>
+    <b class="bw">${esc(b.name)}${b.version ? ` <em>${esc(b.version)}</em>` : ""}${b.latest ? `<i class="bwl">${esc(t("sol.latest"))}</i>` : ""}</b></div>`);
+  if (s.connected_at) row(t("sol.connectedOn"), new Date(s.connected_at).toLocaleDateString(window.I18N.lang, { year: "numeric", month: "long", day: "numeric" }));
+  return rows.join("") || `<div class="thin-empty">${esc(t("sol.aboutNone"))}</div>`;
+}
+
+/* ---- one agent: its face, what it is for, and everything it can do ---- */
+function agentPageHTML(s, a){
+  const abs = a.abilities || [], now = waitingFor(s.uid, a.name);
+  const openAb = (S.open.ab = S.open.ab || {});
+  const rows = abs.map((ab) => {
+    const key = `${a.name}::${ab.key}`, open = !!openAb[key], c = sevColor(ab.severity);
+    const risk = Object.entries(ab.risk || {}).sort((x, y) => SEVS.indexOf(y[1]) - SEVS.indexOf(x[1]));
+    const why = (ab.why && ab.why[0]) || (asksOf(ab) ? (ab.discernment === "always" ? t("why.always") : t("rev.needsYou")) : t("why.within"));
+    const src = ab.risk_source === "developer" ? t("ag.srcDev") : ab.risk_source === "blended" ? t("ag.srcBlend") : t("ag.srcHz");
+    return `<div class="abcard ${open ? "open" : ""}" style="--c:${c}">
+      <button class="abhead" data-abtoggle="${esc(key)}" aria-expanded="${open}">
+        <span class="abic">${kindIcon(ab.kind)}</span>
+        <span class="abx"><span class="abtl">${esc(ab.description || pretty(ab.key))}</span>
+          <span class="absub">${esc(kindWord(ab.kind))}<i>&middot;</i>${esc(askWord(ab))}</span></span>
+        <span class="sevtag" style="--sev:${c};--sevb:${sevBg(ab.severity)}">${esc(tSev(ab.severity))}</span></button>
+      ${open ? `<div class="abmore">
+        <div class="abrisk">${risk.map(([cat, sev]) => `<div class="rk"><span>${esc(tCat(cat))}</span>
+          <i class="rkbar"><i style="width:${(SEVS.indexOf(sev) + 1) * 25}%;background:${sevColor(sev)}"></i></i><b style="color:${sevColor(sev)}">${esc(tSev(sev))}</b></div>`).join("")}</div>
+        <p class="abreason">${esc(why)}</p>
+        <div class="abtech"><code>${esc(ab.key)}</code><span>${esc(src)}</span></div></div>` : ""}
+    </div>`;
+  }).join("");
+  const handsTo = (a.hands_to || []).length ? `<p class="sdsub">${esc(t("ag.handsTo", { list: tList(a.hands_to) }))}</p>` : "";
+  return `<button class="back" data-back-agent>${I.chevron}<span>${esc(s.name)}</span></button>
+  <header class="sdhero aghero">${window.Marks.art(a.name + s.uid, s.icon || s.slug, { cls: "sdart" })}
+    <div class="sdtop">${agentFace(a, 84)}
+      <div class="sdid"><h1 class="sdname">${esc(a.name)}</h1>
+        <div class="sdpub">${esc(t("ag.of", { sol: s.name }))}${s.publisher ? ` &middot; ${esc(t("sol.by", { name: s.publisher }))}` : ""}</div></div></div></header>
+  ${a.description ? `<p class="sddesc">${esc(a.description)}</p>` : ""}
+  ${a.collaboration ? `<p class="sdsub">${esc(a.collaboration)}</p>` : ""}${handsTo}
+  ${now ? `<button class="agwait" data-agasks="${esc(a.name)}" data-agsol="${esc(s.uid)}">${I.bell}<span>${esc(tn("sol.waitingN", now))}</span>${I.chevron}</button>` : ""}
+  <section class="sdsec"><div class="secrow"><h2 class="sech">${esc(t("ag.canDo"))}</h2><span class="secn">${abs.length}</span></div>
+    <p class="sdsub">${esc(t("ag.canDoSub"))}</p>
+    <div class="ablist">${rows}</div></section>`;
+}
+
 function appetiteRow(s,c){
   const cur = (s.appetite&&s.appetite[c])||DEFAULT_APPETITE[c];
   return `<div class="aprow"><div class="aplab">${esc(tCat(c))}</div>
@@ -3236,8 +3388,12 @@ function wire(){
     const rev=el.closest("[data-review]"); if(rev){ openReview(rev.dataset.review); return; }
     if(el.closest("[data-back-review]")){ S.review=null; S.reviewData=null; render(); return; }
     const con=el.closest("[data-connect]"); if(con){ connect(con.dataset.connect); return; }
-    const sol=el.closest("[data-sol]"); if(sol){ S.selectedSol=sol.dataset.sol; render(); return; }
-    if(el.closest("[data-back]")){ S.selectedSol=null; render(); return; }
+    const sol=el.closest("[data-sol]"); if(sol){ S.selectedSol=sol.dataset.sol; S.selectedAgent=null; render(); return; }
+    if(el.closest("[data-back]")){ S.selectedSol=null; S.selectedAgent=null; render(); return; }
+    if(el.closest("[data-back-agent]")){ S.selectedAgent=null; render(); return; }
+    const agp=el.closest("[data-agentpage]"); if(agp){ S.selectedAgent=agp.dataset.agentpage; render(); return; }
+    const abt=el.closest("[data-abtoggle]"); if(abt){ S.open.ab=S.open.ab||{}; const k=abt.dataset.abtoggle; S.open.ab[k]=!S.open.ab[k]; render(); return; }
+    const apf=el.closest("[data-apfold]"); if(apf){ S.apOpen=S.apOpen||{}; const k=apf.dataset.apfold; S.apOpen[k]=!S.apOpen[k]; render(); return; }
     const lvl=el.closest("[data-level]"); if(lvl){ const box=lvl.closest("[data-appetite]"); await setAppetite(box.dataset.appetite,box.dataset.cat,lvl.dataset.level); return; }
     const stt=el.closest("[data-status]"); if(stt){ await setStatus(stt.dataset.status,stt.dataset.to); return; }
     const ve = el.closest("[data-veye]");
@@ -3536,17 +3692,16 @@ const groupOpenNow = (key) => {
 function openSolutionFor(uid, agent){
   if (!uid) return;
   S.ask = null; S.focus = null; S.drop = null;
-  S.view = "solutions"; S.selectedSol = uid; S.solAgent = agent || null;
+  S.view = "solutions"; S.selectedSol = uid; S.solAgent = agent || null; S.selectedAgent = agent || null;
   S.scrollTop = 0;
   render();
-  if (agent) bringIntoView(`[data-agent="${cssq(agent)}"]`);
 }
 
 /** The other direction: one agent's asks, from the solution screen.
  * The inbox shows everyone. This narrows to the one agent whose count was
  * tapped, which is a different question and deserves a different answer. */
 function focusAgentAsks(uid, agent){
-  S.view = "inbox"; S.selectedSol = null; S.solAgent = null;
+  S.view = "inbox"; S.selectedSol = null; S.solAgent = null; S.selectedAgent = null;
   S.filter = { solutions: uid ? [uid] : [], severities: [] };
   S.open.g = {}; S.open.a = {};
   const key = `${uid || "?"}::${agent}`;
