@@ -72,6 +72,14 @@ if (!flags.has("--wide")) await s("Emulation.setTouchEmulationEnabled", { enable
 const urlArg = args.find((a) => a.startsWith("--url="));
 await s("Page.navigate", { url: urlArg ? urlArg.slice(6) : `http://127.0.0.1:${port}/index.html` });
 await new Promise((r) => setTimeout(r, 1500));
+// --init=<js> runs once on the page, then it reloads: how a test session is
+// put into localStorage before the page reads it
+const initArg = args.find((a) => a.startsWith("--init="));
+if (initArg) {
+  await s("Runtime.evaluate", { expression: initArg.slice(7) });
+  await s("Page.reload", {});
+  await new Promise((r) => setTimeout(r, 1800));
+}
 
 const signin = flags.has("--signedout") || urlArg ? "" : `await Backend.login("ada@example.com"); await Backend.refresh(); S.ready = true;`;
 const r = await s("Runtime.evaluate", { awaitPromise: true, returnByValue: true,
@@ -91,4 +99,4 @@ const shot = await s("Page.captureScreenshot", { format: "png", ...(clip ? { cli
 writeFileSync(out, Buffer.from(shot.result.data, "base64"));
 console.log(problems.length ? problems.join("\n") : "no errors");
 ws.close(); chrome.kill("SIGKILL"); server.close();
-rmSync(profile, { recursive: true, force: true });
+try { rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* Chrome still letting go */ }

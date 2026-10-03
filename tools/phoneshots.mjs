@@ -76,7 +76,7 @@ const harness = (view) => `<!doctype html><meta charset="utf-8">
           // stood in for because creating one does not finish under headless Chrome
           // Line asking which things to keep for the people you named
           const it = { id: "int_demo_cred", kind: "credential_request", state: "pending", severity: "SEVERE",
-            risk: { identity: "SEVERE", financial: "SEVERE", data: "SEVERE" }, capability: "credential.bundle", agent: "Line",
+            risk: { identity: "SEVERE", financial: "SEVERE", data: "SEVERE" }, capability: "credential.bundle", agent: "Vigil",
             solution: S.solutions[0], solutionUid: (S.solutions[0] || {}).uid, release_key: "x", createdAt: Date.now(),
             credential: { type: "bundle", reason: "Anything new worth keeping for the people you named? Choose it from your vault; Line keeps it sealed.",
                           purpose: "kept by line for my next of kin" } };
