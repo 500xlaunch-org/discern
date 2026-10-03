@@ -40,7 +40,7 @@ const VIEWS = [
   ["solutions", "what is connected"],
   ["vault", "what your agents may reach"],
   ["vaultadd", "adding a wifi password, shown"],
-  ["credask", "an agent asking for the office wifi"],
+  ["credask", "Line asking what to keep for the people you named"],
   ["holding", "approving something high, mid hold"],
   ["settings", "everything else"],
 ];
@@ -74,17 +74,19 @@ const harness = (view) => `<!doctype html><meta charset="utf-8">
         if (want === "credask") {
           // a request as Horizon sends it, through the real sheet; the vault is
           // stood in for because creating one does not finish under headless Chrome
+          // Line asking which things to keep for the people you named
           const it = { id: "int_demo_cred", kind: "credential_request", state: "pending", severity: "SEVERE",
-            risk: { data: "SEVERE", system: "SEVERE" }, capability: "credential.wifi", agent: "Joiner",
+            risk: { identity: "SEVERE", financial: "SEVERE", data: "SEVERE" }, capability: "credential.bundle", agent: "Line",
             solution: S.solutions[0], solutionUid: (S.solutions[0] || {}).uid, release_key: "x", createdAt: Date.now(),
-            credential: { type: "wifi", name: "the office wifi", reason: "Join the office wifi to print your boarding pass",
-                          purpose: "join the office wifi" } };
+            credential: { type: "bundle", reason: "Anything new worth keeping for the people you named? Choose it from your vault; Line keeps it sealed.",
+                          purpose: "kept by line for my next of kin" } };
           S.intents = [it].concat(S.intents);
           window.Vault = Object.assign({}, window.Vault, { state: { exists: true, unlocked: true },
             purposeKey: (x) => String(x || "").toLowerCase().replace(/\\s+/g, " ").trim() });
-          S.vault.items = [{ id: "vit_1", kind: "wifi", label: "Office", hint: "5 GHz", grants: [] },
-                           { id: "vit_2", kind: "wifi", label: "Home-5G", hint: "", grants: [] }];
-          S.view = "inbox"; S.ready = true; openCredAsk(it.id); S.cred.chosen = "vit_1"; S.ask = it.id; render();
+          S.vault.items = [{ id: "vit_1", kind: "login", label: "Gmail", hint: "ada.okafor", grants: [] },
+                           { id: "vit_2", kind: "card", label: "Northbank current account", hint: "ending 4821", grants: [] },
+                           { id: "vit_3", kind: "document", label: "House deed", hint: "deed.pdf, 820 KB", grants: [] }];
+          S.view = "inbox"; S.ready = true; openCredAsk(it.id); S.cred.many = ["vit_1", "vit_3"]; S.ask = it.id; render();
           return;
         }
         if (want === "vaultadd") {

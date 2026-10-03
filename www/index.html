@@ -6,6 +6,8 @@
   <meta name="theme-color" content="#000000" />
   <meta name="description" content="Discern: decide what an AI agent may do for you, before it does it." />
   <title>Discern</title>
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -18,12 +20,24 @@
 </head>
 <body>
   <div id="root"></div>
+  <!-- Capacitor's own runtime. The native bridge alone does not expose plugins
+       to the page: core's registerPlugin is what makes them callable, and
+       without it the app silently saw no Firebase, no status bar, no app state.
+       Copied from @capacitor/core/dist (MIT); refresh it when core is upgraded. -->
+  <script src="capacitor.js"></script>
   <script>
+    // Every native plugin the app uses, registered once, here.
+    window.Native = (function () {
+      var C = window.Capacitor;
+      if (!C || !C.isNativePlatform || !C.isNativePlatform() || !C.registerPlugin) return {};
+      var r = function (n) { try { return C.registerPlugin(n); } catch (e) { return null; } };
+      return { SafeArea: r("SafeArea"), StatusBar: r("StatusBar"), App: r("App"), FirebaseMessaging: r("FirebaseMessaging") };
+    })();
     // The plugin publishes the real window insets as CSS variables. It only
     // exists in the native shell; on the web env() already tells the truth.
     window.addEventListener("DOMContentLoaded", async () => {
       try {
-        const SafeArea = window.Capacitor?.Plugins?.SafeArea;
+        const SafeArea = window.Native.SafeArea;
         if (SafeArea) await SafeArea.enable({ config: {
           customColorsForSystemBars: true,
           statusBarColor: "#00000000", statusBarContent: "light",

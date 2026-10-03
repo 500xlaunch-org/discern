@@ -117,7 +117,7 @@ const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && windo
 /* Inside the phone app, push comes through Firebase Cloud Messaging (which hands
  * iPhone messages on to Apple). A browser has no Firebase here: it uses standard
  * Web Push from Horizon, through the service worker. */
-const FCM = NATIVE ? (window.Capacitor.Plugins || {}).FirebaseMessaging : null;
+const FCM = NATIVE ? (window.Native || {}).FirebaseMessaging || null : null;
 const PLATFORM = NATIVE && window.Capacitor.getPlatform ? window.Capacitor.getPlatform() : "web";
 /* Discern on the web, at discern.500xlaunch.com (or any page with ?web).
  *
@@ -222,7 +222,7 @@ const darkNow = () => {
 };
 function paintStatusBar(){
   try {
-    const SB = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar;
+    const SB = (window.Native || {}).StatusBar;
     if (SB && NATIVE) SB.setStyle({ style: darkNow() ? "DARK" : "LIGHT" }).catch(() => {});
   } catch {}
 }
@@ -419,15 +419,14 @@ const Backend = {
 
 /* demo engine: the same flow, in memory, using the real scoring model */
 const Local = (()=>{
+  // Demo mode shows the real thing: Line, the first Solution on Xurface, with
+  // the same agent and the same four abilities it declares to Horizon.
   const CATALOG = [
-    {uid:"battlemate",slug:"battlemate",name:"BattleMate",description:"Competitive intelligence, on watch. Writes a KPI brief and delivers it to your team.",
-     agents:[["intel-scout","Intel Scout",[["sources.fetch","Fetch public pages and pricing"],["signals.collect","Read and normalize market signals"]]],["analyst","Analyst",[["metrics.compute","Compute KPIs from signals"],["report.compose","Author the competitive brief"]]],["courier","Courier",[["report.broadcast","Broadcast the brief to the whole team by email and WhatsApp",{conversation:"HIGH"},"always"],["budget.spend","Buy a premium data source",{financial:"HIGH"}]]]]},
-    {uid:"freeleap",slug:"freeleap",name:"FreeLeap",description:"Your freelance career, always lining up the next mission. Evolves your CV and applies for you.",
-     agents:[["cv-smith","CV Smith",[["cv.update","Update the evolving CV document"],["cv.publish","Publish the CV to the public portfolio",null,"always"]]],["scout","Scout",[["jobs.search","Search job boards for the next mission"]]],["applicant","Applicant",[["job.apply","Submit a job application on your behalf",{conversation:"HIGH",intellectual:"HIGH"}]]]]},
-    {uid:"devbot",slug:"devbot",name:"Coding Agent",description:"Reads, tests and ships to staging on its own. Force-push, prod deploy and drops ask you.",
-     agents:[["coding-agent","Coding Agent",[["repo.read","Read files in the working tree"],["test.run","Run the test suite"],["deploy.staging","Deploy the build to staging"],["repo.force_push","Force-push a branch",null,"always"],["deploy.production","Deploy the API to production"],["db.table_drop","Drop a database table"]]]]},
-    {uid:"finbot",slug:"finbot",name:"Finance Assistant",description:"Categorizes expenses freely. Every dollar out is your call.",
-     agents:[["finance-assistant","Finance Assistant",[["expense.categorize","Categorize an expense"],["pay.invoice","Pay an invoice"],["funds.transfer","Transfer funds to a payee"]]]]},
+    {uid:"line",slug:"line",name:"Line",icon:"pulse",description:"When you can't, Line does. Checks on you every evening, and if a week passes in silence, hands what you chose to the people you named.",
+     agents:[["line","Line",[["heartbeat.confirm","Ask you, once an evening, whether you are well",null,"always"],
+       ["vault.keep","Ask which things from your vault Line should keep for the people you named","SEVERE","always"],
+       ["kin.prepare","Tell a person you named that something is waiting for them","LOW","always"],
+       ["vault.deliver","Hand what you chose to the person you named, sealed to their own vault","SEVERE","always"]]]]},
   ];
   const st = { seeded:false, links:{}, intents:[], timeline:[], seq:0 };
   const id=p=>`${p}_${(st.seq++).toString(36)}${Math.random().toString(36).slice(2,6)}`;
@@ -439,7 +438,8 @@ const Local = (()=>{
     if(/reply|send|email|message/.test(k))return{to:"recruiter@acme.co",text:"Yes, that works."};
     if(/deploy/.test(k))return{service:"api",target:k.includes("prod")?"production":"staging"};
     if(/publish/.test(k))return{site:"portfolio.example.com"}; if(/apply/.test(k))return{company:"Lumen Labs",rate_usd_day:780};
-    if(/drop|delete/.test(k))return{target:"invoices"}; return{}; };
+    if(/drop|delete/.test(k))return{target:"invoices"};
+    if(/heartbeat/.test(k))return{evening:1}; return{}; };
   function catOf(uid){ return CATALOG.find(c=>c.uid===uid); }
   function sol(uid){ const c=catOf(uid); const agents=c.agents.map(([id2,name,abs])=>({id:id2,name,abilities:abs.map(([key,desc,dev,disc])=>({key,kind:"capability",description:desc,discernment:disc||"auto",...score(key,desc,dev)}))})); return {uid,name:c.name,description:c.description,agents}; }
   return {
@@ -447,7 +447,7 @@ const Local = (()=>{
      * than as a demo. Two solutions are connected up front so the first screen
      * is the thing the product is, with real scoring behind it. */
     seed(){ if (st.seeded) return; st.seeded=true;
-      this.connect("battlemate"); this.connect("freeleap"); },
+      this.connect("line"); },
     async login(email,name){ S.token="local"; S.user={id:"usr_local",email,name:name||"You"}; savePrefs(); },
     async refresh(){
       const f = S.filter || { solutions:[], severities:[] };
@@ -470,7 +470,7 @@ const Local = (()=>{
       }
       return {solution:{uid,name:s.name,description:s.description},connected:!!l,appetite,asks,runs,
         counts:{agents:s.agents.length,abilities:asks.length+runs.length,asks:asks.length,runs:runs.length}}; },
-    async connect(uid){ const s=sol(uid); const link=id("lnk"); st.links[uid]={link,status:"active",appetite:{...DEFAULT_APPETITE,...(uid==="battlemate"||uid==="freeleap"?{intellectual:"HIGH",data:"HIGH"}:uid==="devbot"?{system:"HIGH"}:{})}};
+    async connect(uid){ const s=sol(uid); const link=id("lnk"); st.links[uid]={link,status:"active",appetite:{...DEFAULT_APPETITE}};
       let pending=0, nth=0; for (const a of s.agents) for (const ab of a.abilities){ const v=reconcile(ab.risk,ab.severity,st.links[uid].appetite,ab.discernment); const rec={id:id("int"),solName:s.name,solution:{uid,name:s.name,slug:catOf(uid).slug},agent:a.name,capability:ab.key,details:sample(ab.key),risk:ab.risk,severity:ab.severity,reasons:v.reasons,discernment:ab.discernment,appetite:st.links[uid].appetite,at:Date.now()-(nth++)*17*60000,hash:hash(),sol:uid,link}; if (v.allow){ rec.state="allowed"; st.timeline.unshift(rec);} else { rec.state="pending"; st.intents.unshift(rec); pending++; } }
       return {ok:true,pending}; },
     async release(id2){ const i=st.intents.findIndex(x=>x.id===id2); if(i<0)return; const it=st.intents.splice(i,1)[0];
@@ -723,7 +723,7 @@ function armLockOnResume(){
   addEventListener("blur", leaving);
   addEventListener("focus", returning);
   try {
-    const App = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+    const App = (window.Native || {}).App;
     if (App && App.addListener) App.addListener("appStateChange", ({ isActive }) => (isActive ? returning() : leaving()));
   } catch {}
 }
@@ -781,6 +781,7 @@ async function nativePush(ask){
  * as soon as somebody signs in, rather than leaving it to be found in settings.
  * In a browser the person turns them on, since browsers punish asking unasked. */
 function afterSignIn(){
+  try { localStorage.setItem("discern.pushAsked", "1"); } catch {}
   if (FCM) nativePush(true).then(() => render()).catch(() => render());
 }
 async function sendNativeToken(token){
@@ -789,7 +790,14 @@ async function sendNativeToken(token){
 }
 
 async function registerSW(){
-  if (FCM) { await nativePush(false); paintNet(); }
+  if (FCM) {
+    // somebody signed in before notifications could be asked for is asked
+    // once, on the next launch, rather than having to find it in Settings
+    let asked = false; try { asked = !!localStorage.getItem("discern.pushAsked"); } catch {}
+    const ask = !!S.token && !asked;
+    if (ask) try { localStorage.setItem("discern.pushAsked", "1"); } catch {}
+    await nativePush(ask).catch(() => {}); render(); paintNet();
+  }
   if (!("serviceWorker" in navigator)) return;
   try {
     const reg = await navigator.serviceWorker.register("sw.js", { scope: "./" });
@@ -902,23 +910,24 @@ function render(){
  * hold button), so what somebody sees here is what they will use. */
 function webLandingHTML(){
   const M = window.Marks;
-  const demo = { severity: "SEVERE", risk: { financial: "SEVERE", identity: "HIGH" } };
+  const demo = { severity: "SEVERE", risk: { identity: "SEVERE", financial: "SEVERE", data: "SEVERE" } };
   return `<div class="wl">
     <section class="wlhero">
       <span class="wlmk">${MK}<b>Discern</b></span>
       <h1>${esc(t("web.land.title"))}</h1>
       <p class="wllead">${esc(t("web.land.lead"))}</p>
       <ul class="wlpoints">
+        <li class="wlkey">${I.globe}<span>${esc(t("web.land.p0"))}</span></li>
         <li>${I.shield}<span>${esc(t("web.land.p1"))}</span></li>
         <li>${I.bell}<span>${esc(t("web.land.p2"))}</span></li>
         <li>${I.check}<span>${esc(t("web.land.p3"))}</span></li>
       </ul>
       <div class="wlcard" aria-hidden="true">
-        ${M.art("discern-739", "coin", { sev: "SEVERE", cls: "hart" })}
+        ${M.art("discern-739", "pulse", { sev: "SEVERE", cls: "hart" })}
         <span class="hglyph">${riskGlyph(demo.risk, 46, "SEVERE")}</span>
         <div class="hbody"><span class="hchip"><i style="--sev:var(--sv)"></i>${esc(tSev("SEVERE"))}<span>${esc(t("web.land.now"))}</span></span>
           <b class="htitle">${esc(t("web.land.demoAct"))}</b>
-          <p class="hmeta">${M.agent("Courier", 20)}<span>Courier</span><b>&middot;</b><span>BattleMate</span></p>
+          <p class="hmeta">${M.solution({ slug: "line", name: "Line", icon: "pulse" }, 20)}<span>Line</span></p>
           <div class="hacts"><span class="hround">${I.x}</span><span class="hpill">${esc(t("card.holdApprove"))}</span><span class="hround">${I.reflect}</span></div></div>
       </div>
     </section>
