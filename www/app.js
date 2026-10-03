@@ -793,9 +793,10 @@ async function nativePush(ask){
         const d = (e && e.notification && e.notification.data) || {};
         openIntent(d.intentId);
       });
-      // in the foreground the system shows nothing: refresh so the badge and
-      // the inbox move, which is the notification while the app is open
-      FCM.addListener("notificationReceived", () => silentRefresh());
+      // In the foreground Android shows nothing at all, so a request that
+      // arrived while the app was open used to go unseen: it is shown here as
+      // a banner of the app's own, tappable, and the inbox moves underneath.
+      FCM.addListener("notificationReceived", (e) => { inAppBanner(e && e.notification); silentRefresh(); });
     }
     let perm = (await FCM.checkPermissions()).receive;
     if (perm !== "granted" && ask) perm = (await FCM.requestPermissions()).receive;
@@ -810,6 +811,23 @@ async function nativePush(ask){
 /** On the phone the app exists to be interrupted, so it asks for notifications
  * as soon as somebody signs in, rather than leaving it to be found in settings.
  * In a browser the person turns them on, since browsers punish asking unasked. */
+/** A notification that arrived while the app is open: slides down from the
+ * top, stays long enough to read, and opens the request when tapped. Kept
+ * outside the screen that repaints, so a refresh does not wipe it. */
+function inAppBanner(n){
+  if (!n || (!n.title && !n.body)) return;
+  const d = n.data || {};
+  document.querySelectorAll(".inbanner").forEach((x) => x.remove());
+  const el = document.createElement("button");
+  el.type = "button"; el.className = "inbanner";
+  el.innerHTML = `<span class="ibmk">${MK}</span><span class="ibtx"><b>${esc(n.title || "")}</b><span>${esc(n.body || "")}</span></span>`;
+  const go = () => { el.classList.remove("in"); setTimeout(() => el.remove(), 350); };
+  el.addEventListener("click", () => { go(); if (d.intentId && !/^test/.test(d.intentId)) openIntent(d.intentId); });
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add("in"));
+  try { navigator.vibrate && navigator.vibrate(30); } catch {}
+  setTimeout(go, 6000);
+}
 function afterSignIn(){
   try { localStorage.setItem("discern.pushAsked", "1"); } catch {}
   if (FCM) nativePush(true).then(() => render()).catch(() => render());

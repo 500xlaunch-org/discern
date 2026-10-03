@@ -689,3 +689,16 @@ body,.app{font-family:var(--sans);letter-spacing:-.005em}
 .lockopt.on small,.langb.on small{color:var(--muted);opacity:1}
 .lockopt:active,.langb:active{transform:scale(.98)}
 .vcheck.lgok{margin:4px 0 14px}
+
+/* a notification that came while the app was open */
+.inbanner{position:fixed;z-index:9999;left:12px;right:12px;top:calc(10px + var(--sat, env(safe-area-inset-top, 0px)));max-width:520px;margin:0 auto;
+  display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:22px;border:1px solid var(--glass-line);text-align:left;cursor:pointer;
+  background:color-mix(in srgb, var(--surface, #16181c) 92%, transparent);color:var(--ink);font:inherit;backdrop-filter:saturate(180%) blur(30px);-webkit-backdrop-filter:saturate(180%) blur(30px);
+  box-shadow:0 18px 40px -16px rgba(0,0,0,.6);transform:translateY(-140%);opacity:0;transition:transform .45s cubic-bezier(.22,1.2,.36,1),opacity .3s}
+.inbanner.in{transform:none;opacity:1}
+.ibmk{flex:none;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--chip)}
+.ibmk svg{width:22px;height:22px}
+.ibtx{display:grid;gap:2px;min-width:0}
+.ibtx b{font-size:.92rem}
+.ibtx span{font-size:.86rem;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+@media (prefers-reduced-motion: reduce){ .inbanner{transition:opacity .2s} }
