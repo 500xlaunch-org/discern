@@ -669,3 +669,23 @@ body,.app{font-family:var(--sans);letter-spacing:-.005em}
 .apchip{--c2:color-mix(in srgb, var(--c) 70%, var(--muted))}
 .apchip i{background:var(--c2)}
 @media (prefers-reduced-motion: reduce){ .gthumb,.gopt i{transition:none} .aprow.saving .gthumb{animation:none} }
+/* one reason, then the rest on request */
+.ireason.lead{font-weight:600;color:var(--ink)}
+.whymore{margin-top:2px}
+.whymore summary{cursor:pointer;color:var(--muted);font-size:.84rem;font-weight:600;list-style:none;padding:4px 0}
+.whymore summary::-webkit-details-marker{display:none}
+.whymore summary::after{content:" ›";opacity:.6}
+.whymore[open] summary::after{content:""}
+.whymore .ireason{animation:rise .3s var(--ease, ease) both}
+
+/* settings: chosen things look chosen the same way everywhere: a lifted
+ * surface and ink, not a block of brand blue */
+.glide.g3{grid-template-columns:repeat(3,1fr)}
+.glide.g3 .gthumb{width:calc((100% - 8px) / 3)}
+.glide.g3 .gopt{font-size:.88rem}
+.lockopt,.langb{transition:border-color .25s, background .25s, box-shadow .25s, transform .2s}
+.lockopt.on,.langb.on{border-color:var(--glass-line);background:var(--thumb);color:var(--ink);
+  box-shadow:0 8px 18px -10px rgba(0,0,0,.6), 0 1px 0 rgba(255,255,255,.1) inset}
+.lockopt.on small,.langb.on small{color:var(--muted);opacity:1}
+.lockopt:active,.langb:active{transform:scale(.98)}
+.vcheck.lgok{margin:4px 0 14px}

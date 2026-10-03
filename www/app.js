@@ -1345,7 +1345,10 @@ function askBodyHTML(it){
   // three reasons is a worse answer than three of three.
   const why = tWhy(it, it.appetite, it.reasons);
   const v = it.voice || {};
-  return `${why.length ? why.map((w) => `<div class="ireason">${esc(w)}</div>`).join("") : ""}
+  // the reason that decides it, first and alone; the rest one tap away, since
+  // five lines saying the same thing in five ways bury the one that matters
+  return `${why.length ? `<div class="ireason lead">${esc(why[0])}</div>` : ""}
+    ${why.length > 1 ? `<details class="whymore"><summary>${esc(tn("card.moreWhy", why.length - 1))}</summary>${why.slice(1).map((w) => `<div class="ireason">${esc(w)}</div>`).join("")}</details>` : ""}
     ${v.summary ? `<p class="whysum">${esc(v.summary)}</p>` : ""}
     ${v.if_blocked ? `<p class="whyblock"><b>${esc(t("card.ifBlocked"))}</b> ${esc(v.if_blocked)}</p>` : ""}
     <div class="rchips">${risks}</div>
@@ -1595,10 +1598,12 @@ function cardHTML(it){
   return `<article class="icard ${settling?("settling "+settling):""}" data-card="${it.id}"
       style="--sev:${sevColor(it.severity)};--sevb:${sevBg(it.severity)}">
     <div class="icard-top">
-      ${M.solution(sol, 40)}
+      ${solFace(solOf(it) || sol, 44)}
       <div class="iwho">
         <div class="isol">${esc(sol.name || iName(it))}</div>
-        <div class="iagent">${M.agent(iAgent(it), 20)}<span>${esc(iAgent(it))}</span></div>
+        ${String(sol.name || "").toLowerCase() !== String(iAgent(it)).toLowerCase()
+          ? `<div class="iagent">${agentFace(agentOfIt(it), 20)}<span>${esc(iAgent(it))}</span></div>`
+          : (solOf(it) && solOf(it).publisher ? `<div class="iagent"><span>${esc(t("sol.by", { name: solOf(it).publisher }))}</span></div>` : "")}
       </div>
       <span class="iglyph">${riskGlyph(it.risk, 46, it.severity)}<span class="sevtag">${esc(tSev(it.severity))}</span></span>
     </div>
@@ -1872,8 +1877,8 @@ function vaultSetupHTML(){
     <div class="field"><label for="vpin">${esc(t(s.stage === "again" ? "v.setup.again" : "v.setup.pin"))}</label>
       <input id="vpin" type="password" inputmode="numeric" autocomplete="off" maxlength="6"
              enterkeyhint="go" placeholder="******" value="${esc(s.entry || "")}"/></div>
-    ${lockSupported() ? `<label class="vcheck"><input type="checkbox" id="vdev" ${s.useDevice ? "checked" : ""}/>
-      <span>${esc(t("v.setup.useDevice"))}</span></label>` : ""}
+    ${lockSupported() ? `<label class="vcheck lgok ${s.useDevice ? "on" : ""}"><input type="checkbox" id="vdev" ${s.useDevice ? "checked" : ""}/>
+      <span class="lgbox">${I.check}</span><span class="lgtxt">${esc(t("v.setup.useDevice"))}</span></label>` : ""}
     <button class="btn btn-primary block big" data-vcreate ${s.busy ? "disabled" : ""}>
       ${s.busy ? `<span class="tic spin">${I.sync}</span>` : ""}<span>${esc(t(s.stage === "again" ? "v.setup.confirm" : "v.setup.next"))}</span></button>
   </section>`;
@@ -2868,27 +2873,37 @@ function groupAsksByAgent(p){
   return [...by.values()];
 }
 
+/** Before connecting: the same product page, read before saying yes. Who
+ * made it, every agent and everything each one can do, what will stop and
+ * ask, and where it lives; then one button. */
 function reviewHTML(){
   const p = S.reviewData;
   if (!p) return `<button class="back" data-back-review>${I.chevron}<span>${esc(t("sol.back"))}</span></button>
     <div class="sk-review">${[0,1,2,3].map(i=>`<div class="abrow sk-card" style="--d:${i*70}ms"><span class="sk sk-logo sm"></span>
       <div class="abm"><span class="sk sk-line w70"></span><span class="sk sk-line w40"></span></div></div>`).join("")}
     <div class="sk-note">${esc(t("rev.reading"))}</div></div>`;
-  const s = p.solution;
+  const s = { ...p.solution, agents: p.agents || groupAsksByAgent(p), appetite: p.appetite };
+  if (S.selectedAgent) {
+    const a = s.agents.find((x) => x.name === S.selectedAgent || x.id === S.selectedAgent);
+    if (a) return agentPageHTML(s, a);
+    S.selectedAgent = null;
+  }
+  const abs = s.agents.flatMap((a) => a.abilities || []), asks = abs.filter(asksOf).length;
+  const stat = (n, label) => `<div class="sdstat"><b>${n}</b><span>${esc(label)}</span></div>`;
   return `<button class="back" data-back-review>${I.chevron}<span>${esc(t("sol.back"))}</span></button>
-  <div class="soldhead">${window.Marks.solution(s, 52)}
-    <div><div class="soldn">${esc(s.name)}</div><div class="soldsub">${esc(tn("sol.agents",p.counts.agents))}, ${esc(tn("sol.abilities",p.counts.abilities))}</div></div></div>
-  ${s.description?`<p class="soldesc">${esc(s.description)}</p>`:''}
-  ${agentGraphHTML({ agents: groupAsksByAgent(p) }, p.appetite)}
-  <section class="panel"><div class="panelhd"><h3>${esc(t("rev.asks"))} <span class="cnt ask">${p.counts.asks}</span></h3>
-    <p>${esc(t("rev.asksSub"))}</p></div>
-    ${p.asks.length?p.asks.map(a=>abilityRow(a,"ask",p.appetite)).join(""):`<div class="thin-empty">${esc(t("rev.noAsks"))}</div>`}</section>
-  <section class="panel"><div class="panelhd"><h3>${esc(t("rev.runs"))} <span class="cnt run">${p.counts.runs}</span></h3>
-    <p>${esc(t("rev.runsSub"))}</p></div>
-    ${p.runs.length?p.runs.map(a=>abilityRow(a,"run",p.appetite)).join(""):`<div class="thin-empty">${esc(t("rev.noRuns"))}</div>`}</section>
+  <header class="sdhero">${window.Marks.art(s.uid || s.name, s.icon || s.slug, { cls: "sdart" })}
+    <div class="sdtop">${solFace(s, 76)}
+      <div class="sdid"><h1 class="sdname">${esc(s.name)}</h1>
+        ${s.publisher ? `<div class="sdpub">${esc(t("sol.by", { name: s.publisher }))}</div>` : ""}</div></div></header>
+  ${s.description ? `<p class="sddesc">${esc(s.description)}</p>` : ""}
+  <div class="sdstats">${stat(s.agents.length, tn("sol.statAgents", s.agents.length))}${stat(abs.length, tn("sol.statActs", abs.length))}${stat(asks, t("sol.statAsks"))}${stat(abs.length - asks, t("rev.runsShort"))}</div>
+  <section class="sdsec"><div class="secrow"><h2 class="sech">${esc(t("sol.agentsH"))}</h2><span class="secn">${s.agents.length}</span></div>
+    <div class="aglist">${s.agents.map((a) => agentRowHTML(s, a)).join("")}</div></section>
+  <section class="sdsec"><div class="secrow"><h2 class="sech">${esc(t("sol.about"))}</h2></div>
+    <div class="sdrows">${aboutRowsHTML(s)}</div></section>
   <p class="consent-note">${I.shield}<span>${esc(t("rev.note"))}</span></p>
-  ${p.connected?`<button class="btn btn-ghost block big" data-back-review>${esc(t("rev.already"))}</button>`
-    :`<button class="btn btn-primary block big" data-connect="${s.uid}">${esc(t("rev.connect",{name:s.name}))}</button>`}`;
+  <div class="revgo">${p.connected?`<button class="btn btn-ghost block big" data-back-review>${esc(t("rev.already"))}</button>`
+    :`<button class="btn btn-primary block big" data-connect="${s.uid}">${esc(t("rev.connect",{name:s.name}))}</button>`}</div>`;
 }
 async function openReview(uid){
   S.review = uid; S.reviewData = null; S.view = "solutions"; S.selectedSol = null; render();
@@ -2933,7 +2948,8 @@ function settingsHTML(){
   ${canSwitchEnv() ? `<section class="panel"><div class="panelhd"><h3>${esc(t("set.env"))}</h3><p>${esc(t("set.envSub"))}</p></div>
     <div class="envseg">${Object.entries(ENVS).map(([k,e])=>`<button class="${S.env===k?'on':''}" data-env="${k}">${esc(e.label())}</button>`).join("")}</div></section>` : ""}
   <section class="panel"><div class="panelhd"><h3>${esc(t("set.appearance"))}</h3></div>
-    <div class="envseg">${[["system",t("set.system")],["light",t("set.light")],["dark",t("set.dark")]].map(([k,l])=>`<button class="${S.theme===k?'on':''}" data-theme-set="${k}">${esc(l)}</button>`).join("")}</div></section>
+    ${(() => { const opts = [["system",t("set.system")],["light",t("set.light")],["dark",t("set.dark")]]; const i = Math.max(0, opts.findIndex(([k]) => k === S.theme));
+      return `<div class="glide g3" role="radiogroup" aria-label="${esc(t("set.appearance"))}" style="--i:${i}"><span class="gthumb" aria-hidden="true"></span>${opts.map(([k,l],j)=>`<button type="button" role="radio" aria-checked="${j===i}" class="gopt ${j===i?'on':''}" data-theme-set="${k}"><span>${esc(l)}</span></button>`).join("")}</div>`; })()}</section>
   <section class="panel legalpanel">
     <div class="panelhd"><h3>${esc(t("legal.title"))}</h3><p>${esc(t("legal.free"))}</p></div>
     <div class="legallinks"><a href="${BASE}/terms" target="_blank" rel="noopener">${esc(t("legal.terms"))}</a>
@@ -3407,7 +3423,9 @@ function wire(){
     if(el.closest("[data-toggle-env]")){ S.env=S.env==="test"?"live":"test"; savePrefs(); reloadEnv(); return; }
     const envb=el.closest("[data-env]"); if(envb){ S.env=envb.dataset.env; savePrefs(); reloadEnv(); return; }
     const lg=el.closest("[data-lang]"); if(lg){ S.lang=window.I18N.setLang(lg.dataset.lang); savePrefs(); tellWorkerLang(); render(); return; }
-    const th=el.closest("[data-theme-set]"); if(th){ S.theme=th.dataset.themeSet; savePrefs(); applyTheme(); render(); return; }
+    const th=el.closest("[data-theme-set]"); if(th){ const box=th.closest(".glide"); const j=[...box.querySelectorAll(".gopt")].indexOf(th);
+      box.style.setProperty("--i", j); box.querySelectorAll(".gopt").forEach((b,k)=>{ b.classList.toggle("on",k===j); b.setAttribute("aria-checked",k===j); });
+      S.theme=th.dataset.themeSet; savePrefs(); setTimeout(()=>{ applyTheme(); render(); }, 320); return; }
     const dec=el.closest("[data-decide]");
     if(dec){ const id=dec.dataset.id;
       // stopping, or asking for another way, is never the dangerous direction:
@@ -3431,7 +3449,7 @@ function wire(){
     if(el.closest("[data-pin-cancel]")){ S.pinSetup=null; S.pinEntry=""; render(); return; }
     if(el.closest("[data-testpush]")){ testPush(); return; }
     const rev=el.closest("[data-review]"); if(rev){ openReview(rev.dataset.review); return; }
-    if(el.closest("[data-back-review]")){ S.review=null; S.reviewData=null; render(); return; }
+    if(el.closest("[data-back-review]")){ S.review=null; S.reviewData=null; S.selectedAgent=null; render(); return; }
     const con=el.closest("[data-connect]"); if(con){ connect(con.dataset.connect); return; }
     const sol=el.closest("[data-sol]"); if(sol){ S.selectedSol=sol.dataset.sol; S.selectedAgent=null; render(); return; }
     if(el.closest("[data-back]")){ S.selectedSol=null; S.selectedAgent=null; render(); return; }
@@ -3662,7 +3680,7 @@ function wire(){
   root.onchange = e=>{
     // the two checkboxes that are read when they change rather than on submit
 
-    if (e.target.id === "vdev") { S.vault.setup.useDevice = e.target.checked; return; }
+    if (e.target.id === "vdev") { S.vault.setup.useDevice = e.target.checked; e.target.closest(".lgok")?.classList.toggle("on", e.target.checked); return; }
     // the terms: ticking it is what lets the button go, without a repaint that
     // would throw away what was typed in the name field
     if (e.target.id === "lgok") {
