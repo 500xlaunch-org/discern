@@ -199,6 +199,7 @@ function loadPrefs(){
     // which answer the activity screen is narrowed to, from its own summary
     actState:null,
     // sign in walks: identifier, then a password or a name, never both at once
+    legal:{ ok:false, country:"", busy:false, error:"" },
     signin:{ step:"id", id:"", busy:false, error:"",
              // the field decides for itself which of the two it is holding
              kind:"empty", iso:(window.Phone ? window.Phone.detect() : "US"), picker:false, search:"",
@@ -329,12 +330,19 @@ const Backend = {
     await Vault.keep(identifier, password);
     afterSignIn();
   },
-  async register(identifier, name){
+  async register(identifier, name, legal){
     if (S.mode==="demo") return Local.login(identifier,name);
-    const out = await Net.request("POST","/v1/user/register",{identifier,name,region:region()},{auth:false});
+    const out = await Net.request("POST","/v1/user/register",{identifier,name,region:region(),legal,via:WEB?"web":"discern"},{auth:false});
     S.token = out.token; S.user = out.user; savePrefs();
     await Vault.keep(identifier, null);
     afterSignIn();
+  },
+  /** Accept the current terms bundle, for an account made before it. */
+  async acceptLegal(country){
+    const v = (S.user && S.user.legal && S.user.legal.version) || LEGAL_VERSION;
+    await Net.request("POST","/v1/user/legal",{legal:{version:v,country},via:WEB?"web":"discern"});
+    const me = await Net.request("GET","/v1/user/me");
+    S.user = me.user; savePrefs();
   },
   /** First page of everything. Falls back to the cached view, then to demo. */
   async refresh(){
@@ -349,6 +357,8 @@ const Backend = {
       S.intents = inbox.intents; S.inboxNext = inbox.next||null; S.inboxTotal = inbox.total ?? inbox.intents.length;
       S.timeline = timeline.intents; S.tlNext = timeline.next||null; S.tlTotal = timeline.total ?? timeline.intents.length;
       S.solutions = sols.solutions;
+      // who they are as of now, so a change of terms reaches an old session
+      Net.request("GET","/v1/user/me").then((m)=>{ if (m && m.user){ const was = needsLegal(); S.user = m.user; savePrefs(); if (needsLegal() !== was) render(); } }).catch(()=>{});
       Backend.summary().then((sm)=>{ S.summary = sm; const el=document.querySelector(".sevbar"); if (el||sm) render(); });
       // what the categories are called here, and whether this platform added
       // any. Off the critical path: it changes labels, and an inbox that will
@@ -891,7 +901,8 @@ function render(){
   const app = document.getElementById("app-root");
   if (app) app.innerHTML = S.pinSetup ? pinSetupHTML()
                          : S.locked ? lockHTML()
-                         : !S.token ? (WEB && !HANDHELD ? webLandingHTML() : signinHTML()) : appHTML();
+                         : !S.token ? (WEB && !HANDHELD ? webLandingHTML() : signinHTML())
+                         : needsLegal() ? legalGateHTML() : appHTML();
   applyDevice(); wire(); paintNet(); watchForMore(); wireChrome();
   // a sheet that was already open stays put while what is inside it changes
   const ov = document.getElementById("overlay");
@@ -959,7 +970,7 @@ function getAppHTML(){
             <input id="getmail" type="email" required autocomplete="email" placeholder="${esc(t("web.get.email"))}" aria-label="${esc(t("web.get.email"))}"/>
             <button class="btn btn-primary" type="submit">${esc(t("web.get.notify"))}</button></form>`}
       <p class="gdesk">${esc(t("web.get.desk"))}</p>
-      <p class="glegal"><a href="/terms">${esc(t("legal.terms"))}</a><a href="/privacy">${esc(t("legal.privacy"))}</a></p>
+      <p class="glegal"><a href="/terms">${esc(t("legal.terms"))}</a><a href="/privacy">${esc(t("legal.privacy"))}</a><a href="/cookies">${esc(t("legal.cookies"))}</a></p>
     </div>
   </div>`;
 }
@@ -2729,7 +2740,9 @@ function settingsHTML(){
   <section class="panel legalpanel">
     <div class="panelhd"><h3>${esc(t("legal.title"))}</h3><p>${esc(t("legal.free"))}</p></div>
     <div class="legallinks"><a href="${BASE}/terms" target="_blank" rel="noopener">${esc(t("legal.terms"))}</a>
-      <a href="${BASE}/privacy" target="_blank" rel="noopener">${esc(t("legal.privacy"))}</a></div></section>
+      <a href="${BASE}/privacy" target="_blank" rel="noopener">${esc(t("legal.privacy"))}</a>
+      <a href="${BASE}/cookies" target="_blank" rel="noopener">${esc(t("legal.cookies"))}</a></div>
+    ${S.user && S.user.legal && S.user.legal.accepted ? `<div class="kv"><span>${esc(t("legal.accepted"))}</span><b>${esc(new Date(S.user.legal.accepted.at).toLocaleDateString(window.I18N.lang))}, ${esc(window.Phone.name(S.user.legal.accepted.country, window.I18N.lang))}</b></div>` : ""}</section>
   <section class="panel"><button class="btn btn-ghost block" data-signout>${esc(t("set.signOut"))}</button></section>
   <p class="motto">${esc(t("app.motto")).replace(/\n/g,"<br/>")}</p>`;
 }
@@ -2837,8 +2850,9 @@ function signinHTML(){
         <span>${esc(t("signin.newBody",{id:st.identifier || st.id}))}</span></div>
       ${err}
       <div class="field"><label for="nm">${esc(t("signin.name"))}</label>
-        <input id="nm" autocomplete="name" enterkeyhint="done" placeholder="Ada Lovelace"/></div>
-      <button class="btn btn-primary block big" data-create ${st.busy?"disabled":""}>
+        <input id="nm" autocomplete="name" enterkeyhint="done" placeholder="Ada Lovelace" value="${esc(st.name || "")}"/></div>
+      ${legalBlockHTML()}
+      <button class="btn btn-primary block big" data-create ${st.busy||!S.legal.ok?"disabled":""}>
         ${st.busy?`<span class="tic spin">${I.sync}</span>`:""}<span>${esc(t("signin.create"))}</span></button>
       <button class="btn btn-ghost block" data-signin-back>${esc(t("signin.back"))}</button>
       <div id="overlay"></div></div>`;
@@ -2897,8 +2911,9 @@ function signinHTML(){
       ${st.busy?`<span class="tic spin">${I.sync}</span>`:""}<span>${esc(t("signin.next"))}</span></button>
     <div class="signin-note">${I.shield}<span>${esc(t("signin.note"))}</span></div>
     <div class="signin-langs">${I.globe}${LANGS.map(l=>`<button class="${window.I18N.lang===l.code?'on':''}" data-lang="${l.code}">${l.native}</button>`).join("")}</div>
-    <div class="legal">${esc(t("legal.agree"))} <a href="${BASE}/terms" target="_blank" rel="noopener">${esc(t("legal.terms"))}</a>
-      &middot; <a href="${BASE}/privacy" target="_blank" rel="noopener">${esc(t("legal.privacy"))}</a></div>
+    <div class="legal"><a href="${BASE}/terms" target="_blank" rel="noopener">${esc(t("legal.terms"))}</a>
+      &middot; <a href="${BASE}/privacy" target="_blank" rel="noopener">${esc(t("legal.privacy"))}</a>
+      &middot; <a href="${BASE}/cookies" target="_blank" rel="noopener">${esc(t("legal.cookies"))}</a></div>
     ${picker}
     <div id="overlay"></div></div>`;
 }
@@ -2940,6 +2955,52 @@ function idShape(){
 
 /** The country list, named in the reader's language and searchable, because
  * scrolling 229 rows to find one is not a design. */
+/* ---- the terms, accepted all at once ----
+ * The Terms of Service, the Privacy Policy and the Cookies notice are one
+ * bundle with one version, and where somebody lives decides which law reads it.
+ * Nobody gets an account without ticking it, and somebody from before it is
+ * asked once, on their next visit, before anything else. */
+const LEGAL_VERSION = "2026-10-03";
+function needsLegal(){ return S.mode !== "demo" && !!(S.user && S.user.legal && S.user.legal.current === false); }
+function legalCountries(){
+  const P = window.Phone, lang = window.I18N.lang;
+  return P.COUNTRIES.map((c) => ({ iso: c.iso, label: P.name(c.iso, lang) }))
+    .sort((a, b) => a.label.localeCompare(b.label, lang));
+}
+function legalBlockHTML(){
+  const L = S.legal;
+  if (!L.country) L.country = (S.signin && S.signin.iso) || region() || "US";
+  return `<div class="lgblock">
+    <div class="field lgfield"><label for="lgc">${esc(t("legal.where"))}</label>
+      <div class="lgsel">${I.globe}<select id="lgc" data-legal-country>${legalCountries().map((c) =>
+        `<option value="${c.iso}" ${c.iso === L.country ? "selected" : ""}>${esc(c.label)}</option>`).join("")}</select>${I.chevron}</div></div>
+    <label class="lgok ${L.ok ? "on" : ""}"><input type="checkbox" id="lgok" data-legal-ok ${L.ok ? "checked" : ""}/>
+      <span class="lgbox">${I.check}</span><span class="lgtxt">${esc(t("legal.accept"))}</span></label>
+    <div class="lgdocs"><a href="${BASE}/terms" target="_blank" rel="noopener">${esc(t("legal.terms"))}</a>
+      <a href="${BASE}/privacy" target="_blank" rel="noopener">${esc(t("legal.privacy"))}</a>
+      <a href="${BASE}/cookies" target="_blank" rel="noopener">${esc(t("legal.cookies"))}</a></div>
+  </div>`;
+}
+function legalGateHTML(){
+  return `<div class="signin lggate">
+    <div class="signin-mk">${MK}</div>
+    <h1>${esc(t("legal.gateTitle"))}</h1>
+    <p class="signin-motto">${esc(t("legal.gateBody"))}</p>
+    ${S.legal.error ? `<div class="signin-err">${esc(S.legal.error)}</div>` : ""}
+    ${legalBlockHTML()}
+    <button class="btn btn-primary block big" data-legal-go ${S.legal.busy||!S.legal.ok?"disabled":""}>
+      ${S.legal.busy?`<span class="tic spin">${I.sync}</span>`:""}<span>${esc(t("legal.gateGo"))}</span></button>
+    <button class="btn btn-ghost block" data-signout ${S.legal.busy?"disabled":""}>${esc(t("set.signOut"))}</button>
+    <div id="overlay"></div></div>`;
+}
+async function legalAccept(){
+  if (!S.legal.ok || S.legal.busy) return;
+  S.legal.busy = true; S.legal.error = ""; render();
+  try { await Backend.acceptLegal(S.legal.country); S.legal.busy = false; await Backend.refresh().catch(()=>{}); }
+  catch (e) { S.legal.busy = false; S.legal.error = e.message || t("net.failed"); }
+  render();
+}
+
 function countryPickerHTML(){
   const P = window.Phone, lang = window.I18N.lang, q = S.signin.search.trim().toLowerCase();
   const rows = P.COUNTRIES
@@ -3262,6 +3323,7 @@ function wire(){
     if(el.closest("[data-pw]")){ signinPassword(); return; }
     if(el.closest("[data-passkey]")){ signinPasskey(); return; }
     if(el.closest("[data-create]")){ signinRegister(); return; }
+    if(el.closest("[data-legal-go]")){ legalAccept(); return; }
     if(el.closest("[data-signin-back]")){ S.signin = { step:"id", id:S.signin.id, busy:false, error:"" }; render(); return; }
     // -- vault --
     if(el.closest("[data-cunlock]")){ credUnlock(); return; }
@@ -3399,6 +3461,16 @@ function wire(){
     // the two checkboxes that are read when they change rather than on submit
 
     if (e.target.id === "vdev") { S.vault.setup.useDevice = e.target.checked; return; }
+    // the terms: ticking it is what lets the button go, without a repaint that
+    // would throw away what was typed in the name field
+    if (e.target.id === "lgok") {
+      S.legal.ok = e.target.checked;
+      e.target.closest(".lgok").classList.toggle("on", S.legal.ok);
+      for (const b of document.querySelectorAll("[data-create],[data-legal-go]")) b.disabled = !S.legal.ok;
+      if (S.legal.ok && S.signin.error === t("legal.need")) { S.signin.error = ""; document.querySelector(".signin-err")?.remove(); }
+      return;
+    }
+    if (e.target.id === "lgc") { S.legal.country = e.target.value; return; }
     const c=e.target.closest("[data-ctl]"); if(!c)return;
     if(c.dataset.ctl==="plat")S.plat=e.target.value;
     if(c.dataset.ctl==="form")S.form=e.target.value;
@@ -3726,9 +3798,11 @@ async function signinPasskey(){
 async function signinRegister(){
   const el = document.getElementById("nm");
   const name = (el ? el.value : "").trim();
+  S.signin.name = name;
+  if (!S.legal.ok){ S.signin.error = t("legal.need"); render(); return; }
   S.signin.error = ""; S.signin.busy = true; render();
   try {
-    await Backend.register(S.signin.identifier || S.signin.id, name || undefined);
+    await Backend.register(S.signin.identifier || S.signin.id, name || undefined, { version: LEGAL_VERSION, country: S.legal.country });
     rememberIdentifier(S.signin.identifier || S.signin.id);
     S.signin = { ...S.signin, step:"id", id:"", error:"", busy:false, pw:"", showPw:false };
     maybeAskEnv();            // a builder is told which world they just entered

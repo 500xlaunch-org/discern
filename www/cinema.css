@@ -445,3 +445,34 @@ body,.app{font-family:var(--sans);letter-spacing:-.005em}
 .signin-note svg{margin-top:2px}
 .wlpoints li.wlkey{padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#f5f5f7;font-weight:600}
 .wlpoints li.wlkey svg{color:#9cc0ea}
+
+/* ---- the terms, accepted at once: country, one tick, three documents ---- */
+.lgblock{display:grid;gap:12px;margin:4px 0 14px}
+.lgfield{margin:0}
+.lgsel{position:relative;display:flex;align-items:center;gap:10px;height:48px;padding:0 16px;border-radius:999px;
+  background:var(--chip);border:1px solid var(--line);color:var(--muted)}
+.lgsel svg{width:18px;height:18px;flex:none}
+.lgsel svg:last-child{transform:rotate(90deg);opacity:.6;pointer-events:none}
+.lgsel select{appearance:none;-webkit-appearance:none;flex:1;min-width:0;height:100%;border:0;background:transparent;
+  color:var(--ink);font:inherit;font-size:16px;outline:none;cursor:pointer}
+.lgsel:focus-within{border-color:var(--xur, #3B6EA3);box-shadow:0 0 0 3px color-mix(in srgb, var(--xur, #3B6EA3) 25%, transparent)}
+.lgok{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:18px;border:1px solid var(--line);
+  background:var(--chip);cursor:pointer;transition:border-color .2s, background .2s}
+.lgok input{position:absolute;opacity:0;width:1px;height:1px}
+.lgbox{flex:none;width:22px;height:22px;border-radius:7px;border:1.5px solid var(--muted);display:grid;place-items:center;
+  transition:background .18s, border-color .18s, transform .18s}
+.lgbox svg{width:14px;height:14px;opacity:0;transform:scale(.6);transition:opacity .18s, transform .18s;color:#fff}
+.lgok.on{border-color:color-mix(in srgb, var(--ok, #2f9e6a) 55%, var(--line))}
+.lgok.on .lgbox{background:var(--ok, #2f9e6a);border-color:var(--ok, #2f9e6a);transform:scale(1.04)}
+.lgok.on .lgbox svg{opacity:1;transform:none}
+.lgok input:focus-visible + .lgbox{box-shadow:0 0 0 3px color-mix(in srgb, var(--xur, #3B6EA3) 35%, transparent)}
+.lgtxt{font-size:14.5px;line-height:1.45;color:var(--ink)}
+.lgdocs{display:flex;flex-wrap:wrap;gap:6px 16px;padding:0 4px;font-size:13.5px}
+.lgdocs a{color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+.lgdocs a:hover{color:var(--ink)}
+.lggate h1{font-size:28px}
+@media (prefers-reduced-motion: reduce){ .lgbox, .lgbox svg, .lgok{transition:none} }
+.signin .lgblock{width:100%;max-width:280px}
+.signin .lgblock .field{max-width:none;width:100%}
+.signin .btn-primary[disabled]{opacity:.38;cursor:not-allowed;box-shadow:none}
+.signin .btn-primary[disabled]:has(.spin){opacity:.75;cursor:progress}
