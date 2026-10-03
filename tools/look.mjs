@@ -23,7 +23,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const WWW = join(HERE, "..", "www");
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const args = process.argv.slice(2);
-const flags = new Set(args.filter((a) => a.startsWith("--")));
+const flags = new Set(args.filter((a) => a.startsWith("--") && !a.includes("=")));
 const [out, step = ""] = args.filter((a) => !a.startsWith("--"));
 // --w=360 for a small Android phone
 if (!out) { console.error("usage: look.mjs <out.png> [script] [--wide] [--full] [--signedout]"); process.exit(2); }
@@ -68,19 +68,21 @@ const s = (m, p) => send(m, p, sessionId);
 await s("Runtime.enable"); await s("Page.enable");
 await s("Emulation.setDeviceMetricsOverride", { width: W, height: H, deviceScaleFactor: 2, mobile: !flags.has("--wide") });
 if (!flags.has("--wide")) await s("Emulation.setTouchEmulationEnabled", { enabled: true });
-await s("Page.navigate", { url: `http://127.0.0.1:${port}/index.html` });
+// --url=... looks at any page (the Horizon console, Line), not the app
+const urlArg = args.find((a) => a.startsWith("--url="));
+await s("Page.navigate", { url: urlArg ? urlArg.slice(6) : `http://127.0.0.1:${port}/index.html` });
 await new Promise((r) => setTimeout(r, 1500));
 
-const signin = flags.has("--signedout") ? "" : `await Backend.login("ada@example.com"); await Backend.refresh(); S.ready = true;`;
+const signin = flags.has("--signedout") || urlArg ? "" : `await Backend.login("ada@example.com"); await Backend.refresh(); S.ready = true;`;
 const r = await s("Runtime.evaluate", { awaitPromise: true, returnByValue: true,
-  expression: `(async () => { ${signin} const __r = await (async () => { ${body} })(); render && 0; return __r; })()` });
+  expression: `(async () => { ${signin} const __r = await (async () => { ${body} })(); return __r; })()` });
 if (r.result?.exceptionDetails) problems.push("step failed: " + (r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text));
 else if (r.result?.result?.value !== undefined) console.log(r.result.result.value);
 await new Promise((r2) => setTimeout(r2, 900));
 
 let clip;
 if (flags.has("--full")) {
-  const m = await s("Runtime.evaluate", { returnByValue: true, expression: `(() => { const w = document.querySelector(".screen-wrap"); return w ? w.scrollHeight + 40 : document.documentElement.scrollHeight; })()` });
+  const m = await s("Runtime.evaluate", { returnByValue: true, expression: `(() => { const w = document.querySelector(".screen-wrap"); return w && w.scrollHeight > innerHeight ? w.scrollHeight + 40 : document.documentElement.scrollHeight; })()` });
   const h = Math.min(6000, Math.max(H, m.result.result.value));
   await s("Emulation.setDeviceMetricsOverride", { width: W, height: h, deviceScaleFactor: 2, mobile: !flags.has("--wide") });
   await new Promise((r2) => setTimeout(r2, 500));
