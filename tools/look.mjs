@@ -25,9 +25,11 @@ const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const args = process.argv.slice(2);
 const flags = new Set(args.filter((a) => a.startsWith("--")));
 const [out, step = ""] = args.filter((a) => !a.startsWith("--"));
+// --w=360 for a small Android phone
 if (!out) { console.error("usage: look.mjs <out.png> [script] [--wide] [--full] [--signedout]"); process.exit(2); }
 const body = existsSync(step) ? readFileSync(step, "utf8") : step;
-const W = flags.has("--wide") ? 1280 : 412, H = flags.has("--wide") ? 820 : 900;
+const wArg = args.find((a) => /^--w=\d+$/.test(a));
+const W = wArg ? Number(wArg.slice(4)) : flags.has("--wide") ? 1280 : 412, H = flags.has("--wide") ? 820 : 900;
 
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml",
   ".png": "image/png", ".json": "application/json", ".webmanifest": "application/manifest+json", ".woff2": "font/woff2" };

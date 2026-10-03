@@ -455,6 +455,13 @@ const Local = (()=>{
     if(/publish/.test(k))return{site:"portfolio.example.com"}; if(/apply/.test(k))return{company:"Lumen Labs",rate_usd_day:780};
     if(/drop|delete/.test(k))return{target:"invoices"};
     if(/heartbeat/.test(k))return{evening:1}; return{}; };
+  // what Line itself says when it asks (its templates), so the demo reads as the real thing
+  const SAYS = {
+    "heartbeat.confirm":"Ada, are you well this evening? One tap tells Line you are fine.",
+    "vault.keep":"Anything new worth keeping for the people you named? Choose it from your vault; Line keeps it sealed.",
+    "kin.prepare":"Grace Okafor left you something through Line. Set up your vault in Discern so it can reach you, sealed.",
+    "vault.deliver":"Grace Okafor asked Line to give you this. 2 things, sealed for your vault alone.",
+  };
   function catOf(uid){ return CATALOG.find(c=>c.uid===uid); }
   function sol(uid){ const c=catOf(uid);
     const agents=c.agents.map(([id2,name,abs,description,logo])=>({id:id2,name,description,logo,abilities:abs.map(([key,desc,dev,disc])=>({key,kind:"capability",description:desc,discernment:disc||"auto",...score(key,desc,dev),risk_source:dev?"blended":"horizon"}))}));
@@ -493,7 +500,7 @@ const Local = (()=>{
       return {solution:{...full,agents:undefined},agents:full.agents,connected:!!l,appetite,asks,runs,
         counts:{agents:s.agents.length,abilities:asks.length+runs.length,asks:asks.length,runs:runs.length}}; },
     async connect(uid){ const s=sol(uid); const link=id("lnk"); st.links[uid]={link,status:"active",appetite:{...DEFAULT_APPETITE},at:Date.now()};
-      let pending=0, nth=0; for (const a of s.agents) for (const ab of a.abilities){ const v=reconcile(ab.risk,ab.severity,st.links[uid].appetite,ab.discernment); const rec={id:id("int"),solName:s.name,solution:{uid,name:s.name,slug:catOf(uid).slug},agent:a.name,capability:ab.key,details:sample(ab.key),risk:ab.risk,severity:ab.severity,reasons:v.reasons,discernment:ab.discernment,appetite:st.links[uid].appetite,at:Date.now()-(nth++)*17*60000,hash:hash(),sol:uid,link}; if (v.allow){ rec.state="allowed"; st.timeline.unshift(rec);} else { rec.state="pending"; st.intents.unshift(rec); pending++; } }
+      let pending=0, nth=0; for (const a of s.agents) for (const ab of a.abilities){ const v=reconcile(ab.risk,ab.severity,st.links[uid].appetite,ab.discernment); const rec={id:id("int"),summary:SAYS[ab.key],solName:s.name,solution:{uid,name:s.name,slug:catOf(uid).slug},agent:a.name,capability:ab.key,details:sample(ab.key),risk:ab.risk,severity:ab.severity,reasons:v.reasons,discernment:ab.discernment,appetite:st.links[uid].appetite,at:Date.now()-(nth++)*17*60000,hash:hash(),sol:uid,link}; if (v.allow){ rec.state="allowed"; st.timeline.unshift(rec);} else { rec.state="pending"; st.intents.unshift(rec); pending++; } }
       return {ok:true,pending}; },
     async release(id2){ const i=st.intents.findIndex(x=>x.id===id2); if(i<0)return; const it=st.intents.splice(i,1)[0];
       it.state="approved"; it.decision={decision:"approve",at:Date.now()}; it.decidedAt=Date.now(); st.timeline.unshift(it); },
@@ -1221,6 +1228,24 @@ function groupRisk(items){
 
 /** The severity mix of a group, as one small chip rather than a bar and a row
  * of tags. The worst one is what decides whether somebody opens this now. */
+/* ---- who is asking, in their own words and with their own face ---- */
+function solOf(it){ const uid = (it.solution && it.solution.uid) || it.solutionUid; return (S.solutions || []).find((x) => x.uid === uid) || null; }
+function agentOfName(uid, name){
+  const s = (S.solutions || []).find((x) => x.uid === uid);
+  return (s && (s.agents || []).find((a) => a.name === name)) || { name };
+}
+const agentOfIt = (it) => agentOfName((it.solution && it.solution.uid) || it.solutionUid, iAgent(it));
+function abilityOf(it){ return ((agentOfIt(it).abilities) || []).find((b) => b.key === it.capability) || null; }
+/** What is being asked, as the agent put it: its summary of this request, or
+ * how it described the action when it registered. A code key is the last
+ * resort, never the first thing a person reads. */
+function actTitle(it){
+  const said = String(it.summary || "").trim();
+  if (said) return said;
+  const ab = abilityOf(it);
+  return (ab && ab.description) || pretty(it.capability);
+}
+
 function compactCounts(counts){
   const has = ["SEVERE", "HIGH", "MEDIUM", "LOW"].filter((lv) => counts[lv]);
   if (!has.length) return "";
@@ -1228,6 +1253,22 @@ function compactCounts(counts){
   const rest = has.slice(1).reduce((n, lv) => n + counts[lv], 0);
   return `<span class="gtag" style="--c:${sevColor(worst)};--b:${sevBg(worst)}">
     <b>${counts[worst]}</b>${esc(tSev(worst))}${rest ? `<i>+${rest}</i>` : ""}</span>`;
+}
+
+/** The face at the head of an agent's group: its own logo on its cover art,
+ * or its initials when it has none. */
+function groupFaceHTML(g, opts){
+  const M = window.Marks, a = agentOfName(g.solution.uid, g.agent);
+  return `<span class="gav gart">${M.art(`${g.solution.uid || g.solution.name}:${g.agent}`, g.solution.icon || g.solution.slug, opts)}
+    ${a.logo ? `<span class="glogo">${agentFace(a, 40)}</span>` : `<span class="gini">${esc(M.initials(g.agent))}</span>`}</span>`;
+}
+/** The way to the agent's own page. Named after the Solution when that is a
+ * different name, and after what it opens when the two are the same, so a
+ * row never says "Line, Line". */
+function gsolHTML(g){
+  const same = String(g.solution.name || "").trim().toLowerCase() === String(g.agent || "").trim().toLowerCase();
+  return `<span role="link" tabindex="0" class="gsol" data-gosol="${esc(g.solution.uid || "")}" data-goag="${esc(g.agent)}">
+    ${esc(same ? t("grp.seeAgent") : (g.solution.name || ""))}${I.chevron}</span>`;
 }
 
 function groupHTML(g, i){
@@ -1239,15 +1280,13 @@ function groupHTML(g, i){
   return `<section class="agrp ${open ? "open" : ""}" data-gkey="${esc(g.key)}"
       style="--sev:${sevColor(g.worst)};--sevb:${sevBg(g.worst)}">
     <div class="ghead">
-      <span class="gav gart">${M.art(`${g.solution.uid || g.solution.name}:${g.agent}`, g.solution.icon || g.solution.slug, { sev: g.worst })}
-        <span class="gini">${esc(M.initials(g.agent))}</span></span>
+      ${groupFaceHTML(g, { sev: g.worst })}
       <button class="gtog" data-gtog="${esc(g.key)}" aria-expanded="${open}">
         <b class="gname">${esc(g.agent)}</b>
-        <small class="gcount">${esc(t("cl.waiting", { n }))}
-          <button type="button" class="gsol" data-gosol="${esc(g.solution.uid || "")}" data-goag="${esc(g.agent)}">
-            ${esc(g.solution.name || "")}${I.chevron}</button></small>
+        <span class="gline"><small class="gcount">${esc(t("cl.waiting", { n }))}</small>
+          ${compactCounts(g.counts)}</span>
+        ${gsolHTML(g)}
       </button>
-      ${compactCounts(g.counts)}
       <button class="gchev" data-gtog="${esc(g.key)}" aria-expanded="${open}"
               aria-label="${esc(t(open ? "act.less" : "act.more"))}">${I.chevron}</button>
     </div>
@@ -1277,7 +1316,7 @@ function actionRowHTML(it){
         <span class="aglyph">${riskGlyph(it.risk, 28, it.severity)}</span>
         <span class="am"><b class="aname">${isVaultAsk(it)
             ? esc(vaultAskTitle(it))
-            : esc(pretty(it.capability))}</b>
+            : esc(actTitle(it))}</b>
           <small class="awhen">${esc(tAgo(iAt(it)))}</small></span>
       </button>
       <span class="sevtag">${esc(tSev(it.severity))}</span>
@@ -1447,7 +1486,7 @@ function askHTML(){
             ${M.solution(sol, 16)}<span>${esc(sol.name || "")}</span></button></div>
         <span class="sevtag">${esc(tSev(it.severity))}</span>
       </div>
-      <h3 class="askact">${isDelivery(it) ? esc(t("del.head")) : isCredAsk(it) ? esc(t("cred.title")) : esc(pretty(it.capability))}</h3>
+      <h3 class="askact">${isDelivery(it) ? esc(t("del.head")) : isCredAsk(it) ? esc(t("cred.title")) : esc(actTitle(it))}</h3>
       <div class="askscroll">${isVaultAsk(it) ? credBodyHTML(it) : askBodyHTML(it)}</div>
       ${Net.queuedFor(it.id) ? `<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`
         : isVaultAsk(it) ? credActionsHTML(it) : decideRowHTML(it, S.settled[it.id])}
@@ -1506,8 +1545,8 @@ function heroSlideHTML(it){
     <span class="hglyph">${riskGlyph(it.risk, 58, it.severity)}</span>
     <div class="hbody">
       <span class="hchip"><i></i>${esc(tSev(it.severity))}<span>${esc(tAgo(iAt(it)))}</span></span>
-      <button class="htitle" data-aask="${it.id}">${cred ? esc(vaultAskTitle(it)) : esc(pretty(it.capability))}</button>
-      <p class="hmeta">${M.agent(iAgent(it), 20)}<span>${esc(iAgent(it))}</span><b>&middot;</b><span>${esc(sol.name || "")}</span></p>
+      <button class="htitle ${!cred && actTitle(it).length > 34 ? "long" : ""}" data-aask="${it.id}">${cred ? esc(vaultAskTitle(it)) : esc(actTitle(it))}</button>
+      <p class="hmeta">${agentFace(agentOfIt(it), 22)}<span>${esc(iAgent(it))}</span>${String(sol.name || "").toLowerCase() !== String(iAgent(it)).toLowerCase() ? `<b>&middot;</b><span>${esc(sol.name || "")}</span>` : ""}</p>
       ${queued ? `<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`
         : cred ? `<div class="hacts"><button class="hpill" data-aask="${it.id}">${I.shield}<span>${esc(t("hero.open"))}</span></button></div>`
         : `<div class="hacts">
@@ -1563,7 +1602,7 @@ function cardHTML(it){
       </div>
       <span class="iglyph">${riskGlyph(it.risk, 46, it.severity)}<span class="sevtag">${esc(tSev(it.severity))}</span></span>
     </div>
-    <div class="iact">${esc(pretty(it.capability))}</div>
+    <div class="iact">${esc(actTitle(it))}</div>
     ${askBodyHTML(it)}
     ${queued?`<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`
       : decideRowHTML(it, settling)}
@@ -1690,7 +1729,7 @@ function pulseHTML(done){
     <path d="${d}" class="pwave"/>
     ${pts.map((it, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(it).toFixed(1)}" r="3.4"
         fill="${ANS_COLOR[it.state] || "var(--faint)"}" class="ppt" data-open="${it.id}">
-        <title>${esc(pretty(it.capability))}: ${esc(stateLabel(it.state))}</title></circle>`).join("")}
+        <title>${esc(actTitle(it))}: ${esc(stateLabel(it.state))}</title></circle>`).join("")}
   </svg>`;
 }
 
@@ -1728,13 +1767,11 @@ function tlGroupHTML(g, i){
   const M = window.Marks, open = groupOpen(g, i);
   return `<section class="agrp tlgrp ${open ? "open" : ""}" data-gkey="${esc(g.key)}">
     <div class="ghead">
-      <span class="gav gart">${M.art(`${g.solution.uid || g.solution.name}:${g.agent}`, g.solution.icon || g.solution.slug)}
-        <span class="gini">${esc(M.initials(g.agent))}</span></span>
+      ${groupFaceHTML(g, {})}
       <button class="gtog" data-gtog="${esc(g.key)}" aria-expanded="${open}">
         <b class="gname">${esc(g.agent)}</b>
-        <small class="gcount">${esc(tn("act.answers", g.items.length))}
-          <button type="button" class="gsol" data-gosol="${esc(g.solution.uid || "")}" data-goag="${esc(g.agent)}">
-            ${esc(g.solution.name || "")}${I.chevron}</button></small>
+        <span class="gline"><small class="gcount">${esc(tn("act.answers", g.items.length))}</small></span>
+        ${gsolHTML(g)}
       </button>
       <button class="gchev" data-gtog="${esc(g.key)}" aria-expanded="${open}"
               aria-label="${esc(t(open ? "act.less" : "act.more"))}">${I.chevron}</button>
@@ -1750,7 +1787,7 @@ function tlRowHTML(it){
     <div class="atop">
       <button class="aopen" data-open="${it.id}">
         <span class="aglyph">${riskGlyph(it.risk, 28, it.severity)}</span>
-        <span class="am"><b class="aname">${esc(pretty(it.capability))}</b>
+        <span class="am"><b class="aname">${esc(actTitle(it))}</b>
           <small class="awhen">${esc(t("act.asked"))} ${esc(tAgo(iAt(it)))}${
             w ? `, ${esc(t("act.answeredIn", { span: w }))}` : ""}</small></span>
       </button>
@@ -1779,7 +1816,7 @@ function detailHTML(){
   return `<div class="scrim" data-detail-close>
     <div class="sheet detailsheet" role="dialog">
       <div class="dhead">${M.solution(sol, 38)}
-        <div class="dwho"><b>${esc(pretty(it.capability))}</b>
+        <div class="dwho"><b>${esc(actTitle(it))}</b>
           <span>${esc(sol.name || iName(it))}</span></div>
         <span class="stpill st-${it.state}">${esc(stateLabel(it.state))}</span></div>
       <div class="dagent">${M.agent(iAgent(it), 26)}<span>${esc(iAgent(it))}</span>
@@ -2796,10 +2833,18 @@ function agentPageHTML(s, a){
     <div class="ablist">${rows}</div></section>`;
 }
 
+/** How much one area may do on its own: a glass track with a thumb that
+ * glides between four steps, like the bottom menu. Tap a step or drag the
+ * thumb. Nothing repaints: the thumb moves at once, the row holds still while
+ * it is saved, and goes back with a word if the save did not take. */
 function appetiteRow(s,c){
-  const cur = (s.appetite&&s.appetite[c])||DEFAULT_APPETITE[c];
-  return `<div class="aprow"><div class="aplab">${esc(tCat(c))}</div>
-    <div class="apseg" data-appetite="${s.link}" data-cat="${c}">${SEVS.map(l=>`<button class="apbtn ${cur===l?'on':''} lv-${l}" data-level="${l}" title="${esc(tSev(l))}">${esc(tSev(l))}</button>`).join("")}</div></div>`;
+  const cur = (s.appetite&&s.appetite[c])||DEFAULT_APPETITE[c], i = Math.max(0, SEVS.indexOf(cur));
+  return `<div class="aprow" data-aprow>
+    <div class="aplab">${esc(tCat(c))}</div>
+    <div class="glide lv-${cur}" role="radiogroup" aria-label="${esc(tCat(c))}" data-appetite="${s.link}" data-cat="${c}" style="--i:${i}">
+      <span class="gthumb" aria-hidden="true"></span>
+      ${SEVS.map((l,k)=>`<button type="button" role="radio" aria-checked="${k===i}" class="gopt ${k===i?"on":""}" data-level="${l}"><i></i><span>${esc(tSev(l))}</span></button>`).join("")}
+    </div></div>`;
 }
 
 /* ---- pre-connect disclosure: the permission label ---- */
@@ -3349,7 +3394,7 @@ function wirePull(){
 /* ---- events ---- */
 function wire(){
   const root=document.getElementById("root");
-  if (!PULL.wired) { PULL.wired = true; wirePull(); wireHold(); }
+  if (!PULL.wired) { PULL.wired = true; wirePull(); wireHold(); wireGlide(); }
   root.onclick = async e=>{
     const el=e.target;
     // An open menu closes on a tap anywhere else, but that tap still counts:
@@ -3369,7 +3414,7 @@ function wire(){
       // one tap, no second question. Approving is held, elsewhere.
       if (dec.dataset.decide === "deny" || dec.dataset.decide === "reflect") { decide(id, dec.dataset.decide); return; }
       const it=(S.intents||[]).find(x=>x.id===id);
-      askConfirm(dec.dataset.decide, { id, label: it ? pretty(it.capability) : "" }); return; }
+      askConfirm(dec.dataset.decide, { id, label: it ? actTitle(it) : "" }); return; }
     if(el.closest("[data-hold]")) return;          // handled by the hold, not by a click
     const mr=el.closest("[data-more]"); if(mr){ loadMore(mr.dataset.more); return; }
     if(el.closest("[data-retry]")){ retryNow(); return; }
@@ -3394,7 +3439,7 @@ function wire(){
     const agp=el.closest("[data-agentpage]"); if(agp){ S.selectedAgent=agp.dataset.agentpage; render(); return; }
     const abt=el.closest("[data-abtoggle]"); if(abt){ S.open.ab=S.open.ab||{}; const k=abt.dataset.abtoggle; S.open.ab[k]=!S.open.ab[k]; render(); return; }
     const apf=el.closest("[data-apfold]"); if(apf){ S.apOpen=S.apOpen||{}; const k=apf.dataset.apfold; S.apOpen[k]=!S.apOpen[k]; render(); return; }
-    const lvl=el.closest("[data-level]"); if(lvl){ const box=lvl.closest("[data-appetite]"); await setAppetite(box.dataset.appetite,box.dataset.cat,lvl.dataset.level); return; }
+    const lvl=el.closest("[data-level]"); if(lvl){ const box=lvl.closest("[data-appetite]"); if (box && !GLIDE.moved) await glideCommit(box, SEVS.indexOf(lvl.dataset.level)); GLIDE.moved=false; return; }
     const stt=el.closest("[data-status]"); if(stt){ await setStatus(stt.dataset.status,stt.dataset.to); return; }
     const ve = el.closest("[data-veye]");
     if (ve) {
@@ -3420,10 +3465,11 @@ function wire(){
       const f=document.getElementById("id"); if(f) f.focus(); return; }
     if(el.closest("[data-picker-close]") && !el.closest(".ccsheet")){ S.signin.picker = false; render(); return; }
     // -- agent groups: fold, unfold, answer as one, or walk them one by one --
-    const gt = el.closest("[data-gtog]");
-    if(gt){ const k=gt.dataset.gtog; S.open.g[k] = !groupOpenNow(k); if (S.open.g[k]) justNow("g:" + k); render(); return; }
+    // the way to the agent sits inside the row that folds, so it is read first
     const gs = el.closest("[data-gosol]");
     if(gs){ openSolutionFor(gs.dataset.gosol, gs.dataset.goag); return; }
+    const gt = el.closest("[data-gtog]");
+    if(gt){ const k=gt.dataset.gtog; S.open.g[k] = !groupOpenNow(k); if (S.open.g[k]) justNow("g:" + k); render(); return; }
     const ga = el.closest("[data-agasks]");
     if(ga){ focusAgentAsks(ga.dataset.agsol, ga.dataset.agasks); return; }
     const gd = el.closest("[data-gdec]");
@@ -3785,7 +3831,7 @@ async function decide(id, decision){
     try {
       const sent = await Backend.decide(id, decision, Object.keys(edits).length?{edited_details:edits}:{});
       if (sent){ silentRefresh();
-        toast(`<div class="tm"><b>${esc(t("card."+decision))}</b> ${esc(pretty(it.capability))}</div>`,decision==="deny"?"warn":"ok"); }
+        toast(`<div class="tm"><b>${esc(t("card."+decision))}</b> ${esc(actTitle(it))}</div>`,decision==="deny"?"warn":"ok"); }
       else { toast(`<span class="tic">${I.cloudoff}</span><div class="tm">${esc(t("t.queued"))}</div>`,"queued"); paintNet(); }
     } catch(e){
       S.intents = snapshot; S.inboxTotal++; S.timeline = S.timeline.filter(x=>x!==done); S.tlTotal--;
@@ -3831,11 +3877,57 @@ async function connect(uid){
     toast(`<span class="slogo sm">${I.logo}</span><div class="tm"><b>${esc(t("t.connected",{name}))}</b>${r&&r.pending?`. ${esc(tn("t.toReview",r.pending))}`:''}</div>`,"ok");
   } catch(e){ toast(`<div class="tm">${esc(t("t.connectFail",{msg:e.message}))}</div>`,"warn"); }
 }
-async function setAppetite(link,cat,level){
-  const s=S.solutions.find(x=>x.link===link);
-  if(s){ s.appetite=s.appetite||{...DEFAULT_APPETITE}; s.appetite[cat]=level; }
-  render();
-  try{ await Backend.setAppetite(link,{[cat]:level}); }catch{}
+/* ---- the gliding control ---- */
+const GLIDE = { box: null, moved: false, x0: 0 };
+function glideShow(box, i){
+  box.style.setProperty("--i", i);
+  box.className = box.className.replace(/\blv-\w+/, "lv-" + SEVS[i]);
+  box.querySelectorAll(".gopt").forEach((b, k) => { b.classList.toggle("on", k === i); b.setAttribute("aria-checked", k === i); });
+}
+function glideIndexAt(box, x){
+  const r = box.getBoundingClientRect(), w = (r.width - 8) / SEVS.length;
+  const rtl = getComputedStyle(box).direction === "rtl";
+  const at = Math.floor(((rtl ? r.right - x : x - r.left) - 4) / w);
+  return Math.max(0, Math.min(SEVS.length - 1, at));
+}
+async function glideCommit(box, i){
+  const link = box.dataset.appetite, cat = box.dataset.cat, level = SEVS[i];
+  const s = S.solutions.find((x) => x.link === link);
+  const was = (s && s.appetite && s.appetite[cat]) || DEFAULT_APPETITE[cat];
+  glideShow(box, i);
+  if (level === was) return;
+  const row = box.closest("[data-aprow]");
+  row.classList.add("saving"); row.setAttribute("aria-busy", "true");
+  try {
+    await Backend.setAppetite(link, { [cat]: level });
+    if (s) { s.appetite = s.appetite || { ...DEFAULT_APPETITE }; s.appetite[cat] = level; }
+    try { navigator.vibrate && navigator.vibrate(8); } catch {}
+  } catch (e) {
+    glideShow(box, SEVS.indexOf(was));
+    toast(`<div class="tm">${esc(t("ap.notSaved", { cat: tCat(cat) }))}</div>`, "warn");
+  } finally { row.classList.remove("saving"); row.removeAttribute("aria-busy"); }
+}
+function wireGlide(){
+  document.addEventListener("pointerdown", (e) => {
+    const box = e.target.closest && e.target.closest(".glide");
+    if (!box || e.button > 0 || box.closest(".saving")) return;
+    GLIDE.box = box; GLIDE.moved = false; GLIDE.x0 = e.clientX;
+    box.classList.add("dragging");
+    try { box.setPointerCapture(e.pointerId); } catch {}
+  });
+  document.addEventListener("pointermove", (e) => {
+    const box = GLIDE.box; if (!box) return;
+    if (!GLIDE.moved && Math.abs(e.clientX - GLIDE.x0) < 6) return;
+    GLIDE.moved = true;
+    glideShow(box, glideIndexAt(box, e.clientX));
+  });
+  const end = (e) => {
+    const box = GLIDE.box; if (!box) return;
+    GLIDE.box = null; box.classList.remove("dragging");
+    if (GLIDE.moved) glideCommit(box, glideIndexAt(box, e.clientX));
+  };
+  document.addEventListener("pointerup", end);
+  document.addEventListener("pointercancel", end);
 }
 async function setStatus(link,to){
   const s=S.solutions.find(x=>x.link===link); if(s)s.status=to; render();
