@@ -213,7 +213,8 @@ const KINDS = {
   // in the clear, and capped so a vault stays something a phone can carry
   document: { fields: ["label", "file"], secret: ["file"] },
 };
-const DOCUMENT_MAX_BYTES = 4 * 1024 * 1024;
+// photos, videos and recordings too: kept on this phone, handed over sealed
+const DOCUMENT_MAX_BYTES = 50 * 1024 * 1024;
 
 
 /* ---- allowances ---- */

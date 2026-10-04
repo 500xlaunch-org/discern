@@ -1553,13 +1553,13 @@ function askHTML(){
     <div class="sheet asksheet" role="dialog" aria-modal="true"
          style="--sev:${sevColor(it.severity)};--sevb:${sevBg(it.severity)}">
       <div class="askhead">
-        <span class="askav">${M.agent(iAgent(it), 38)}</span>
+        <span class="askav">${agentFace(agentOfIt(it), 42)}</span>
         <div class="askwho"><b>${esc(iAgent(it))}</b>
           <button class="asksol" data-gosol="${esc(sol.uid || "")}" data-goag="${esc(iAgent(it))}">
-            ${M.solution(sol, 16)}<span>${esc(sol.name || "")}</span></button></div>
+            ${solFace(solOf(it) || sol, 16)}<span>${esc(sol.name || "")}</span></button></div>
         <span class="sevtag">${esc(tSev(it.severity))}</span>
       </div>
-      <h3 class="askact">${isDelivery(it) ? esc(t("del.head")) : isCredAsk(it) ? esc(t("cred.title")) : esc(actTitle(it))}</h3>
+      <h3 class="askact ${isBundle(it) ? "big" : ""}">${isDelivery(it) ? esc(t("del.head")) : isBundle(it) ? esc((it.credential || {}).reason || t("cred.title")) : isCredAsk(it) ? esc(t("cred.title")) : esc(actTitle(it))}</h3>
       <div class="askscroll">${isVaultAsk(it) ? credBodyHTML(it) : askBodyHTML(it)}</div>
       ${Net.queuedFor(it.id) ? `<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`
         : isVaultAsk(it) ? credActionsHTML(it) : decideRowHTML(it, S.settled[it.id])}
@@ -2102,12 +2102,42 @@ function vaultOpenHTML(){
     ${vaultMoveHTML()}`;
 }
 
+/* ---- documents, photos, videos, recordings: shown, and saved to the device ---- */
+const fmtBytes = (n) => n >= 1048576 ? (n / 1048576).toFixed(n >= 10485760 ? 0 : 1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB";
+function docPreviewHTML(v){
+  const ty = String(v.type || ""), src = esc(v.file || "");
+  if (!src) return "";
+  if (ty.startsWith("image/")) return `<div class="docprev"><img src="${src}" alt="${esc(v.name || "")}"/></div>`;
+  if (ty.startsWith("video/")) return `<div class="docprev"><video src="${src}" controls playsinline preload="metadata"></video></div>`;
+  if (ty.startsWith("audio/")) return `<div class="docprev aud"><audio src="${src}" controls preload="metadata"></audio></div>`;
+  return "";
+}
+/** Save a file from the vault to the device: the share sheet on a phone
+ * (Files, Drive, Photos, another app), a download at a desk. */
+async function saveVaultFile(id){
+  const it = (S.vault.items || []).find((x) => x.id === id); if (!it) return;
+  const v = (S.vault.shown || {})[id]; if (!v || !v.file) return;
+  const name = (v.name || it.label || "document").replace(/[\\/:*?"<>|]+/g, "_");
+  const N = window.Native || {};
+  try {
+    if (NATIVE && N.Filesystem && N.Share) {
+      const data = String(v.file).split(",")[1] || "";
+      const w = await N.Filesystem.writeFile({ path: name, data, directory: "CACHE" });
+      await N.Share.share({ title: name, url: w.uri, dialogTitle: t("v.doc.save") });
+    } else {
+      const blob = await (await fetch(v.file)).blob();
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    }
+  } catch (e) { if (!/cancel/i.test(String(e && e.message))) toast(`<div class="tm">${esc(e.message || t("v.err.save"))}</div>`, "warn"); }
+}
+
 function vaultFormHTML(kind, prefix = "vf_", saveAttr = "data-vsave"){
   const spec = window.Vault.KINDS[kind];
   return `<div class="vform">
     ${spec.fields.map((f) => {
       if (f === "file") return `<div class="field"><label for="${prefix}file">${esc(t("v.f.file"))}</label>
-        <input id="${prefix}file" type="file" class="vfile"/><p class="vnote">${esc(t("v.doc.tooBig"))}</p></div>`;
+        <input id="${prefix}file" type="file" class="vfile" accept="image/*,video/*,audio/*,application/pdf,text/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.odt,.rtf"/><p class="vnote">${esc(t("v.doc.tooBig"))}</p></div>`;
       const secret = spec.secret.includes(f);
       const input = `<input id="${prefix}${f}" type="${secret ? "password" : "text"}" autocomplete="off"
                inputmode="${f === "number" ? "numeric" : "text"}" spellcheck="false" autocapitalize="none"/>`;
@@ -2137,8 +2167,8 @@ function vitemHTML(it){
     </div>
     ${shown ? `<div class="vbody">
       ${it.kind === "document"
-        ? `<div class="drow"><span class="dk">${esc(t("v.f.file"))}</span><span class="dv">${esc(shown.name || it.label)}</span>
-            <a class="btn btn-ghost sm" download="${esc(shown.name || "document")}" href="${esc(shown.file || "#")}">${esc(t("v.doc.open"))}</a></div>`
+        ? `${docPreviewHTML(shown)}<div class="drow"><span class="dk">${esc(t("v.f.file"))}</span><span class="dv">${esc(shown.name || it.label)}${shown.size ? ` <small>${esc(fmtBytes(shown.size))}</small>` : ""}</span>
+            <button class="btn btn-ghost sm" data-vsavefile="${it.id}">${esc(t("v.doc.save"))}</button></div>`
         : Object.entries(shown).map(([k, v]) => `<div class="drow"><span class="dk">${esc(t("v.f." + k))}</span>
         <span class="dv mono">${esc(v)}</span></div>`).join("")}
       ${(it.grants || []).length ? `<div class="vgrantlist"><b class="vglab">${esc(t("v.grants.title"))}</b>${(it.grants || []).map((g) => {
@@ -2336,10 +2366,12 @@ function bundlePickHTML(it){
     ? `<div class="vchosen${fresh("baddk") ? " fold" : ""}"><span class="tic">${VKIND[cr.addKind].icon()}</span><b>${esc(VKIND[cr.addKind].label())}</b>
          <button class="foldchange" data-cbkind="${cr.addKind}">${esc(t("v.change"))}</button></div>
        <div class="unfold">${vaultFormHTML(cr.addKind, "bf_", "data-cbsave")}</div>`
-    : `<p class="bundlelab">${esc(t("cred.bundleAdd"))}</p><div class="vkinds">${kinds.map((k) =>
-        `<button class="vkind" data-cbkind="${k}"><span class="tic">${VKIND[k].icon()}</span><span>${esc(VKIND[k].label())}</span></button>`).join("")}</div>`;
+    : cr.showAdd ? `<p class="bundlelab">${esc(t("cred.bundleAdd"))}</p><div class="vkinds unfold">${kinds.map((k) =>
+        `<button class="vkind" data-cbkind="${k}"><span class="tic">${VKIND[k].icon()}</span><span>${esc(VKIND[k].label())}</span></button>`).join("")}</div>`
+      : `<button class="addnew" data-cbshowadd><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>${esc(t("cred.addNew"))}</span></button>`;
   return `<p class="bundlelab">${esc(t("cred.bundlePick"))}${many.length ? ` <b>${esc(tn("cred.chosenN", many.length))}</b>` : ""}</p>`
-    + rows + add + credScopeHTML(it) + (cr.error ? `<div class="signin-err">${esc(cr.error)}</div>` : "");
+    // a bundle is chosen afresh each time, so there is no standing allowance to set
+    + rows + add + (cr.error ? `<div class="signin-err">${esc(cr.error)}</div>` : "");
 }
 
 function credBodyHTML(it){
@@ -2357,7 +2389,7 @@ function credBodyHTML(it){
   const matching = (S.vault.items || []).filter((x) => x.kind === c.type);
   const kind = VKIND[c.type] || VKIND.note;
 
-  const head = `<div class="credask">
+  const head = isBundle(it) ? `<p class="vnote quiet">${I.shield}<span>${esc(t("cred.note"))}</span></p>` : `<div class="credask">
     <span class="vic">${kind.icon()}</span>
     <div><b>${esc(t("cred.wants", { what: credWhat(it) }))}</b>
       ${c.field ? `<span>${esc(t("cred.onlyField", { field: t("v.f." + c.field) }))}</span>` : ""}
@@ -2649,7 +2681,7 @@ async function readVaultForm(kind, prefix){
     if (el.type === "file") {
       const file = el.files && el.files[0];
       if (!file) continue;
-      if (file.size > 4 * 1024 * 1024) throw new Error(t("v.doc.tooBig"));
+      if (file.size > 50 * 1024 * 1024) throw new Error(t("v.doc.tooBig"));
       value.file = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(r.error); r.readAsDataURL(file); });
       value.name = file.name; value.size = file.size; value.type = file.type || "application/octet-stream";
       if (!value.label) value.label = file.name.replace(/\.[^.]+$/, "");
@@ -3616,6 +3648,8 @@ function wire(){
     if(el.closest("[data-pw]")){ signinPassword(); return; }
     if(el.closest("[data-passkey]")){ signinPasskey(); return; }
     if(el.closest("[data-create]")){ signinRegister(); return; }
+    if(el.closest("[data-cbshowadd]")){ S.cred.showAdd = true; render(); return; }
+    const vsf=el.closest("[data-vsavefile]"); if(vsf){ saveVaultFile(vsf.dataset.vsavefile); return; }
     if(el.closest("[data-legal-go]")){ legalAccept(); return; }
     if(el.closest("[data-signin-back]")){ S.signin = { step:"id", id:S.signin.id, busy:false, error:"" }; render(); return; }
     // -- vault --

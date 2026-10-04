@@ -31,7 +31,8 @@
       var C = window.Capacitor;
       if (!C || !C.isNativePlatform || !C.isNativePlatform() || !C.registerPlugin) return {};
       var r = function (n) { try { return C.registerPlugin(n); } catch (e) { return null; } };
-      return { SafeArea: r("SafeArea"), StatusBar: r("StatusBar"), App: r("App"), FirebaseMessaging: r("FirebaseMessaging"), Browser: r("Browser") };
+      return { SafeArea: r("SafeArea"), StatusBar: r("StatusBar"), App: r("App"), FirebaseMessaging: r("FirebaseMessaging"), Browser: r("Browser"),
+        Filesystem: r("Filesystem"), Share: r("Share") };
     })();
     // The plugin publishes the real window insets as CSS variables. It only
     // exists in the native shell; on the web env() already tells the truth.

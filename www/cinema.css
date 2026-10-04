@@ -736,3 +736,17 @@ body,.app{font-family:var(--sans);letter-spacing:-.005em}
 .cxbox h3{margin:4px 0 0;font-family:var(--display);font-size:1.3rem}
 .cxbox p{margin:0 0 6px;color:var(--muted);font-size:.92rem;line-height:1.45}
 .cxspin svg{width:28px;height:28px}
+
+/* the vault request: the agent's own words as the headline, your things first */
+.askact.big{font-family:var(--display);font-size:1.35rem;line-height:1.28;letter-spacing:-.015em;font-weight:780;margin:2px 0 0}
+.vnote.quiet{display:flex;gap:8px;align-items:flex-start;margin:0;font-size:.8rem;color:var(--faint);line-height:1.4}
+.vnote.quiet svg{width:14px;height:14px;flex:none;margin-top:2px}
+.addnew{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:46px;margin-top:4px;border-radius:16px;border:1px dashed var(--line-2, var(--line));
+  background:transparent;color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
+.addnew svg{width:18px;height:18px}
+.askav .mark.logo{box-shadow:0 8px 20px -10px rgba(0,0,0,.7)}
+.docprev{margin:4px 0 10px;border-radius:16px;overflow:hidden;background:#000;border:1px solid var(--line)}
+.docprev img,.docprev video{display:block;width:100%;max-height:360px;object-fit:contain}
+.docprev.aud{background:var(--chip);padding:10px}
+.docprev audio{width:100%}
+.drow .dv small{color:var(--faint);margin-left:6px}
