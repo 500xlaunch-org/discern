@@ -358,6 +358,8 @@ const Backend = {
       S.intents = inbox.intents; S.inboxNext = inbox.next||null; S.inboxTotal = inbox.total ?? inbox.intents.length;
       S.timeline = timeline.intents; S.tlNext = timeline.next||null; S.tlTotal = timeline.total ?? timeline.intents.length;
       S.solutions = sols.solutions;
+      // alerts from the platform: off the critical path, like the labels
+      Net.request("GET","/v1/user/alerts").then((d)=>{ S.alerts = (d && d.alerts) || []; render(); }).catch(()=>{});
       // who they are as of now, so a change of terms reaches an old session
       Net.request("GET","/v1/user/me").then((m)=>{ if (m && m.user){ const was = needsLegal(); S.user = m.user; savePrefs(); if (needsLegal() !== was) render(); } }).catch(()=>{});
       Backend.summary().then((sm)=>{ S.summary = sm; const el=document.querySelector(".sevbar"); if (el||sm) render(); });
@@ -476,6 +478,7 @@ const Local = (()=>{
      * than as a demo. Two solutions are connected up front so the first screen
      * is the thing the product is, with real scoring behind it. */
     seed(){ if (st.seeded) return; st.seeded=true;
+      S.alerts = [{ id:"alt_demo", at: Date.now() - 20*60000, opened:false, design:{ title:"Line is now free in Brazil", body:"Start your line and name the people who should receive what matters. It takes two minutes.", tone:"good", accent:"sage", glyph:"gift", layout:"hero", cta:{ label:"Start your line", url:"https://line.500xlaunch.com" } } }];
       this.connect("line"); },
     async login(email,name){ S.token="local"; S.user={id:"usr_local",email,name:name||"You"}; savePrefs(); },
     async refresh(){
@@ -764,6 +767,7 @@ function armLockOnResume(){
  * already been answered elsewhere (another device), the inbox is what is left. */
 async function openIntent(intentId){
   S.view = "inbox"; S.review = null; S.reviewData = null; S.selectedSol = null; S.focus = null;
+  if (intentId && /^alt_/.test(intentId)) { S.alertFocus = intentId; render(); alertSeen(intentId); try { await Backend.refresh(); } catch {} render(); return; }
   render();
   if (!intentId || !S.token) return;
   try { await Backend.refresh(); } catch {}
@@ -811,6 +815,50 @@ async function nativePush(ask){
 /** On the phone the app exists to be interrupted, so it asks for notifications
  * as soon as somebody signs in, rather than leaving it to be found in settings.
  * In a browser the person turns them on, since browsers punish asking unasked. */
+/* ---- alerts: the platform writing to you, designed for the moment ----
+ * Shown above everything else until closed, in the design the administrator
+ * approved: a tone, a colour, a glyph, a layout, and at most one thing to do. */
+const ALERT_ACCENT = { sky: "#6f95c7", sage: "#5fae84", dawn: "#d39b55", ember: "#d26b67", violet: "#8c7bd1", slate: "#8a96a8" };
+const ALERT_GLYPH = {
+  bell: '<path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+  shield: '<path d="M12 3.2 19.6 6v6c0 4.7-3.3 7.6-7.6 8.6C7.7 19.6 4.4 16.7 4.4 12V6z"/>',
+  spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  gift: '<rect x="3" y="8" width="18" height="5" rx="1"/><path d="M5 13v8h14v-8M12 8v13M12 8c-2-4-6-3-4.5-.5C8.5 9 12 8 12 8zM12 8c2-4 6-3 4.5-.5C15.5 9 12 8 12 8z"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+  heart: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+  globe: '<circle cx="12" cy="12" r="8.4"/><path d="M3.6 12h16.8M12 3.6c2.4 2.8 2.4 14 0 16.8M12 3.6c-2.4 2.8-2.4 14 0 16.8"/>',
+  pulse: '<path d="M3 13h5l2.2-5.5 3.4 11 2.6-7 1.6 3.5H21"/>',
+  check: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+};
+function alertsHTML(){
+  const list = (S.alerts || []);
+  if (!list.length) return "";
+  return `<div class="alerts">${list.map((a) => {
+    const d = a.design || {}, c = ALERT_ACCENT[d.accent] || ALERT_ACCENT.sky;
+    return `<article class="alrt l-${esc(d.layout || "card")} ${S.alertFocus === a.id ? "focus" : ""}${fresh("al:" + a.id)}" style="--ac:${c}" data-alert="${esc(a.id)}">
+      <span class="alg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ALERT_GLYPH[d.glyph] || ALERT_GLYPH.bell}</svg></span>
+      <div class="alx"><small>Xurface &middot; ${esc(tAgo(a.at))}</small><b>${esc(d.title || "")}</b><p>${esc(d.body || "")}</p>
+        ${d.cta ? `<button class="alcta" data-alcta="${esc(a.id)}">${esc(d.cta.label)}</button>` : ""}</div>
+      <button class="alx-close" data-aldismiss="${esc(a.id)}" aria-label="${esc(t("al.close"))}">${I.x}</button>
+    </article>`; }).join("")}</div>`;
+}
+function alertSeen(id){ if (S.mode === "connected") Net.request("POST", `/v1/user/alerts/${encodeURIComponent(id)}/open`).catch(()=>{}); }
+function alertDismiss(id){
+  const el = document.querySelector(`[data-alert="${cssq(id)}"]`);
+  S.alerts = (S.alerts || []).filter((a) => a.id !== id);
+  if (S.mode === "connected") Net.request("POST", `/v1/user/alerts/${encodeURIComponent(id)}/dismiss`).catch(()=>{});
+  if (el) { el.classList.add("going"); setTimeout(render, 280); } else render();
+}
+function alertCta(id){
+  const a = (S.alerts || []).find((x) => x.id === id); if (!a || !a.design.cta) return;
+  alertSeen(id);
+  const u = a.design.cta.url;
+  if (/^https:\/\//.test(u)) window.open(u, "_blank", "noopener"); else { S.view = "inbox"; render(); }
+}
+
 /** A notification that arrived while the app is open: slides down from the
  * top, stays long enough to read, and opens the request when tapped. Kept
  * outside the screen that repaints, so a refresh does not wipe it. */
@@ -1582,7 +1630,7 @@ function heroSlideHTML(it){
 
 function inboxHTML(){
   const n = S.inboxTotal || S.intents.length;
-  const head = scrHead(t("inbox.title"), esc(n ? tn("inbox.sub", n) : t("inbox.caughtUp")), { class: "lead" });
+  const head = scrHead(t("inbox.title"), esc(n ? tn("inbox.sub", n) : t("inbox.caughtUp")), { class: "lead" }) + alertsHTML();
   const filtering = !!(S.filter.solutions.length || S.filter.severities.length);
   if (!S.intents.length) {
     if (filtering) return head + filterBarHTML() + `<div class="empty"><div class="empty-mk">${I.solutions}</div>
@@ -3502,6 +3550,9 @@ function wire(){
       const f=document.getElementById("id"); if(f) f.focus(); return; }
     if(el.closest("[data-picker-close]") && !el.closest(".ccsheet")){ S.signin.picker = false; render(); return; }
     // -- agent groups: fold, unfold, answer as one, or walk them one by one --
+    const ald = el.closest("[data-aldismiss]"); if (ald) { alertDismiss(ald.dataset.aldismiss); return; }
+    const alc = el.closest("[data-alcta]"); if (alc) { alertCta(alc.dataset.alcta); return; }
+    const alr = el.closest("[data-alert]"); if (alr) { alertSeen(alr.dataset.alert); return; }
     // the way to the agent sits inside the row that folds, so it is read first
     const gs = el.closest("[data-gosol]");
     if(gs){ openSolutionFor(gs.dataset.gosol, gs.dataset.goag); return; }

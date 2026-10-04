@@ -702,3 +702,28 @@ body,.app{font-family:var(--sans);letter-spacing:-.005em}
 .ibtx b{font-size:.92rem}
 .ibtx span{font-size:.86rem;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 @media (prefers-reduced-motion: reduce){ .inbanner{transition:opacity .2s} }
+
+/* ---- alerts from the platform, in the design that was approved ---- */
+.alerts{display:grid;gap:12px;margin:4px 0 18px}
+.alrt{--ac:#6f95c7;position:relative;display:flex;gap:14px;align-items:flex-start;padding:16px 46px 16px 16px;border-radius:24px;overflow:hidden;isolation:isolate;
+  background:var(--surface);border:1px solid color-mix(in srgb,var(--ac) 30%,var(--line));color:var(--ink);
+  transition:transform .28s var(--ease, ease),opacity .28s,box-shadow .3s}
+.alrt::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(120% 90% at 0% 0%,color-mix(in srgb,var(--ac) 24%,transparent),transparent 62%)}
+.alrt .alg{flex:none;width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:color-mix(in srgb,var(--ac) 20%,transparent);color:var(--ac)}
+.alrt .alg svg{width:23px;height:23px}
+.alrt .alx{display:grid;gap:4px;min-width:0}
+.alrt small{font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);font-weight:700}
+.alrt b{font-family:var(--display);font-size:1.08rem;line-height:1.25;letter-spacing:-.01em}
+.alrt p{margin:0;color:var(--muted);font-size:.9rem;line-height:1.45}
+.alrt .alcta{justify-self:start;margin-top:8px;padding:9px 16px;border:0;border-radius:999px;background:var(--ac);color:#0b0d10;font:inherit;font-weight:700;font-size:.86rem;cursor:pointer}
+.alrt .alx-close{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;border:0;background:var(--chip);color:var(--muted);display:grid;place-items:center;cursor:pointer}
+.alrt .alx-close svg{width:15px;height:15px}
+.alrt.l-hero{flex-direction:column;padding:22px 22px 22px;min-height:190px;justify-content:flex-end}
+.alrt.l-hero::before{background:radial-gradient(140% 120% at 100% 0%,color-mix(in srgb,var(--ac) 48%,transparent),transparent 66%)}
+.alrt.l-hero .alg{width:54px;height:54px;border-radius:17px}
+.alrt.l-hero b{font-size:1.4rem}
+.alrt.l-banner{border-left:4px solid var(--ac);align-items:center;padding-block:12px}
+.alrt.l-banner .alg{width:34px;height:34px;border-radius:11px}
+.alrt.focus{box-shadow:0 0 0 2px var(--ac),0 20px 50px -24px color-mix(in srgb,var(--ac) 70%,transparent)}
+.alrt.going{opacity:0;transform:translateY(-8px) scale(.98)}
+@media (prefers-reduced-motion: reduce){ .alrt{transition:none} }
