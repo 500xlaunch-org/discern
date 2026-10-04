@@ -589,6 +589,9 @@ async function boot(){
   if (q.get("intent")) openIntent(q.get("intent"));
   else if (q.get("review")) openReview(q.get("review"));
   else if (q.get("solution")) { S.view = "solutions"; S.selectedSol = q.get("solution"); render(); }
+  // back from connecting in this same tab, when a window could not be opened
+  try { const cx = JSON.parse(sessionStorage.getItem("discern.cx") || "null"); sessionStorage.removeItem("discern.cx");
+    if (cx && S.token) { CX.s = cx; cxPoll(); } } catch {}
   registerSW();
 }
 
@@ -757,7 +760,7 @@ function armLockOnResume(){
   addEventListener("focus", returning);
   try {
     const App = (window.Native || {}).App;
-    if (App && App.addListener) App.addListener("appStateChange", ({ isActive }) => (isActive ? returning() : leaving()));
+    if (App && App.addListener) App.addListener("appStateChange", ({ isActive }) => { if (isActive && CX.s) cxPoll(); return isActive ? returning() : leaving(); });
   } catch {}
 }
 
@@ -3957,8 +3960,75 @@ async function decideGroup(decision, ids, count){
   }
 }
 
+/* ---- connecting by signing in at the Solution ----
+ * Discern asks Horizon for a connect session and opens the Solution's own
+ * sign-in: inside the app on a phone, in a window at a desk. The person signs
+ * in there; the Solution completes the session; Discern sees it, closes the
+ * page and confirms. Nothing is matched by address. */
+const CX = { s: null, timer: null, win: null };
+async function signInConnect(uid, name){
+  if (CX.s) return;
+  let r;
+  try { r = await Net.request("POST", `/v1/user/solutions/${encodeURIComponent(uid)}/connect-session`, { return: `${location.origin}/` }); }
+  catch (e) { toast(`<div class="tm">${esc(t("t.connectFail",{msg:e.message}))}</div>`,"warn"); return; }
+  CX.s = { uid, name, id: r.session, exp: r.expires_at };
+  cxSheet();
+  const B = NATIVE ? (window.Native || {}).Browser : null;
+  if (B && B.open) { try { await B.open({ url: r.url, presentationStyle: "popover", toolbarColor: "#000000" }); } catch {} }
+  else {
+    CX.win = window.open(r.url, "discern-connect", "popup,width=480,height=760");
+    if (!CX.win) { try { sessionStorage.setItem("discern.cx", JSON.stringify(CX.s)); } catch {} location.href = r.url; return; }
+  }
+  cxPoll();
+}
+function cxSheet(){
+  document.querySelectorAll(".cxsheet").forEach((x) => x.remove());
+  if (!CX.s) return;
+  const el = document.createElement("div");
+  el.className = "scrim cxsheet";
+  el.innerHTML = `<div class="sheet cxbox" role="dialog" aria-live="polite">
+    <span class="tic spin cxspin">${I.sync}</span>
+    <h3>${esc(t("cx.title", { name: CX.s.name }))}</h3><p>${esc(t("cx.body", { name: CX.s.name }))}</p>
+    <button class="btn btn-ghost block" data-cxcancel>${esc(t("v.cancel"))}</button></div>`;
+  el.addEventListener("click", (e) => { if (e.target.closest("[data-cxcancel]")) cxEnd(true); });
+  document.body.appendChild(el);
+}
+function cxPoll(){
+  clearTimeout(CX.timer);
+  if (!CX.s) return;
+  CX.timer = setTimeout(async () => {
+    if (!CX.s) return;
+    if (Date.now() > CX.s.exp) { cxEnd(true); toast(`<div class="tm">${esc(t("cx.expired"))}</div>`, "warn"); return; }
+    try {
+      const st = await Net.request("GET", `/v1/user/connect-sessions/${encodeURIComponent(CX.s.id)}`);
+      if (st.state === "linked") { await cxDone(); return; }
+      if (st.state === "cancelled") { cxEnd(false); return; }
+    } catch {}
+    cxPoll();
+  }, 1500);
+}
+async function cxDone(){
+  const s = CX.s; cxEnd(false);
+  try { await Backend.refresh(); } catch {}
+  S.review = null; S.reviewData = null; S.view = "solutions"; S.selectedSol = s.uid; S.selectedAgent = null; render();
+  toast(`<span class="slogo sm">${I.logo}</span><div class="tm"><b>${esc(t("t.connected",{ name: s.name }))}</b></div>`, "ok");
+  try { navigator.vibrate && navigator.vibrate([12, 40, 12]); } catch {}
+}
+function cxEnd(cancel){
+  const s = CX.s; CX.s = null; clearTimeout(CX.timer);
+  const B = NATIVE ? (window.Native || {}).Browser : null;
+  if (B && B.close) B.close().catch(() => {});
+  if (CX.win && !CX.win.closed) try { CX.win.close(); } catch {}
+  CX.win = null;
+  document.querySelectorAll(".cxsheet").forEach((x) => x.remove());
+  if (cancel && s && S.mode === "connected") Net.request("POST", `/v1/user/connect-sessions/${encodeURIComponent(s.id)}/cancel`).catch(() => {});
+}
+
 async function connect(uid){
   const c=S.catalog.find(x=>x.uid===uid); const name=c?c.name:"Solution";
+  // a Solution with its own sign-in is connected there, not by address
+  const p = S.reviewData && S.reviewData.solution;
+  if (S.mode === "connected" && p && p.uid === uid && p.connect) return signInConnect(uid, p.name || name);
   try{
     const r=await Backend.connect(uid);
     await Backend.refresh(); S.review=null; S.reviewData=null; S.view="inbox"; render();
