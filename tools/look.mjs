@@ -82,6 +82,8 @@ if (initArg) {
 }
 
 const signin = flags.has("--signedout") || urlArg ? "" : `await Backend.login("ada@example.com"); await Backend.refresh(); S.ready = true;`;
+// wait for the app itself, not a fixed time: a slow load is not a broken app
+if (!urlArg) await s("Runtime.evaluate", { awaitPromise: true, expression: `(async () => { for (let i = 0; i < 100 && typeof Backend === "undefined"; i++) await new Promise((r) => setTimeout(r, 100)); })()` });
 const r = await s("Runtime.evaluate", { awaitPromise: true, returnByValue: true,
   expression: `(async () => { ${signin} const __r = await (async () => { ${body} })(); return __r; })()` });
 if (r.result?.exceptionDetails) problems.push("step failed: " + (r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text));

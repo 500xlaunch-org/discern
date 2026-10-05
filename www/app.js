@@ -3275,7 +3275,7 @@ function idShape(){
  * bundle with one version, and where somebody lives decides which law reads it.
  * Nobody gets an account without ticking it, and somebody from before it is
  * asked once, on their next visit, before anything else. */
-const LEGAL_VERSION = "2026-10-03";
+const LEGAL_VERSION = "2026-10-06";
 function needsLegal(){ return S.mode !== "demo" && !!(S.user && S.user.legal && S.user.legal.current === false); }
 function legalCountries(){
   const P = window.Phone, lang = window.I18N.lang;
@@ -3301,6 +3301,7 @@ function legalGateHTML(){
     <div class="signin-mk">${MK}</div>
     <h1>${esc(t("legal.gateTitle"))}</h1>
     <p class="signin-motto">${esc(t("legal.gateBody"))}</p>
+    ${S.user && S.user.legal && S.user.legal.accepted ? `<p class="lgchange">${esc(t("legal.gateChange"))}</p>` : ""}
     ${S.legal.error ? `<div class="signin-err">${esc(S.legal.error)}</div>` : ""}
     ${legalBlockHTML()}
     <button class="btn btn-primary block big" data-legal-go ${S.legal.busy||!S.legal.ok?"disabled":""}>
@@ -4241,7 +4242,10 @@ async function signinRegister(){
   if (!S.legal.ok){ S.signin.error = t("legal.need"); render(); return; }
   S.signin.error = ""; S.signin.busy = true; render();
   try {
-    await Backend.register(S.signin.identifier || S.signin.id, name || undefined, { version: LEGAL_VERSION, country: S.legal.country });
+    // the version the server holds now, so an app built before a change still signs people up
+    let version = LEGAL_VERSION;
+    try { version = (await Net.request("GET", "/v1/public/legal", null, { auth:false })).version || version; } catch {}
+    await Backend.register(S.signin.identifier || S.signin.id, name || undefined, { version, country: S.legal.country });
     rememberIdentifier(S.signin.identifier || S.signin.id);
     S.signin = { ...S.signin, step:"id", id:"", error:"", busy:false, pw:"", showPw:false };
     maybeAskEnv();            // a builder is told which world they just entered

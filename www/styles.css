@@ -1101,3 +1101,4 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 
 .iacts.decide{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .iacts.decide .holdbtn{grid-column:1/-1;min-height:50px;font-size:1rem}
+.lgchange{margin:4px auto 10px;max-width:34em;font-size:.9rem;line-height:1.5;color:var(--muted);text-align:left;padding:12px 14px;border:1px solid var(--line);border-radius:12px}
