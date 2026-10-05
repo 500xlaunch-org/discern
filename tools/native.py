@@ -71,6 +71,35 @@ META = {
 }
 
 
+MAIN_ACTIVITY = """package com.xurface.discern.app;
+
+import android.os.Bundle;
+import com.getcapacitor.BridgeActivity;
+
+public class MainActivity extends BridgeActivity {
+    private static final float MAX_TEXT_SCALE = 1.15f;
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        fitText();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        fitText();
+    }
+
+    private void fitText() {
+        if (getBridge() == null || getBridge().getWebView() == null) return;
+        float scale = getResources().getConfiguration().fontScale;
+        getBridge().getWebView().getSettings().setTextZoom(Math.round(Math.min(scale, MAX_TEXT_SCALE) * 100));
+    }
+}
+"""
+
+
 def android():
     app = ROOT / "android" / "app"
     if not app.exists():
@@ -102,6 +131,13 @@ def android():
         s = s.replace("</application>", tag + "\n    </application>", 1)
     man.write_text(s)
     print("  AndroidManifest.xml: notification icon, colour and default channel")
+
+    # The WebView multiplies every font by the phone's text size setting, with
+    # no upper bound, so at 130% the answer buttons outgrow the screen. Larger
+    # text is kept, up to 115%, where the layout still holds.
+    act = app / "src" / "main" / "java" / "com" / "xurface" / "discern" / "app" / "MainActivity.java"
+    act.write_text(MAIN_ACTIVITY)
+    print("  MainActivity.java: text size follows the phone, up to 115%")
 
 
 # --------------------------------------------------------------------- ios --

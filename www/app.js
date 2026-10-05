@@ -504,7 +504,9 @@ const Local = (()=>{
       return {solution:{...full,agents:undefined},agents:full.agents,connected:!!l,appetite,asks,runs,
         counts:{agents:s.agents.length,abilities:asks.length+runs.length,asks:asks.length,runs:runs.length}}; },
     async connect(uid){ const s=sol(uid); const link=id("lnk"); st.links[uid]={link,status:"active",appetite:{...DEFAULT_APPETITE},at:Date.now()};
-      let pending=0, nth=0; for (const a of s.agents) for (const ab of a.abilities){ const v=reconcile(ab.risk,ab.severity,st.links[uid].appetite,ab.discernment); const rec={id:id("int"),summary:SAYS[ab.key],solName:s.name,solution:{uid,name:s.name,slug:catOf(uid).slug},agent:a.name,capability:ab.key,details:sample(ab.key),risk:ab.risk,severity:ab.severity,reasons:v.reasons,discernment:ab.discernment,appetite:st.links[uid].appetite,at:Date.now()-(nth++)*17*60000,hash:hash(),sol:uid,link}; if (v.allow){ rec.state="allowed"; st.timeline.unshift(rec);} else { rec.state="pending"; st.intents.unshift(rec); pending++; } }
+      let pending=0, nth=0; for (const a of s.agents) for (const ab of a.abilities){ const v=reconcile(ab.risk,ab.severity,st.links[uid].appetite,ab.discernment); const rec={id:id("int"),summary:SAYS[ab.key],solName:s.name,solution:{uid,name:s.name,slug:catOf(uid).slug},agent:a.name,capability:ab.key,details:sample(ab.key),risk:ab.risk,severity:ab.severity,reasons:v.reasons,discernment:ab.discernment,appetite:st.links[uid].appetite,at:Date.now()-(nth++)*17*60000,hash:hash(),sol:uid,link}; // a vault ask is the real thing in the demo too: chosen from the vault, sealed, handed over
+      if (ab.key==="vault.keep") Object.assign(rec,{kind:"credential_request",credential:{type:"bundle",reason:SAYS[ab.key],purpose:"kept by Line for the people you named"},release_key:DEMO_RELEASE_KEY});
+      if (v.allow){ rec.state="allowed"; st.timeline.unshift(rec);} else { rec.state="pending"; st.intents.unshift(rec); pending++; } }
       return {ok:true,pending}; },
     async release(id2){ const i=st.intents.findIndex(x=>x.id===id2); if(i<0)return; const it=st.intents.splice(i,1)[0];
       it.state="approved"; it.decision={decision:"approve",at:Date.now()}; it.decidedAt=Date.now(); st.timeline.unshift(it); },
@@ -516,6 +518,9 @@ const Local = (()=>{
     async setStatus(link,stt){ for(const u in st.links) if(st.links[u].link===link) st.links[u].status=stt; },
   };
 })();
+
+/* the demo Solution's public release key: a demo hand-over is sealed for real, to nobody */
+const DEMO_RELEASE_KEY = "BK3fLhesXfRHCsgRw8I++A6LzPJsJHmmxNUuw5ojUqcp1zptDTecTKm7e3xovzbpqHWktRkwNsgIB3EyhzTncVo=";
 
 /* ---------------- helpers ---------------- */
 const sevColor=s=>({LOW:"var(--lo)",MEDIUM:"var(--me)",HIGH:"var(--hi)",SEVERE:"var(--sv)"}[s]||"var(--me)");
@@ -1618,7 +1623,8 @@ function heroSlideHTML(it){
     <span class="hglyph">${riskGlyph(it.risk, 58, it.severity)}</span>
     <div class="hbody">
       <span class="hchip"><i></i>${esc(tSev(it.severity))}<span>${esc(tAgo(iAt(it)))}</span></span>
-      <button class="htitle ${!cred && actTitle(it).length > 34 ? "long" : ""}" data-aask="${it.id}">${cred ? esc(vaultAskTitle(it)) : esc(actTitle(it))}</button>
+      ${(() => { const ttl = cred ? vaultAskTitle(it) : actTitle(it);
+        return `<button class="htitle ${ttl.length > 34 ? "long" : ""}" data-aask="${it.id}" title="${esc(ttl)}"><span class="htx">${esc(ttl)}</span></button>`; })()}
       <p class="hmeta">${agentFace(agentOfIt(it), 22)}<span>${esc(iAgent(it))}</span>${String(sol.name || "").toLowerCase() !== String(iAgent(it)).toLowerCase() ? `<b>&middot;</b><span>${esc(sol.name || "")}</span>` : ""}</p>
       ${queued ? `<div class="iqueued">${I.cloudoff}<span>${esc(t("card.queued"))}</span></div>`
         : cred ? `<div class="hacts"><button class="hpill" data-aask="${it.id}">${I.shield}<span>${esc(t("hero.open"))}</span></button></div>`
@@ -3610,8 +3616,10 @@ function wire(){
       return; }
     const aa = el.closest("[data-aask]");
     if(aa){ S.ask = aa.dataset.aask; S.drop = null; openCredAsk(S.ask); render(); return; }
-    if(el.closest("[data-ask-close]") && !el.closest(".asksheet")){ S.ask=null; render(); return; }
-    if(el.closest("[data-ask-close]")){ S.ask=null; render(); return; }
+    // the scrim closes the sheet, and so does its Close button; a tap anywhere
+    // else inside the sheet (which sits within the scrim) is for that sheet
+    const akc = el.closest("[data-ask-close]");
+    if(akc && (akc.tagName === "BUTTON" || !el.closest(".asksheet"))){ S.ask=null; render(); return; }
     if(el.closest("[data-envask-stay]")){
       const c=document.getElementById("envdont"); S.envAcked = !!(c && c.checked); savePrefs();
       S.envAsk=false; render(); return; }
@@ -3619,7 +3627,8 @@ function wire(){
     if(esw){ const c=document.getElementById("envdont"); S.envAcked = !!(c && c.checked);
       S.envAsk=false; S.env=esw.dataset.envaskSwitch; savePrefs(); reloadEnv(); return; }
     if(el.closest("[data-confirm-go]")){ runConfirmed(); return; }
-    if(el.closest("[data-confirm-close]")){ S.confirm=null; render(); return; }
+    const cfc = el.closest("[data-confirm-close]");
+    if(cfc && (cfc.tagName === "BUTTON" || !el.closest(".confirmsheet"))){ S.confirm=null; render(); return; }
     // -- the two filter menus --
     const dp = el.closest("[data-drop]");
     if(dp){ const w=dp.dataset.drop; S.drop = S.drop===w ? null : w; render(); return; }
@@ -3635,8 +3644,8 @@ function wire(){
     const op = el.closest("[data-open]");
     if(op){ const id=op.dataset.open;
       S.detail = S.timeline.find(x=>x.id===id) || S.intents.find(x=>x.id===id) || null; render(); return; }
-    if(el.closest("[data-detail-close]") && !el.closest(".detailsheet")){ S.detail=null; render(); return; }
-    if(el.closest("[data-detail-close]")){ S.detail=null; render(); return; }
+    const dtc = el.closest("[data-detail-close]");
+    if(dtc && (dtc.tagName === "BUTTON" || !el.closest(".detailsheet"))){ S.detail=null; render(); return; }
     const rc = el.closest("[data-recent]");
     if(rc){ const v = rc.dataset.recent, P = window.Phone;
       const dialed = P.splitPasted(v);

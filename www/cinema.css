@@ -750,3 +750,21 @@ body,.app{font-family:var(--sans);letter-spacing:-.005em}
 .docprev.aud{background:var(--chip);padding:10px}
 .docprev audio{width:100%}
 .drow .dv small{color:var(--faint);margin-left:6px}
+/* the answers in proportion to a phone: a 44px round button and a 46px pill
+   are what a thumb needs, and the card stays the thing being read */
+.hacts{gap:10px}
+.hround{width:44px;height:44px}
+.hround svg{width:19px;height:19px}
+.hpill{min-height:46px;max-width:220px;font-size:.95rem;padding:0 16px}
+.hpill .holdring{width:17px;height:17px}
+/* a button does not honour line-clamp, so the long title is cut by height */
+.htitle.long{display:block;max-height:calc(1.18em * 3 + 2px);overflow:hidden}
+@media (max-width:380px){
+  .hround{width:42px;height:42px}
+  .hpill{min-height:44px;font-size:.9rem;padding:0 12px}
+}
+.htitle.long{font-size:clamp(1.12rem, 4.9vw, 1.4rem);line-height:1.2;max-height:calc(1.2em * 4 + 2px)}
+/* the long title ends on an ellipsis after four lines, on the span inside the
+   button, where line-clamp works */
+.htitle.long{max-height:none;overflow:visible}
+.htitle .htx{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
