@@ -53,12 +53,36 @@ fi
 $PY tools/native.py --ios --aps production
 $PY tools/brand.py --only ios
 
+# Release is signed for the App Store by the app target alone: automatic
+# signing wants a registered iPhone first, and a profile set for the whole
+# build is refused by the Swift packages' resource bundles. The distribution
+# identity lives in a keychain of its own (made once, see tools/ios-signing.md).
+PROFILE=${IOS_PROFILE:-Discern App Store}
+python3 - "$PROFILE" "$APPLE_TEAM_ID" <<'PY'
+import re, sys
+p = "ios/App/App.xcodeproj/project.pbxproj"; s = open(p).read()
+prof, team = sys.argv[1], sys.argv[2]
+def fix(m):
+    b = m.group(0)
+    if "PRODUCT_BUNDLE_IDENTIFIER = com.xurface.discern.app;" not in b or "name = Release;" not in b: return b
+    b = b.replace("CODE_SIGN_STYLE = Automatic;", "CODE_SIGN_STYLE = Manual;")
+    if "PROVISIONING_PROFILE_SPECIFIER" not in b:
+        b = b.replace("CODE_SIGN_STYLE = Manual;", f'CODE_SIGN_STYLE = Manual;\n\t\t\t\tCODE_SIGN_IDENTITY = "Apple Distribution";\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{prof}";\n\t\t\t\tDEVELOPMENT_TEAM = {team};')
+    return b
+s = re.sub(r"\t\t[0-9A-F]{24} /\* Release \*/ = \{.*?\n\t\t\};", fix, s, flags=re.S)
+open(p, "w").write(s)
+print("  project.pbxproj: the app target signs Release with", prof)
+PY
+KC_PW="$CFG/ios-keychain.pw"
+[ -f "$KC_PW" ] && security unlock-keychain -p "$(cat "$KC_PW")" discern-build.keychain
+
 echo "==> archive"
+LOG=$OUT/archive.log
 xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
   -destination 'generic/platform=iOS' -archivePath "$OUT/Discern.xcarchive" \
-  DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic \
   MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" \
-  "${AUTH[@]}" archive | tail -5
+  archive > "$LOG" 2>&1 || { grep -E "error:" "$LOG" | sort -u | head -20; echo "archive failed, full log: $LOG"; exit 1; }
+tail -1 "$LOG"
 
 cat > "$OUT/ExportOptions.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -66,7 +90,9 @@ cat > "$OUT/ExportOptions.plist" <<EOF
 <plist version="1.0"><dict>
   <key>method</key><string>app-store-connect</string>
   <key>teamID</key><string>$APPLE_TEAM_ID</string>
-  <key>signingStyle</key><string>automatic</string>
+  <key>signingStyle</key><string>manual</string>
+  <key>signingCertificate</key><string>Apple Distribution</string>
+  <key>provisioningProfiles</key><dict><key>com.xurface.discern.app</key><string>$PROFILE</string></dict>
   <key>destination</key><string>$([ $UPLOAD = 1 ] && echo upload || echo export)</string>
   <key>uploadSymbols</key><true/>
   <key>manageAppVersionAndBuildNumber</key><false/>
