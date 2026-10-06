@@ -1102,3 +1102,16 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .iacts.decide{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .iacts.decide .holdbtn{grid-column:1/-1;min-height:50px;font-size:1rem}
 .lgchange{margin:4px auto 10px;max-width:34em;font-size:.9rem;line-height:1.5;color:var(--muted);text-align:left;padding:12px 14px;border:1px solid var(--line);border-radius:12px}
+/* where a person is reached: one quiet row per device */
+.devlist{margin-top:14px;display:grid;gap:2px}
+.devhd{margin:0 0 6px;font-size:.8rem;font-weight:600;color:var(--muted);letter-spacing:.02em}
+.devrow{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line-2)}
+.devrow .tic{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:10px;background:var(--line-2);color:var(--ink)}
+.devrow .tic svg{width:18px;height:18px}
+.devm{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.devm b{font-weight:600;font-size:.94rem}
+.devm em{font-style:normal;font-weight:500;font-size:.78rem;color:var(--muted);margin-left:4px}
+.devm small{font-size:.8rem;color:var(--muted)}
+.devm small.ok{color:var(--ok, #3fae7a)}
+.devm small.warn{color:var(--warn, #d39b55)}
+.devnone{margin:12px 0 0;font-size:.85rem;color:var(--muted)}

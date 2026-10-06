@@ -889,8 +889,9 @@ function afterSignIn(){
   if (FCM) nativePush(true).then(() => render()).catch(() => render());
 }
 async function sendNativeToken(token){
-  try { await Net.request("POST","/v1/user/devices",{ platform: PLATFORM, provider:"fcm", vault:true, token,
-    label: PLATFORM === "ios" ? "iPhone" : "Android" }); } catch {}
+  try { const d = await Net.request("POST","/v1/user/devices",{ platform: PLATFORM, provider:"fcm", vault:true, token,
+    label: PLATFORM === "ios" ? "iPhone" : "Android" });
+    if (d && d.id) { try { localStorage.setItem("discern.deviceId", d.id); } catch {} } } catch {}
 }
 
 async function registerSW(){
@@ -926,8 +927,9 @@ function tellWorkerLang(){
 const b64ToU8 = (s)=>{ const pad="=".repeat((4-s.length%4)%4); const b=atob((s+pad).replace(/-/g,"+").replace(/_/g,"/"));
   return Uint8Array.from([...b].map(c=>c.charCodeAt(0))); };
 async function sendSubscription(sub){
-  try { await Net.request("POST","/v1/user/devices",{ platform:"web", provider:"webpush", vault:false, token:JSON.stringify(sub),
-    label: navigator.userAgent.match(/Chrome|Firefox|Safari|Edg/)?.[0] || "Browser" }); } catch {}
+  try { const d = await Net.request("POST","/v1/user/devices",{ platform:"web", provider:"webpush", vault:false, token:JSON.stringify(sub),
+    label: navigator.userAgent.match(/Chrome|Firefox|Safari|Edg/)?.[0] || "Browser" });
+    if (d && d.id) { try { localStorage.setItem("discern.deviceId", d.id); } catch {} } } catch {}
 }
 async function enablePush(silent){
   if (!S.push.supported) return;
@@ -954,7 +956,7 @@ async function enablePush(silent){
 }
 async function testPush(){
   try { await Net.request("POST","/v1/user/devices/test",{});
-    toast(`<span class="tic">${I.bell}</span><div class="tm">${esc(t("t.pushSent"))}</div>`,"ok"); }
+    toast(`<span class="tic">${I.bell}</span><div class="tm">${esc(t("t.pushSent"))}</div>`,"ok"); loadDevices(true); }
   catch(e){ toast(`<div class="tm">${esc(e.message)}</div>`,"warn"); }
 }
 
@@ -3021,6 +3023,41 @@ async function openReview(uid){
 }
 
 /* ---- settings ---- */
+/* Where a person is reached: every phone and browser signed in to this
+ * account gets each push, and each says when it was last reached, so nobody
+ * has to wonder whether their other phone is still getting them. */
+let devicesAsked = 0;
+const PHONE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.8" width="11" height="18.4" rx="2.6"/><path d="M10.5 18h3"/></svg>`;
+function loadDevices(force){
+  if (S.mode !== "connected" || (!force && Date.now() - devicesAsked < 30_000)) return;
+  devicesAsked = Date.now();
+  Net.request("GET", "/v1/user/devices").then((d) => { S.devices = (d && d.devices) || []; if (S.view === "settings") render(); }).catch(() => {});
+}
+function deviceKind(d){
+  return d.platform === "ios" ? (d.label || "iPhone") : d.platform === "android" ? (d.label || "Android") : (d.label && d.label !== "web" ? d.label : t("dev.browser"));
+}
+function devicesHTML(){
+  if (S.mode !== "connected") return "";
+  loadDevices();
+  const list = (S.devices || []).slice().sort((a, b) => (b.lastPushAt || b.createdAt) - (a.lastPushAt || a.createdAt));
+  if (!list.length) return S.devices ? `<p class="devnone">${esc(t("dev.none"))}</p>` : "";
+  let mine = ""; try { mine = localStorage.getItem("discern.deviceId") || ""; } catch {}
+  return `<div class="devlist"><p class="devhd">${esc(tn("dev.count", list.length))}</p>${list.map((d) => {
+    const state = !d.lastPushAt ? `<small>${esc(t("dev.added", { ago: tAgo(d.createdAt) }))}</small>`
+      : d.lastPushOk ? `<small class="ok">${esc(t("dev.reached", { ago: tAgo(d.lastPushAt) }))}</small>`
+      : `<small class="warn">${esc(t("dev.failed", { ago: tAgo(d.lastPushAt) }))}</small>`;
+    return `<div class="devrow"><span class="tic">${d.platform === "web" ? I.globe : PHONE_ICON}</span>
+      <span class="devm"><b>${esc(deviceKind(d))}${d.id === mine ? ` <em>${esc(t("dev.this"))}</em>` : ""}</b>${state}</span>
+      ${d.id === mine ? "" : `<button class="foldchange" data-devdel="${esc(d.id)}">${esc(t("dev.remove"))}</button>`}</div>`;
+  }).join("")}</div>`;
+}
+async function removeDevice(id, btn){
+  if (btn) { btn.disabled = true; btn.innerHTML = `<span class="tic spin">${I.sync}</span>`; }
+  try { await Net.request("DELETE", `/v1/user/devices/${encodeURIComponent(id)}`); S.devices = (S.devices || []).filter((d) => d.id !== id); }
+  catch (e) { toast(`<div class="tm">${esc(e.message)}</div>`, "warn"); }
+  render();
+}
+
 function settingsHTML(){
   const conn = S.mode==="connected" ? `${t("set.live")} at ${BASE.replace(/^https?:\/\//,"")}`
     : S.mode==="degraded" ? `${t("set.offline")}, ${t("net.synced",{ago:tAgo(S.net.lastSync)})}` : t("net.demo");
@@ -3037,6 +3074,7 @@ function settingsHTML(){
       : p.on ? `<div class="kv"><span>${esc(t("set.notifyReady"))}</span><b class="ok">${I.check}</b></div>
                <button class="btn btn-ghost block" data-testpush>${esc(t("set.notifyTest"))}</button>`
       : `<button class="btn btn-primary block" data-enablepush ${p.busy?"disabled":""}>${p.busy?`<span class="tic spin">${I.sync}</span>`:I.bell}<span>${esc(t("set.notifyOn"))}</span></button>`}
+    ${devicesHTML()}
   </section>
   ${WEB ? `<section class="panel"><div class="thin-empty">${esc(t("set.webNote"))}</div></section>` : `<section class="panel"><div class="panelhd"><h3>${esc(t("set.lock"))}</h3><p>${esc(t("set.lockSub"))}</p></div>
     ${isReviewer() ? `<div class="thin-empty">${esc(t("set.lockReview"))}</div>`
@@ -3557,6 +3595,7 @@ function wire(){
     if(el.closest("[data-pin-ok]")){ pinSubmit(); return; }
     if(el.closest("[data-pin-cancel]")){ S.pinSetup=null; S.pinEntry=""; render(); return; }
     if(el.closest("[data-testpush]")){ testPush(); return; }
+    const ddl = el.closest("[data-devdel]"); if (ddl) { removeDevice(ddl.dataset.devdel, ddl); return; }
     const rev=el.closest("[data-review]"); if(rev){ openReview(rev.dataset.review); return; }
     if(el.closest("[data-back-review]")){ S.review=null; S.reviewData=null; S.selectedAgent=null; render(); return; }
     const con=el.closest("[data-connect]"); if(con){ connect(con.dataset.connect); return; }
