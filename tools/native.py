@@ -141,6 +141,13 @@ def android():
 
 
 # --------------------------------------------------------------------- ios --
+PURPOSES = {
+    "NSCameraUsageDescription": "Discern uses the camera only when you take a photo or video to keep in your vault.",
+    "NSMicrophoneUsageDescription": "Discern uses the microphone only when you record something to keep in your vault.",
+    "NSPhotoLibraryUsageDescription": "Discern opens your photos only when you choose one to keep in your vault.",
+    "NSPhotoLibraryAddUsageDescription": "Discern saves a photo or video from your vault to Photos only when you ask it to.",
+}
+
 ENTITLEMENTS = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -175,8 +182,22 @@ def ios(env: str):
     # exempt: said here so TestFlight does not hold every build for the question
     if "ITSAppUsesNonExemptEncryption" not in s:
         s = s.replace("<dict>", "<dict>\n\t<key>ITSAppUsesNonExemptEncryption</key>\n\t<false/>", 1)
+    # The vault takes photos, videos and recordings: the picker offers the
+    # camera and the microphone, and a file can be saved to Photos. iOS ends the
+    # app on any of those without a sentence saying why.
+    for key, why in PURPOSES.items():
+        if key not in s:
+            s = s.replace("<dict>", f"<dict>\n\t<key>{key}</key>\n\t<string>{why}</string>", 1)
     info.write_text(s)
-    print("  Info.plist: remote-notification background mode, exempt encryption")
+    print("  Info.plist: remote-notification background mode, exempt encryption, camera, microphone and photos purposes")
+
+    # Apple takes iOS 15 and later from April 2027; Capacitor still writes 14
+    pbx = ROOT / "ios" / "App" / "App.xcodeproj" / "project.pbxproj"
+    t = pbx.read_text()
+    t2 = re.sub(r"IPHONEOS_DEPLOYMENT_TARGET = 1[0-4]\.\d;", "IPHONEOS_DEPLOYMENT_TARGET = 15.0;", t)
+    if t2 != t:
+        pbx.write_text(t2)
+        print("  project.pbxproj: iOS 15 and later")
 
     # APNs talks to the app delegate, not to plugins: pass both on
     ad = appdir / "AppDelegate.swift"
