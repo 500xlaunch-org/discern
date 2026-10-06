@@ -82,7 +82,11 @@ jobs:
 
       - name: Swift packages (GitHub sometimes resets the large ones)
         run: |
-          npx cap sync ios || PATH="$PWD/tools/.podless:$PATH" npx cap add ios --packagemanager SPM
+          # cap add ends on a CocoaPods step this SPM project does not use; the
+          # project it made is complete, as tools/ios-release.sh also assumes
+          [ -d ios ] || PATH="$PWD/tools/.podless:$PATH" npx cap add ios --packagemanager SPM || true
+          [ -f ios/App/App.xcodeproj/project.pbxproj ] || { echo "::error::no iOS project"; exit 1; }
+          npx cap sync ios
           for i in 1 2 3 4; do
             xcodebuild -resolvePackageDependencies -project ios/App/App.xcodeproj -scheme App -scmProvider system && exit 0
             echo "::warning::package fetch failed (try $i), again in 20s"; sleep 20
