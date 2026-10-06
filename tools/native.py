@@ -171,8 +171,12 @@ def ios(env: str):
     s = info.read_text()
     if "UIBackgroundModes" not in s:
         s = s.replace("<dict>", "<dict>\n\t<key>UIBackgroundModes</key>\n\t<array>\n\t\t<string>remote-notification</string>\n\t</array>", 1)
-        info.write_text(s)
-    print("  Info.plist: remote-notification background mode")
+    # Only standard encryption (HTTPS and the system's own crypto), which is
+    # exempt: said here so TestFlight does not hold every build for the question
+    if "ITSAppUsesNonExemptEncryption" not in s:
+        s = s.replace("<dict>", "<dict>\n\t<key>ITSAppUsesNonExemptEncryption</key>\n\t<false/>", 1)
+    info.write_text(s)
+    print("  Info.plist: remote-notification background mode, exempt encryption")
 
     # APNs talks to the app delegate, not to plugins: pass both on
     ad = appdir / "AppDelegate.swift"
