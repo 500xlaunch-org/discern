@@ -795,10 +795,18 @@ async function nativePush(ask){
     if (!fcmWired) {
       fcmWired = true;
       if (PLATFORM === "android") {
-        await FCM.createChannel({ id:"discern", name:t("push.chan"), description:t("push.chanSub"),
-          importance:4, visibility:0, vibration:true }).catch(() => {});
-        await FCM.createChannel({ id:"discern-urgent", name:t("push.chanUrgent"), description:t("push.chanUrgentSub"),
-          importance:5, visibility:0, vibration:true, lights:true, lightColor:"#E5484D" }).catch(() => {});
+        // one channel per severity, each with its own ring (tools/ring): a
+        // channel's sound is fixed when it is made, so these replace the two
+        // first ones. Severe is the one a person can let through Do Not Disturb.
+        for (const sev of ["LOW", "MEDIUM", "HIGH", "SEVERE"]) {
+          const severe = sev === "SEVERE";
+          await FCM.createChannel({ id: "discern-" + sev.toLowerCase(),
+            name: severe ? t("push.chanUrgent") : `${t("push.chan")}, ${tSev(sev)}`,
+            description: severe ? t("push.chanUrgentSub") : t("push.chanSub"),
+            importance: severe ? 5 : sev === "LOW" ? 3 : 4, visibility: 0, vibration: true,
+            sound: "discern_" + sev.toLowerCase(), ...(severe ? { lights: true, lightColor: "#E5484D" } : {}) }).catch(() => {});
+        }
+        for (const old of ["discern", "discern-urgent"]) await FCM.deleteChannel({ id: old }).catch(() => {});
       }
       FCM.addListener("tokenReceived", ({ token }) => { if (S.token) sendNativeToken(token); });
       FCM.addListener("notificationActionPerformed", (e) => {
@@ -870,6 +878,13 @@ function alertCta(id){
 /** A notification that arrived while the app is open: slides down from the
  * top, stays long enough to read, and opens the request when tapped. Kept
  * outside the screen that repaints, so a refresh does not wipe it. */
+/** Discern's ring for a request that arrives while the app is open: the same
+ * sound the phone plays when it is closed, by severity (tools/ring). */
+function ringFor(severity){
+  const sev = String(severity || "MEDIUM").toLowerCase();
+  if (!["low", "medium", "high", "severe"].includes(sev)) return;
+  try { const a = new Audio(`sounds/discern_${sev}.m4a`); a.volume = 0.9; a.play().catch(() => {}); } catch {}
+}
 function inAppBanner(n){
   if (!n || (!n.title && !n.body)) return;
   const d = n.data || {};
@@ -882,6 +897,7 @@ function inAppBanner(n){
   document.body.appendChild(el);
   requestAnimationFrame(() => el.classList.add("in"));
   try { navigator.vibrate && navigator.vibrate(30); } catch {}
+  ringFor(d.severity);
   setTimeout(go, 6000);
 }
 function afterSignIn(){

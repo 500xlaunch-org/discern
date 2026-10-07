@@ -32,6 +32,7 @@ import argparse, base64, json, os, re, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+SEVERITIES = ["low", "medium", "high", "severe"]
 ACCENT = "#3B6EA3"          # --xur, the Xurface matte blue
 
 
@@ -121,6 +122,14 @@ def android():
         '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n'
         f'    <color name="discern_accent">{ACCENT}</color>\n</resources>\n')
     print("  res/drawable/ic_stat_discern.xml, res/values/discern_push.xml")
+
+    # Discern's ring, one per severity (tools/ring), for the notification channels
+    (res / "raw").mkdir(parents=True, exist_ok=True)
+    for sev in SEVERITIES:
+        src = ROOT / "sounds" / f"discern_{sev}.wav"
+        if src.exists():
+            (res / "raw" / f"discern_{sev}.wav").write_bytes(src.read_bytes())
+    print("  res/raw: the ring, low to severe")
 
     man = app / "src" / "main" / "AndroidManifest.xml"
     s = man.read_text()
@@ -244,8 +253,26 @@ def ios(env: str):
         p = re.sub(r"(/\* Info.plist \*/,\n)", r"\1\t\t\t\t" + fid + " /* GoogleService-Info.plist */,\n", p, count=1)
         p = re.sub(r"(isa = PBXResourcesBuildPhase;\n\t\t\tbuildActionMask = \d+;\n\t\t\tfiles = \(\n)",
                    r"\1\t\t\t\t" + bid + " /* GoogleService-Info.plist in Resources */,\n", p, count=1)
+    # Discern's ring, one per severity (tools/ring): in the bundle, so a push
+    # can name it in aps.sound
+    for k, sev in enumerate(SEVERITIES):
+        name = f"discern_{sev}.caf"
+        src = ROOT / "sounds" / name
+        if not src.exists():
+            continue
+        (appdir / name).write_bytes(src.read_bytes())
+        if name in p:
+            continue
+        fid, bid = f"D15C0FE00000000000{k:02d}B001", f"D15C0FE00000000000{k:02d}B002"
+        p = p.replace("/* Begin PBXBuildFile section */",
+            "/* Begin PBXBuildFile section */\n\t\t" + bid + f" /* {name} in Resources */ = {{isa = PBXBuildFile; fileRef = " + fid + f" /* {name} */; }};", 1)
+        p = p.replace("/* Begin PBXFileReference section */",
+            "/* Begin PBXFileReference section */\n\t\t" + fid + f" /* {name} */ = {{isa = PBXFileReference; lastKnownFileType = file; path = \"{name}\"; sourceTree = \"<group>\"; }};", 1)
+        p = re.sub(r"(/\* Info.plist \*/,\n)", r"\1\t\t\t\t" + fid + f" /* {name} */,\n", p, count=1)
+        p = re.sub(r"(isa = PBXResourcesBuildPhase;\n\t\t\tbuildActionMask = \d+;\n\t\t\tfiles = \(\n)",
+                   r"\1\t\t\t\t" + bid + f" /* {name} in Resources */,\n", p, count=1)
     pbx.write_text(p)
-    print("  project.pbxproj: entitlements and the Firebase plist in the target")
+    print("  project.pbxproj: entitlements, the Firebase plist and the ring in the target")
 
 
 if __name__ == "__main__":

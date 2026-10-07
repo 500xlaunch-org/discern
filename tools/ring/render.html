@@ -1,0 +1,38 @@
+<!doctype html><meta charset="utf-8"><title>render</title>
+<script src="arc.js"></script>
+<script>
+/* Render the ring for each severity offline, exactly as it plays, as 16-bit
+ * stereo WAV at 44.1 kHz, peak at -1 dBFS. Called by render.mjs. */
+async function renderAll() {
+  const out = {};
+  for (const sev of ["LOW", "MEDIUM", "HIGH", "SEVERE"]) {
+    const sr = 44100, probe = new OfflineAudioContext(2, sr, sr);
+    const end = DiscernRing.ring(probe, probe.createGain(), sev, 0.02);
+    const len = Math.ceil((end + 1.4) * sr);
+    const ctx = new OfflineAudioContext(2, len, sr);
+    const master = ctx.createGain(); master.gain.value = 0.8;
+    const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 3;
+    master.connect(comp); comp.connect(ctx.destination);
+    DiscernRing.ring(ctx, master, sev, 0.02);
+    const buf = await ctx.startRendering();
+    const L = buf.getChannelData(0), R = buf.getChannelData(1);
+    let peak = 0; for (let i = 0; i < len; i++) peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i]));
+    // trim the silent tail, keeping a short fade
+    let last = len - 1; while (last > 0 && Math.abs(L[last]) < 0.0005 * peak && Math.abs(R[last]) < 0.0005 * peak) last--;
+    const n = Math.min(len, last + Math.round(0.05 * sr)), k = 0.891 / (peak || 1);
+    const data = new DataView(new ArrayBuffer(44 + n * 4));
+    const w = (o, s) => { for (let i = 0; i < s.length; i++) data.setUint8(o + i, s.charCodeAt(i)); };
+    w(0, "RIFF"); data.setUint32(4, 36 + n * 4, true); w(8, "WAVEfmt "); data.setUint32(16, 16, true);
+    data.setUint16(20, 1, true); data.setUint16(22, 2, true); data.setUint32(24, sr, true); data.setUint32(28, sr * 4, true);
+    data.setUint16(32, 4, true); data.setUint16(34, 16, true); w(36, "data"); data.setUint32(40, n * 4, true);
+    for (let i = 0; i < n; i++) {
+      const fade = i > n - 0.05 * sr ? (n - i) / (0.05 * sr) : 1;
+      data.setInt16(44 + i * 4, Math.max(-1, Math.min(1, L[i] * k * fade)) * 32767, true);
+      data.setInt16(46 + i * 4, Math.max(-1, Math.min(1, R[i] * k * fade)) * 32767, true);
+    }
+    let bin = ""; const u8 = new Uint8Array(data.buffer); for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    out[sev] = { b64: btoa(bin), seconds: +(n / sr).toFixed(2) };
+  }
+  return JSON.stringify(out);
+}
+</script>
