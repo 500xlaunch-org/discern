@@ -1115,3 +1115,4 @@ html[lang="ar"] .eyebrow,html[lang="ar"] .sech{font-family:"Noto Sans Arabic",va
 .devm small.ok{color:var(--ok, #3fae7a)}
 .devm small.warn{color:var(--warn, #d39b55)}
 .devnone{margin:12px 0 0;font-size:.85rem;color:var(--muted)}
+.devm small.devwhy{color:var(--muted);font-size:.76rem;line-height:1.35;overflow-wrap:anywhere}

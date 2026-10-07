@@ -361,7 +361,7 @@ const Backend = {
       // alerts from the platform: off the critical path, like the labels
       Net.request("GET","/v1/user/alerts").then((d)=>{ S.alerts = (d && d.alerts) || []; render(); }).catch(()=>{});
       // who they are as of now, so a change of terms reaches an old session
-      Net.request("GET","/v1/user/me").then((m)=>{ if (m && m.user){ const was = needsLegal(); S.user = m.user; savePrefs(); if (needsLegal() !== was) render(); } }).catch(()=>{});
+      Net.request("GET","/v1/user/me").then((m)=>{ if (m && m.user){ const was = needsLegal(); S.user = m.user; S.features = m.features || {}; savePrefs(); if (needsLegal() !== was || S.view === "settings") render(); } }).catch(()=>{});
       Backend.summary().then((sm)=>{ S.summary = sm; const el=document.querySelector(".sevbar"); if (el||sm) render(); });
       // what the categories are called here, and whether this platform added
       // any. Off the critical path: it changes labels, and an inbox that will
@@ -955,8 +955,10 @@ async function enablePush(silent){
   finally { S.push.busy=false; render(); }
 }
 async function testPush(){
-  try { await Net.request("POST","/v1/user/devices/test",{});
-    toast(`<span class="tic">${I.bell}</span><div class="tm">${esc(t("t.pushSent"))}</div>`,"ok"); loadDevices(true); }
+  try { const r = await Net.request("POST","/v1/user/devices/test",{});
+    if (r && Array.isArray(r.devices)) { S.devices = r.devices; devicesAsked = Date.now(); render(); }
+    const failed = (r && Array.isArray(r.devices) ? r.devices : []).filter((d) => d.lastPushOk === false);
+    toast(`<span class="tic">${I.bell}</span><div class="tm">${esc(failed.length ? failed.map((d) => deviceKind(d) + ": " + (d.lastPushError || "")).join(". ") : t("t.pushSent"))}</div>`, failed.length ? "warn" : "ok"); }
   catch(e){ toast(`<div class="tm">${esc(e.message)}</div>`,"warn"); }
 }
 
@@ -3045,7 +3047,7 @@ function devicesHTML(){
   return `<div class="devlist"><p class="devhd">${esc(tn("dev.count", list.length))}</p>${list.map((d) => {
     const state = !d.lastPushAt ? `<small>${esc(t("dev.added", { ago: tAgo(d.createdAt) }))}</small>`
       : d.lastPushOk ? `<small class="ok">${esc(t("dev.reached", { ago: tAgo(d.lastPushAt) }))}</small>`
-      : `<small class="warn">${esc(t("dev.failed", { ago: tAgo(d.lastPushAt) }))}</small>`;
+      : `<small class="warn">${esc(t("dev.failed", { ago: tAgo(d.lastPushAt) }))}</small>${d.lastPushError ? `<small class="devwhy">${esc(d.lastPushError)}</small>` : ""}`;
     return `<div class="devrow"><span class="tic">${d.platform === "web" ? I.globe : PHONE_ICON}</span>
       <span class="devm"><b>${esc(deviceKind(d))}${d.id === mine ? ` <em>${esc(t("dev.this"))}</em>` : ""}</b>${state}</span>
       ${d.id === mine ? "" : `<button class="foldchange" data-devdel="${esc(d.id)}">${esc(t("dev.remove"))}</button>`}</div>`;
@@ -3072,7 +3074,7 @@ function settingsHTML(){
     ${!p.supported ? `<div class="thin-empty">${esc(t("set.notifyNo"))}</div>`
       : p.permission==="denied" ? `<div class="thin-empty">${esc(t("set.notifyBlocked"))}</div>`
       : p.on ? `<div class="kv"><span>${esc(t("set.notifyReady"))}</span><b class="ok">${I.check}</b></div>
-               <button class="btn btn-ghost block" data-testpush>${esc(t("set.notifyTest"))}</button>`
+               ${S.features && S.features.test_push ? `<button class="btn btn-ghost block" data-testpush>${esc(t("set.notifyTest"))}</button>` : ""}`
       : `<button class="btn btn-primary block" data-enablepush ${p.busy?"disabled":""}>${p.busy?`<span class="tic spin">${I.sync}</span>`:I.bell}<span>${esc(t("set.notifyOn"))}</span></button>`}
     ${devicesHTML()}
   </section>
