@@ -74,6 +74,12 @@ META = {
 
 MAIN_ACTIVITY = """package com.xurface.discern.app;
 
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.content.ContentResolver;
+import android.media.AudioAttributes;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
 
@@ -84,6 +90,34 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         fitText();
+        ringChannels();
+    }
+
+    /* Discern's channels, one per severity, each with its ring, made the
+     * moment the app starts: a push that arrives before the app is opened after
+     * an install or an update finds its channel, and rings as Discern rather
+     * than in the phone's default sound. The app renames them in the person's
+     * language later; a channel's sound is fixed when it is made. */
+    private void ringChannels() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        if (nm == null) return;
+        AudioAttributes attrs = new AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION).build();
+        String[][] levels = {
+            {"low", "Agent requests, low", "3"}, {"medium", "Agent requests, medium", "4"},
+            {"high", "Agent requests, high", "4"}, {"severe", "Urgent agent requests", "5"} };
+        for (String[] l : levels) {
+            String id = "discern-" + l[0];
+            if (nm.getNotificationChannel(id) != null) continue;
+            NotificationChannel ch = new NotificationChannel(id, l[1], Integer.parseInt(l[2]));
+            ch.setSound(Uri.parse(ContentResolver.SCHEME_ANDROID_RESOURCE + "://" + getPackageName() + "/raw/discern_" + l[0]), attrs);
+            ch.enableVibration(true);
+            if ("severe".equals(l[0])) { ch.enableLights(true); ch.setLightColor(0xFFE5484D); }
+            nm.createNotificationChannel(ch);
+        }
+        for (String old : new String[] {"discern", "discern-urgent"}) nm.deleteNotificationChannel(old);
     }
 
     @Override
