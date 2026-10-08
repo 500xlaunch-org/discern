@@ -73,6 +73,9 @@ s = re.sub(r"\t\t[0-9A-F]{24} /\* Release \*/ = \{.*?\n\t\t\};", fix, s, flags=r
 open(p, "w").write(s)
 print("  project.pbxproj: the app target signs Release with", prof)
 PY
+# the notification service, so a push shows its picture (tools/ios-nse.rb)
+NSE_PROFILE=${IOS_NSE_PROFILE:-Discern Notification Service App Store}
+ruby tools/ios-nse.rb "$APPLE_TEAM_ID" "$NSE_PROFILE"
 KC_PW="$CFG/ios-keychain.pw"
 [ -f "$KC_PW" ] && security unlock-keychain -p "$(cat "$KC_PW")" discern-build.keychain
 
@@ -92,7 +95,7 @@ cat > "$OUT/ExportOptions.plist" <<EOF
   <key>teamID</key><string>$APPLE_TEAM_ID</string>
   <key>signingStyle</key><string>manual</string>
   <key>signingCertificate</key><string>Apple Distribution</string>
-  <key>provisioningProfiles</key><dict><key>com.xurface.discern.app</key><string>$PROFILE</string></dict>
+  <key>provisioningProfiles</key><dict><key>com.xurface.discern.app</key><string>$PROFILE</string><key>com.xurface.discern.app.NotificationService</key><string>$NSE_PROFILE</string></dict>
   <key>destination</key><string>$([ $UPLOAD = 1 ] && echo upload || echo export)</string>
   <key>uploadSymbols</key><true/>
   <key>manageAppVersionAndBuildNumber</key><false/>
