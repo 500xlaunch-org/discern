@@ -53,6 +53,9 @@ const Net = (() => {
     let res;
     try {
       const headers = { "content-type": "application/json", "x-xurface-env": envOf() };
+      // the language this person reads Discern in: what Horizon writes to
+      // them (pushes, codes, errors) follows it
+      try { const lang = window.I18N && window.I18N.lang; if (lang) headers["x-discern-lang"] = lang; } catch {}
       const tk = auth ? tokenOf() : null;
       if (tk) headers.authorization = `Bearer ${tk}`;
       res = await fetch(base + path, { method, headers, signal: ctl.signal,
