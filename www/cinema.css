@@ -768,3 +768,7 @@ body,.app{font-family:var(--sans);letter-spacing:-.005em}
    button, where line-clamp works */
 .htitle.long{max-height:none;overflow:visible}
 .htitle .htx{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
+/* the banner says how serious, in the severity's colour */
+.inbanner{box-shadow:inset 3px 0 0 var(--sev, transparent),0 18px 40px -16px rgba(0,0,0,.6)}
+.ibsev{display:inline-flex;align-items:center;gap:6px;font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--sev)}
+.ibsev i{width:7px;height:7px;border-radius:99px;background:var(--sev);box-shadow:0 0 8px var(--sev)}

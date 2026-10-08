@@ -1,0 +1,39 @@
+<!doctype html><meta charset="utf-8"><title>push art</title>
+<canvas id="c" width="1200" height="600"></canvas>
+<script>
+/* The picture a push carries, one per severity: Discern's mark (the wave that
+ * becomes a ring) lit in the severity's colour, and a four step meter. No words
+ * in it, so it reads the same in every language. Rendered by render.mjs. */
+const SEV = { LOW: ["#3fc07a", 1], MEDIUM: ["#5b97f2", 2], HIGH: ["#ee9a3a", 3], SEVERE: ["#f0525a", 4] };
+function draw(sev) {
+  const [col, lvl] = SEV[sev], c = document.getElementById("c"), g = c.getContext("2d"), W = 1200, H = 600;
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = "#06080b"; g.fillRect(0, 0, W, H);
+  // the glow behind the mark, stronger as it gets serious
+  const rg = g.createRadialGradient(470, 300, 20, 470, 300, 560);
+  rg.addColorStop(0, col + ["2e", "38", "48", "5c"][lvl - 1]); rg.addColorStop(1, "#06080b00");
+  g.fillStyle = rg; g.fillRect(0, 0, W, H);
+  // faint glass rings
+  g.strokeStyle = "#ffffff0c"; g.lineWidth = 2;
+  for (const r of [170, 250, 330]) { g.beginPath(); g.arc(470, 300, r, 0, Math.PI * 2); g.stroke(); }
+  // the mark, drawn on a 256 grid, scaled
+  g.save(); g.translate(470 - 2.2 * 128, 300 - 2.2 * 128); g.scale(2.2, 2.2);
+  g.lineCap = "round"; g.lineJoin = "round"; g.lineWidth = 20;
+  g.shadowColor = col; g.shadowBlur = 30 + lvl * 10;
+  g.strokeStyle = "#ffffff";
+  g.beginPath(); g.moveTo(28, 160); g.bezierCurveTo(59.9, 160, 54.1, 96, 86, 96); g.bezierCurveTo(117.9, 96, 112.1, 160, 144, 160); g.bezierCurveTo(160, 160, 166, 156, 166, 128); g.stroke();
+  g.strokeStyle = col; g.beginPath(); g.arc(200, 128, 34, 0, Math.PI * 2); g.stroke();
+  g.restore();
+  // the meter: how serious, out of four
+  const x0 = 930, w = 46, gap = 18, base = 420;
+  for (let i = 0; i < 4; i++) {
+    const h = 70 + i * 50, x = x0 + i * (w + gap), on = i < lvl;
+    g.shadowColor = on ? col : "transparent"; g.shadowBlur = on ? 24 : 0;
+    g.fillStyle = on ? col : "#1c2632";
+    g.beginPath(); g.roundRect(x, base - h, w, h, 12); g.fill();
+  }
+  g.shadowBlur = 0;
+  return c.toDataURL("image/png");
+}
+function renderAll() { return JSON.stringify(Object.fromEntries(Object.keys(SEV).map((s) => [s, draw(s)]))); }
+</script>

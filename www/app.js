@@ -891,7 +891,9 @@ function inAppBanner(n){
   document.querySelectorAll(".inbanner").forEach((x) => x.remove());
   const el = document.createElement("button");
   el.type = "button"; el.className = "inbanner";
-  el.innerHTML = `<span class="ibmk">${MK}</span><span class="ibtx"><b>${esc(n.title || "")}</b><span>${esc(n.body || "")}</span></span>`;
+  const sev = ["LOW", "MEDIUM", "HIGH", "SEVERE"].includes(d.severity) ? d.severity : "";
+  if (sev) el.style.setProperty("--sev", sevColor(sev));
+  el.innerHTML = `<span class="ibmk">${MK}</span><span class="ibtx">${sev ? `<small class="ibsev"><i></i>${esc(tSev(sev))}</small>` : ""}<b>${esc(n.title || "")}</b><span>${esc(n.body || "")}</span></span>`;
   const go = () => { el.classList.remove("in"); setTimeout(() => el.remove(), 350); };
   el.addEventListener("click", () => { go(); if (d.intentId && !/^test/.test(d.intentId)) openIntent(d.intentId); });
   document.body.appendChild(el);

@@ -13,7 +13,7 @@
 /* eslint-env serviceworker */
 "use strict";
 
-const VERSION = "discern-v38";
+const VERSION = "discern-v39";
 const SHELL = ["./", "./index.html", "./capacitor.js", "./styles.css", "./cinema.css", "./i18n.js", "./phone.js", "./marks.js", "./net.js", "./vault.js", "./app.js", "./manifest.webmanifest",
   "./sounds/discern_low.m4a", "./sounds/discern_medium.m4a", "./sounds/discern_high.m4a", "./sounds/discern_severe.m4a"];
 
@@ -111,6 +111,7 @@ self.addEventListener("push", (e) => {
     data: { url: d.url || "./", intentId: d.intentId },
     badge: "./icons/badge.png",
     icon: "./icons/icon-192.png",
+    ...(d.image ? { image: d.image } : {}),   // the severity's picture, where the browser shows one
     vibrate: severe ? [40, 60, 40] : [30],
     actions: d.intentId && d.intentId !== "test"
       ? [{ action: "open", title: w.review }, { action: "dismiss", title: w.later }] : [],
