@@ -853,7 +853,10 @@ function alertsHTML(){
   const list = (S.alerts || []);
   if (!list.length) return "";
   return `<div class="alerts">${list.map((a) => {
-    const d = a.design || {}, c = ALERT_ACCENT[d.accent] || ALERT_ACCENT.sky;
+    const d0 = a.design || {}, c = ALERT_ACCENT[d0.accent] || ALERT_ACCENT.sky;
+    // the alert in this person's language, when the designer wrote one
+    const tr = (d0.i18n || {})[window.I18N.lang];
+    const d = tr ? { ...d0, title: tr.title, body: tr.body, cta: d0.cta ? { ...d0.cta, label: tr.cta || d0.cta.label } : d0.cta } : d0;
     return `<article class="alrt l-${esc(d.layout || "card")} ${S.alertFocus === a.id ? "focus" : ""}${fresh("al:" + a.id)}" style="--ac:${c}" data-alert="${esc(a.id)}">
       <span class="alg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ALERT_GLYPH[d.glyph] || ALERT_GLYPH.bell}</svg></span>
       <div class="alx"><small>Xurface &middot; ${esc(tAgo(a.at))}</small><b>${esc(d.title || "")}</b><p>${esc(d.body || "")}</p>

@@ -13,7 +13,7 @@
 /* eslint-env serviceworker */
 "use strict";
 
-const VERSION = "discern-v41";
+const VERSION = "discern-v42";
 const SHELL = ["./", "./index.html", "./capacitor.js", "./styles.css", "./cinema.css", "./i18n.js", "./phone.js", "./marks.js", "./net.js", "./vault.js", "./app.js", "./manifest.webmanifest",
   "./sounds/discern_low.m4a", "./sounds/discern_medium.m4a", "./sounds/discern_high.m4a", "./sounds/discern_severe.m4a"];
 
