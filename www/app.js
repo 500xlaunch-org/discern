@@ -437,14 +437,14 @@ const Local = (()=>{
   const LINE_LOGO = "data:image/svg+xml;base64," + btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="b" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2A1610"/><stop offset="1" stop-color="#120B08"/></linearGradient><linearGradient id="g" x1="8" y1="0" x2="56" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FF7A59"/><stop offset="1" stop-color="#FFC46B"/></linearGradient></defs><rect width="64" height="64" rx="16" fill="url(#b)"/><path d="M9 35 H22 L26 22 L31.5 44 L35.5 29 L38 35 H47" fill="none" stroke="url(#g)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="52.5" cy="35" r="3.6" fill="#FFC46B"/></svg>`);
   const VIGIL_LOGO = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJiIiB4MT0iMCIgeTE9IjAiIHgyPSI2NCIgeTI9IjY0IiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjMUQxQTMzIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjMEIwQTE2Ii8+PC9saW5lYXJHcmFkaWVudD48bGluZWFyR3JhZGllbnQgaWQ9Im0iIHgxPSIxOCIgeTE9IjE0IiB4Mj0iNDYiIHkyPSI1MCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0ZGRDQ4QSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGOEU1RSIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgcng9IjE2IiBmaWxsPSJ1cmwoI2IpIi8+PHBhdGggZD0iTTM2LjUgMTUuNWExNyAxNyAwIDEgMCAxMiAyOS41YTEzLjUgMTMuNSAwIDEgMS0xMi0yOS41eiIgZmlsbD0idXJsKCNtKSIvPjxjaXJjbGUgY3g9IjQ1IiBjeT0iMTkiIHI9IjIuMiIgZmlsbD0iI0ZGRDQ4QSIvPjxjaXJjbGUgY3g9IjUwLjUiIGN5PSIyOCIgcj0iMS4zIiBmaWxsPSIjRkZENDhBIiBvcGFjaXR5PSIuNyIvPjwvc3ZnPg==";
   const CATALOG = [
-    {uid:"line",slug:"line",name:"Line",icon:"pulse",logo:LINE_LOGO,description:"When you can't, Line does. Checks on you every evening, and if a week passes in silence, hands what you chose to the people you named.",
+    {uid:"line",slug:"line",name:"Line",icon:"pulse",logo:LINE_LOGO,description:t("demo.lineDesc"),
      publisher:"500xLaunch", homepage:"https://line.500xlaunch.com", source:"https://github.com/500xlaunch-org/line", license:"Apache-2.0",
      built_with:[{name:"Horizon SDK for TypeScript and JavaScript",kind:"sdk",version:"1.1.0",latest:true}],
-     agents:[["line","Vigil",[["heartbeat.confirm","Ask you, once an evening, whether you are well",null,"always"],
-       ["vault.keep","Ask which things from your vault Line should keep for the people you named",{identity:"SEVERE",financial:"SEVERE",data:"SEVERE"},"always"],
-       ["kin.prepare","Tell a person you named that something is waiting for them, and ask them to set up their vault",null,"always"],
-       ["vault.deliver","Hand what you chose to the person you named, sealed to their own vault",{identity:"SEVERE",financial:"SEVERE",data:"SEVERE"},"always"]],
-       "Keeps watch for Line. Checks on you every evening and, if a week goes by in silence, hands what you chose to the people you named, one at a time.", VIGIL_LOGO]]},
+     agents:[["line","Vigil",[["heartbeat.confirm",t("demo.abHeartbeat"),null,"always"],
+       ["vault.keep",t("demo.abVaultKeep"),{identity:"SEVERE",financial:"SEVERE",data:"SEVERE"},"always"],
+       ["kin.prepare",t("demo.abKinPrepare"),null,"always"],
+       ["vault.deliver",t("demo.abVaultDeliver"),{identity:"SEVERE",financial:"SEVERE",data:"SEVERE"},"always"]],
+       t("demo.vigilDesc"), VIGIL_LOGO]]},
   ];
   const st = { seeded:false, links:{}, intents:[], timeline:[], seq:0 };
   const id=p=>`${p}_${(st.seq++).toString(36)}${Math.random().toString(36).slice(2,6)}`;
@@ -460,10 +460,10 @@ const Local = (()=>{
     if(/heartbeat/.test(k))return{evening:1}; return{}; };
   // what Line itself says when it asks (its templates), so the demo reads as the real thing
   const SAYS = {
-    "heartbeat.confirm":"Ada, are you well this evening? One tap tells Line you are fine.",
-    "vault.keep":"Anything new worth keeping for the people you named? Choose it from your vault; Line keeps it sealed.",
-    "kin.prepare":"Grace Okafor left you something through Line. Set up your vault in Discern so it can reach you, sealed.",
-    "vault.deliver":"Grace Okafor asked Line to give you this. 2 things, sealed for your vault alone.",
+    "heartbeat.confirm":t("demo.saysHeartbeat"),
+    "vault.keep":t("demo.saysVaultKeep"),
+    "kin.prepare":t("demo.saysKinPrepare"),
+    "vault.deliver":t("demo.saysVaultDeliver"),
   };
   function catOf(uid){ return CATALOG.find(c=>c.uid===uid); }
   function sol(uid){ const c=catOf(uid);
@@ -478,9 +478,26 @@ const Local = (()=>{
      * than as a demo. Two solutions are connected up front so the first screen
      * is the thing the product is, with real scoring behind it. */
     seed(){ if (st.seeded) return; st.seeded=true;
-      S.alerts = [{ id:"alt_demo", at: Date.now() - 20*60000, opened:false, design:{ title:"Line is now free in Brazil", body:"Start your line and name the people who should receive what matters. It takes two minutes.", tone:"good", accent:"sage", glyph:"gift", layout:"hero", cta:{ label:"Start your line", url:"https://line.500xlaunch.com" } } }];
+      S.alerts = [{ id:"alt_demo", at: Date.now() - 20*60000, opened:false, design:{ title:t("demo.alertTitle"), body:t("demo.alertBody"), tone:"good", accent:"sage", glyph:"gift", layout:"hero", cta:{ label:t("demo.alertCta"), url:"https://line.500xlaunch.com" } } }];
       this.connect("line"); },
     async login(email,name){ S.token="local"; S.user={id:"usr_local",email,name:name||"You"}; savePrefs(); },
+    /** The demo's words again, in the language just chosen: what Line says,
+     * what it can do, and the platform's alert, so the demo never mixes two. */
+    relabel(){
+      const SAY = { "heartbeat.confirm":"demo.saysHeartbeat", "vault.keep":"demo.saysVaultKeep", "kin.prepare":"demo.saysKinPrepare", "vault.deliver":"demo.saysVaultDeliver" };
+      const ABS = { "heartbeat.confirm":"demo.abHeartbeat", "vault.keep":"demo.abVaultKeep", "kin.prepare":"demo.abKinPrepare", "vault.deliver":"demo.abVaultDeliver" };
+      for (const k of Object.keys(SAY)) SAYS[k] = t(SAY[k]);
+      for (const c of CATALOG) {
+        if (c.uid === "line") c.description = t("demo.lineDesc");
+        for (const ag of c.agents) { for (const ab of ag[2]) if (ABS[ab[0]]) ab[1] = t(ABS[ab[0]]); if (ag[0] === "line") ag[3] = t("demo.vigilDesc"); }
+      }
+      for (const rec of st.intents.concat(st.timeline)) {
+        if (SAY[rec.capability]) rec.summary = t(SAY[rec.capability]);
+        if (rec.credential && SAY[rec.capability]) rec.credential.reason = t(SAY[rec.capability]);
+      }
+      if (S.alerts) S.alerts = S.alerts.map((a) => a.id !== "alt_demo" ? a : { ...a, design: { ...a.design, title: t("demo.alertTitle"), body: t("demo.alertBody"),
+        cta: { ...a.design.cta, label: t("demo.alertCta") } } });
+    },
     async refresh(){
       const f = S.filter || { solutions:[], severities:[] };
       const keep = st.intents.filter((i) =>
@@ -672,7 +689,7 @@ async function enableDeviceLock(){
     if (!cred) throw new Error("cancelled");
     S.lockCred = b64(cred.rawId); S.lockMode = "device"; savePrefs();
     toast(`<span class="tic">${I.shield}</span><div class="tm">${esc(t("t.lockOn"))}</div>`,"ok");
-  } catch(e){ toast(`<div class="tm">${esc(t("t.lockFail",{msg:e.message||"cancelled"}))}</div>`,"warn"); }
+  } catch(e){ toast(`<div class="tm">${esc(t("t.lockFail",{msg:e.message && e.message !== "cancelled" ? e.message : t("ui.cancelled")}))}</div>`,"warn"); }
   finally { S.lockBusy=false; render(); }
 }
 
@@ -942,6 +959,11 @@ async function registerSW(){
     paintNet();
   } catch(e){ /* file:// or an insecure origin: push simply is not available */ }
 }
+/** A new language: the demo's own words follow it, then everything redraws. */
+async function langChanged(){
+  if (S.mode === "demo" && Local.relabel) { Local.relabel(); try { await Local.refresh(); } catch {} }
+  render();
+}
 function tellWorkerLang(){
   try { navigator.serviceWorker?.ready?.then(r => r.active?.postMessage({ type:"lang", lang: window.I18N.lang })); } catch {}
 }
@@ -1130,10 +1152,10 @@ function shellHTML(){
     <div class="studio-bar">
       <span class="studio-brand">${MK}<b>Discern</b><small>preview</small></span>
       <span class="grow"></span>
-      <select class="studio-select" data-ctl="lang" aria-label="Language">${LANGS.map(l=>`<option value="${l.code}" ${window.I18N.lang===l.code?"selected":""}>${l.native}</option>`).join("")}</select>
+      <select class="studio-select" data-ctl="lang" aria-label="${esc(t("ui.language"))}">${LANGS.map(l=>`<option value="${l.code}" ${window.I18N.lang===l.code?"selected":""}>${l.native}</option>`).join("")}</select>
       <select class="studio-select" data-ctl="plat">${Object.entries(DEVICES).map(([k,d])=>`<option value="${k}" ${S.plat===k?"selected":""}>${d.label}</option>`).join("")}</select>
       <select class="studio-select" data-ctl="form">${["phone","tablet","laptop"].map(f=>`<option value="${f}" ${S.form===f?"selected":""}>${DEVICES[S.plat][f].name}</option>`).join("")}</select>
-      <button class="studio-select" data-ctl="fullscreen">Fill screen</button>
+      <button class="studio-select" data-ctl="fullscreen">${esc(t("ui.fillScreen"))}</button>
     </div>
     <div class="stage"><div class="stage-scale"><div class="device ${S.form}" id="device">
       <div class="cam"><div class="${dev.cam==='notch'?'notch':dev.cam==='hole'?'hole':''}"></div></div>
@@ -3650,7 +3672,7 @@ function wire(){
     if(el.closest("[data-ctl='fullscreen']")){ S.fullscreen=!S.fullscreen; savePrefs(); render(); return; }
     if(el.closest("[data-toggle-env]")){ S.env=S.env==="test"?"live":"test"; savePrefs(); reloadEnv(); return; }
     const envb=el.closest("[data-env]"); if(envb){ S.env=envb.dataset.env; savePrefs(); reloadEnv(); return; }
-    const lg=el.closest("[data-lang]"); if(lg){ S.lang=window.I18N.setLang(lg.dataset.lang); savePrefs(); tellWorkerLang(); render(); return; }
+    const lg=el.closest("[data-lang]"); if(lg){ S.lang=window.I18N.setLang(lg.dataset.lang); savePrefs(); tellWorkerLang(); langChanged(); return; }
     const th=el.closest("[data-theme-set]"); if(th){ const box=th.closest(".glide"); const j=[...box.querySelectorAll(".gopt")].indexOf(th);
       box.style.setProperty("--i", j); box.querySelectorAll(".gopt").forEach((b,k)=>{ b.classList.toggle("on",k===j); b.setAttribute("aria-checked",k===j); });
       S.theme=th.dataset.themeSet; savePrefs(); setTimeout(()=>{ applyTheme(); render(); }, 320); return; }
@@ -3934,7 +3956,7 @@ function wire(){
     const c=e.target.closest("[data-ctl]"); if(!c)return;
     if(c.dataset.ctl==="plat")S.plat=e.target.value;
     if(c.dataset.ctl==="form")S.form=e.target.value;
-    if(c.dataset.ctl==="lang"){ S.lang=window.I18N.setLang(e.target.value); tellWorkerLang(); }
+    if(c.dataset.ctl==="lang"){ S.lang=window.I18N.setLang(e.target.value); tellWorkerLang(); langChanged(); }
     savePrefs(); render(); };
 }
 
