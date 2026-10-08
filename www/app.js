@@ -2741,11 +2741,23 @@ function solutionsHTML(){
  * under it. Four of those filled a phone screen with four buttons that all said
  * the same thing, and the card itself was not tappable, which is the first
  * thing anybody tries. */
+/* Preview: seen by everyone, greyed out, opened only to the people invited.
+ * The words for where it stands, the same on the card and on its page. */
+function etaWords(eta){
+  return eta ? t("pv.eta", { date: new Date(eta).toLocaleDateString(window.I18N.lang, { year: "numeric", month: "long", day: "numeric" }) }) : t("pv.etaNone");
+}
+function previewChip(c){
+  if (c.availability !== "preview") return "";
+  const invited = c.access === "invited" || c.access === "confirm";
+  return `<span class="pvchip${invited ? " inv" : ""}">${esc(invited ? t("pv.invited") : t("pv.badge"))}</span><span class="pveta">${esc(etaWords(c.eta))}</span>`;
+}
 function catcardHTML(c){
-  return `<button class="catcard" data-review="${c.uid}">
+  const pv = c.availability === "preview";
+  return `<button class="catcard${pv && c.access !== "invited" && c.access !== "confirm" ? " preview" : ""}" data-review="${c.uid}">
     ${window.Marks.art(c.uid || c.name, c.icon || c.slug, { cls: "catart" })}
     ${window.Marks.solution(c, 38)}
     <div class="catm">
+      ${pv ? `<div class="pvrow">${previewChip(c)}</div>` : ""}
       <div class="catn">${esc(c.name)}</div>
       ${c.agents ? `<div class="catmeta">${esc(tn("sol.agents", c.agents.length))}</div>` : ""}
       <p class="catd">${esc(c.description || "")}</p>
@@ -3032,11 +3044,57 @@ function reviewHTML(){
   <section class="sdsec"><div class="secrow"><h2 class="sech">${esc(t("sol.about"))}</h2></div>
     <div class="sdrows">${aboutRowsHTML(s)}</div></section>
   <p class="consent-note">${I.shield}<span>${esc(t("rev.note"))}</span></p>
-  <div class="revgo">${p.connected?`<button class="btn btn-ghost block big" data-back-review>${esc(t("rev.already"))}</button>`
-    :`<button class="btn btn-primary block big" data-connect="${s.uid}">${esc(t("rev.connect",{name:s.name}))}</button>`}</div>`;
+  <div class="revgo">${revGoHTML(s, p)}</div>`;
+}
+/** Under a Solution's page: open it where it lives, and connect it, or, in
+ * preview, say where it stands and what the person can do about it. */
+function revGoHTML(s, p){
+  const open = s.url && (s.access === "open" || s.access === "invited" || !s.availability)
+    ? `<button class="btn btn-ghost block" data-openurl="${esc(s.url)}">${esc(t("sol.open", { name: s.name }))}</button>` : "";
+  if (p.connected) return `${open}<button class="btn btn-ghost block big" data-back-review>${esc(t("rev.already"))}</button>`;
+  if (s.availability === "preview" && s.access === "preview")
+    return `<div class="pvnote"><div class="pvrow">${previewChip(s)}</div><p>${esc(t("pv.locked", { name: s.name }))}</p></div>
+      <button class="btn btn-primary block big" disabled>${esc(t("rev.connect",{name:s.name}))}</button>`;
+  if (s.availability === "preview" && s.access === "confirm") {
+    const c = S.pvc || {};
+    return `<div class="pvnote inv"><div class="pvrow">${previewChip(s)}</div><b>${esc(t("pv.confirmTitle", { name: s.name }))}</b>
+      <p>${esc(t("pv.confirmBody", { email: (s.confirm && s.confirm.identifier) || (S.user && S.user.email) || "" }))}</p>
+      ${c.sent ? `<label for="pvcode">${esc(t("pv.codeLabel"))}</label>
+        <input id="pvcode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" ${c.busy ? "disabled" : ""}/>
+        ${c.error ? `<div class="signin-err">${esc(c.error)}</div>` : ""}
+        <button class="btn btn-primary block" data-pvverify="${s.uid}" ${c.busy ? "disabled" : ""}>${c.busy ? `<span class="tic spin">${I.sync}</span>` : ""}<span>${esc(t("pv.confirm"))}</span></button>
+        <button class="btn btn-ghost block" data-pvsend="${s.uid}" ${c.busy ? "disabled" : ""}>${esc(t("pv.again"))}</button>`
+      : `${c.error ? `<div class="signin-err">${esc(c.error)}</div>` : ""}<button class="btn btn-primary block" data-pvsend="${s.uid}" ${c.busy ? "disabled" : ""}>${c.busy ? `<span class="tic spin">${I.sync}</span>` : ""}<span>${esc(t("pv.send"))}</span></button>`}
+    </div>`;
+  }
+  return `${open}${s.availability === "preview" ? `<div class="pvrow" style="justify-content:center">${previewChip(s)}</div>` : ""}<button class="btn btn-primary block big" data-connect="${s.uid}">${esc(t("rev.connect",{name:s.name}))}</button>`;
+}
+async function pvSend(uid){
+  S.pvc = { ...(S.pvc || {}), busy: true, error: "" }; render();
+  try { const r = await Net.request("POST", "/v1/user/verify/send", { kind: "email" });
+    S.pvc = { sent: true, busy: false, error: "" }; render();
+    toast(`<div class="tm">${esc(t("pv.sent", { to: r.to || "" }))}</div>`, "ok");
+    setTimeout(() => { const f = document.getElementById("pvcode"); if (f) f.focus(); }, 50); }
+  catch (e) { S.pvc = { ...(S.pvc || {}), busy: false, error: e.message }; render(); }
+}
+async function pvVerify(uid){
+  const code = ((document.getElementById("pvcode") || {}).value || "").trim();
+  if (!/^\d{6}$/.test(code)) { S.pvc = { ...(S.pvc || {}), error: t("pv.sixDigits") }; render(); return; }
+  S.pvc = { ...(S.pvc || {}), busy: true, error: "" }; render();
+  try { await Net.request("POST", "/v1/user/verify", { code });
+    S.pvc = null; S.reviewData = await Backend.profile(uid); render();
+    toast(`<div class="tm">${esc(t("pv.done", { name: (S.reviewData && S.reviewData.solution && S.reviewData.solution.name) || "" }))}</div>`, "ok"); }
+  catch (e) { S.pvc = { ...(S.pvc || {}), busy: false, error: e.message }; render(); }
+}
+/** A Solution's own link: in the app's browser on a phone, a new tab elsewhere. */
+async function openUrl(u){
+  if (!/^https:\/\//.test(u)) return;
+  const B = NATIVE ? (window.Native || {}).Browser : null;
+  if (B && B.open) { try { await B.open({ url: u, presentationStyle: "popover", toolbarColor: "#000000" }); return; } catch {} }
+  window.open(u, "_blank", "noopener");
 }
 async function openReview(uid){
-  S.review = uid; S.reviewData = null; S.view = "solutions"; S.selectedSol = null; render();
+  S.review = uid; S.reviewData = null; S.pvc = null; S.view = "solutions"; S.selectedSol = null; render();
   try { S.reviewData = await Backend.profile(uid); }
   catch(e){ toast(`<div class="tm">${esc(t("t.profileFail",{msg:e.message}))}</div>`,"warn"); }
   render();
@@ -3619,6 +3677,9 @@ function wire(){
     const rev=el.closest("[data-review]"); if(rev){ openReview(rev.dataset.review); return; }
     if(el.closest("[data-back-review]")){ S.review=null; S.reviewData=null; S.selectedAgent=null; render(); return; }
     const con=el.closest("[data-connect]"); if(con){ connect(con.dataset.connect); return; }
+    const ou=el.closest("[data-openurl]"); if(ou){ openUrl(ou.dataset.openurl); return; }
+    const pvs=el.closest("[data-pvsend]"); if(pvs){ pvSend(pvs.dataset.pvsend); return; }
+    const pvv=el.closest("[data-pvverify]"); if(pvv){ pvVerify(pvv.dataset.pvverify); return; }
     const sol=el.closest("[data-sol]"); if(sol){ S.selectedSol=sol.dataset.sol; S.selectedAgent=null; render(); return; }
     if(el.closest("[data-back]")){ S.selectedSol=null; S.selectedAgent=null; render(); return; }
     if(el.closest("[data-back-agent]")){ S.selectedAgent=null; render(); return; }

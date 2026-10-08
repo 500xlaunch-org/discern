@@ -72,7 +72,8 @@ const evaluate = async (expr) => {
   return r.result?.result?.value;
 };
 await evaluate(`for (let i = 0; i < 100 && typeof Backend === "undefined"; i++) await new Promise((r) => setTimeout(r, 100));
-  await Backend.login("ada@example.com"); await Backend.refresh(); S.ready = true; render();`);
+  // demo data, whatever the page decided about the network on its own
+  S.mode = "demo"; Local.seed(); await Backend.login("ada@example.com"); await Backend.refresh(); S.ready = true; render();`);
 await sleep(600);
 
 // where a thumb lands on an element, and what is actually under that point
