@@ -782,3 +782,15 @@ body,.app{font-family:var(--sans);letter-spacing:-.005em}
 .pvnote{display:grid;gap:8px;padding:14px;border-radius:16px;border:1px solid var(--glass-line, rgba(255,255,255,.12));margin-bottom:12px;text-align:left}
 .pvnote p{margin:0;font-size:.9rem;color:var(--muted);line-height:1.45}
 .pvnote input{font-size:1.2rem;letter-spacing:.3em;text-align:center}
+/* a Solution's header opens the Solution itself */
+.sdhero.golink{cursor:pointer}
+.sdhero.golink:hover .sdname,.sdhero.golink:focus-visible .sdname{text-decoration:underline;text-underline-offset:4px}
+.sdhero.golink:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+/* your name, as Solutions call you */
+.namerow{display:grid;gap:6px;padding:10px 0;border-bottom:1px solid var(--line-2)}
+.namerow label{font-size:.86rem;color:var(--muted)}
+.namein{display:flex;gap:8px}
+.namein input{flex:1;min-width:0}
+.namerow small{font-size:.78rem;color:var(--muted)}
+a.bw{display:inline-flex;align-items:center;gap:4px;color:inherit;font-weight:600}
+a.bw svg{width:14px;height:14px}

@@ -438,8 +438,7 @@ const Local = (()=>{
   const VIGIL_LOGO = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJiIiB4MT0iMCIgeTE9IjAiIHgyPSI2NCIgeTI9IjY0IiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjMUQxQTMzIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjMEIwQTE2Ii8+PC9saW5lYXJHcmFkaWVudD48bGluZWFyR3JhZGllbnQgaWQ9Im0iIHgxPSIxOCIgeTE9IjE0IiB4Mj0iNDYiIHkyPSI1MCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0ZGRDQ4QSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGOEU1RSIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgcng9IjE2IiBmaWxsPSJ1cmwoI2IpIi8+PHBhdGggZD0iTTM2LjUgMTUuNWExNyAxNyAwIDEgMCAxMiAyOS41YTEzLjUgMTMuNSAwIDEgMS0xMi0yOS41eiIgZmlsbD0idXJsKCNtKSIvPjxjaXJjbGUgY3g9IjQ1IiBjeT0iMTkiIHI9IjIuMiIgZmlsbD0iI0ZGRDQ4QSIvPjxjaXJjbGUgY3g9IjUwLjUiIGN5PSIyOCIgcj0iMS4zIiBmaWxsPSIjRkZENDhBIiBvcGFjaXR5PSIuNyIvPjwvc3ZnPg==";
   const CATALOG = [
     {uid:"line",slug:"line",name:"Line",icon:"pulse",logo:LINE_LOGO,description:t("demo.lineDesc"),
-     publisher:"500xLaunch", homepage:"https://line.500xlaunch.com", source:"https://github.com/500xlaunch-org/line", license:"Apache-2.0",
-     built_with:[{name:"Horizon SDK for TypeScript and JavaScript",kind:"sdk",version:"1.1.0",latest:true}],
+     publisher:"500xLaunch", homepage:"https://line.500xlaunch.com", built_with:[{name:"Horizon SDK for TypeScript and JavaScript",kind:"sdk",version:"1.1.0",latest:true}],
      agents:[["line","Vigil",[["heartbeat.confirm",t("demo.abHeartbeat"),null,"always"],
        ["vault.keep",t("demo.abVaultKeep"),{identity:"SEVERE",financial:"SEVERE",data:"SEVERE"},"always"],
        ["kin.prepare",t("demo.abKinPrepare"),null,"always"],
@@ -1592,6 +1591,12 @@ function wireHold(){
     }
   });
   document.addEventListener("keyup", (e) => { if (e.key === " " || e.key === "Enter") holdCancel(); });
+  // a header that opens the Solution answers the keyboard like a link
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const h = e.target && e.target.closest && e.target.closest("header[data-openurl]");
+    if (h && e.target === h) { e.preventDefault(); openUrl(h.dataset.openurl); }
+  });
 }
 
 /** An action opened on its own, over everything else.
@@ -2877,6 +2882,8 @@ const asksOf = (ab) => ab.discernment === "always" || (ab.asks !== undefined ? a
 const kindWord = (k) => t(`ag.kind.${k === "tool" || k === "skill" ? k : "capability"}`);
 const KIND_ICON = { capability: "shield", tool: "code", skill: "pen" };
 const kindIcon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${window.Marks.GLYPH[KIND_ICON[k] || "shield"]}</svg>`;
+/** Where a Solution lives, for the person: its own link, when it is open to them. */
+const solUrl = (s) => { const u = s.url || s.homepage; return u && /^https:\/\//.test(u) && (!s.availability || s.access === "open" || s.access === "invited") ? u : ""; };
 const shortUrl = (u) => String(u || "").replace(/^https:\/\//, "").replace(/\/$/, "");
 
 /* ---- the Solutions screen: each one a title card, its agents on it ---- */
@@ -2909,7 +2916,7 @@ function soldetailHTML(s){
   const stat = (n, label, live) => `<div class="sdstat ${live ? "live" : ""}"><b>${n}</b><span>${esc(label)}</span></div>`;
   const chain = agents.some((a) => (a.hands_to || []).length);
   return `<button class="back" data-back>${I.chevron}<span>${esc(t("sol.back"))}</span></button>
-  <header class="sdhero">${window.Marks.art(s.uid || s.name, s.icon || s.slug, { cls: "sdart" })}
+  <header class="sdhero${solUrl(s) ? " golink" : ""}" ${solUrl(s) ? `data-openurl="${esc(solUrl(s))}" role="link" tabindex="0" title="${esc(t("sol.open", { name: s.name }))}"` : ""}>${window.Marks.art(s.uid || s.name, s.icon || s.slug, { cls: "sdart" })}
     <div class="sdtop">${solFace(s, 76)}
       <div class="sdid"><h1 class="sdname">${esc(s.name)}</h1>
         ${s.publisher ? `<div class="sdpub">${esc(t("sol.by", { name: s.publisher }))}</div>` : ""}</div>
@@ -2964,7 +2971,7 @@ function aboutRowsHTML(s){
   if (s.source) row(t("sol.source"), shortUrl(s.source).replace(/^github\.com\//, ""), s.source);
   if (s.license) row(t("sol.license"), s.license);
   for (const b of (s.built_with || [])) rows.push(`<div class="sdrow"><span>${esc(t("sol.builtWith"))}</span>
-    <b class="bw">${esc(b.name)}${b.version ? ` <em>${esc(b.version)}</em>` : ""}${b.latest ? `<i class="bwl">${esc(t("sol.latest"))}</i>` : ""}</b></div>`);
+    ${b.source && /^https:\/\//.test(b.source) ? `<a class="bw" href="${esc(b.source)}" target="_blank" rel="noopener">` : `<b class="bw">`}${esc(b.name)}${b.version ? ` <em>${esc(b.version)}</em>` : ""}${b.latest ? `<i class="bwl">${esc(t("sol.latest"))}</i>` : ""}${b.source ? `${I.chevron}</a>` : "</b>"}</div>`);
   if (s.connected_at) row(t("sol.connectedOn"), new Date(s.connected_at).toLocaleDateString(window.I18N.lang, { year: "numeric", month: "long", day: "numeric" }));
   return rows.join("") || `<div class="thin-empty">${esc(t("sol.aboutNone"))}</div>`;
 }
@@ -3058,7 +3065,7 @@ function reviewHTML(){
   const abs = s.agents.flatMap((a) => a.abilities || []), asks = abs.filter(asksOf).length;
   const stat = (n, label) => `<div class="sdstat"><b>${n}</b><span>${esc(label)}</span></div>`;
   return `<button class="back" data-back-review>${I.chevron}<span>${esc(t("sol.back"))}</span></button>
-  <header class="sdhero">${window.Marks.art(s.uid || s.name, s.icon || s.slug, { cls: "sdart" })}
+  <header class="sdhero${solUrl(s) ? " golink" : ""}" ${solUrl(s) ? `data-openurl="${esc(solUrl(s))}" role="link" tabindex="0" title="${esc(t("sol.open", { name: s.name }))}"` : ""}>${window.Marks.art(s.uid || s.name, s.icon || s.slug, { cls: "sdart" })}
     <div class="sdtop">${solFace(s, 76)}
       <div class="sdid"><h1 class="sdname">${esc(s.name)}</h1>
         ${s.publisher ? `<div class="sdpub">${esc(t("sol.by", { name: s.publisher }))}</div>` : ""}</div></div></header>
@@ -3110,6 +3117,16 @@ async function pvVerify(uid){
     S.pvc = null; S.reviewData = await Backend.profile(uid); render();
     toast(`<div class="tm">${esc(t("pv.done", { name: (S.reviewData && S.reviewData.solution && S.reviewData.solution.name) || "" }))}</div>`, "ok"); }
   catch (e) { S.pvc = { ...(S.pvc || {}), busy: false, error: e.message }; render(); }
+}
+/** The name a person goes by: theirs to set, and what Solutions call them. */
+async function saveName(){
+  const n = ((document.getElementById("myname") || {}).value || "").trim();
+  if (!n) { toast(`<div class="tm">${esc(t("set.nameEmpty"))}</div>`, "warn"); return; }
+  S.nameBusy = true; render();
+  try { const r = await Net.request("PATCH", "/v1/user/me", { name: n }); if (r && r.user) { S.user = { ...S.user, ...r.user }; savePrefs(); }
+    toast(`<div class="tm">${esc(t("set.nameSaved"))}</div>`, "ok"); }
+  catch (e) { toast(`<div class="tm">${esc(e.message)}</div>`, "warn"); }
+  finally { S.nameBusy = false; render(); }
 }
 /** A Solution's own link: in the app's browser on a phone, a new tab elsewhere. */
 async function openUrl(u){
@@ -3167,7 +3184,11 @@ function settingsHTML(){
   const p = S.push;
   return `<div class="scrhead"><h1>${esc(t("set.title"))}</h1></div>
   <section class="panel">
-    <div class="kv"><span>${esc(t("set.signedIn"))}</span><b>${esc((S.user&&S.user.name)||t("set.you"))}</b></div>
+    ${S.mode === "connected" ? `<div class="namerow"><label for="myname">${esc(t("set.name"))}</label>
+      <div class="namein"><input id="myname" autocomplete="name" maxlength="80" value="${esc((S.user && S.user.name) || "")}" placeholder="${esc(t("set.namePh"))}" ${S.nameBusy ? "disabled" : ""}/>
+      <button class="btn btn-ghost" data-savename ${S.nameBusy ? "disabled" : ""}>${S.nameBusy ? `<span class="tic spin">${I.sync}</span>` : ""}<span>${esc(t("set.nameSave"))}</span></button></div>
+      <small>${esc(t("set.nameSub"))}</small></div>`
+      : `<div class="kv"><span>${esc(t("set.signedIn"))}</span><b>${esc((S.user&&S.user.name)||t("set.you"))}</b></div>`}
     <div class="kv"><span>${esc(t("set.email"))}</span><b>${esc((S.user&&S.user.email)||"")}</b></div>
     <div class="kv"><span>${esc(t("set.connection"))}</span><b class="${S.mode==="connected"?'ok':'warn'}">${esc(conn)}</b></div>
   </section>
@@ -3703,6 +3724,7 @@ function wire(){
     if(el.closest("[data-back-review]")){ S.review=null; S.reviewData=null; S.selectedAgent=null; render(); return; }
     const con=el.closest("[data-connect]"); if(con){ connect(con.dataset.connect); return; }
     const ou=el.closest("[data-openurl]"); if(ou){ openUrl(ou.dataset.openurl); return; }
+    if(el.closest("[data-savename]")){ saveName(); return; }
     const pvs=el.closest("[data-pvsend]"); if(pvs){ pvSend(pvs.dataset.pvsend); return; }
     const pvv=el.closest("[data-pvverify]"); if(pvv){ pvVerify(pvv.dataset.pvverify); return; }
     const sol=el.closest("[data-sol]"); if(sol){ S.selectedSol=sol.dataset.sol; S.selectedAgent=null; render(); return; }
